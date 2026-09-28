@@ -4,6 +4,11 @@
   "description": "DeepSeek Harness 持久记忆插件：把用户与项目的长期记忆存在 $DSH_HOME/memory，并在每个新会话注入紧凑索引。 / Persistent user and project memory for DeepSeek Harness, stored under $DSH_HOME/memory and injected as a compact index.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DWJZ/dsh-memory.git"
+  },
+  "homepage": "https://github.com/DWJZ/dsh-memory#readme",
   "main": "src/index.js",
   "scripts": {
     "test": "node test/paths.spec.mjs && node test/config.spec.mjs && node test/schema.spec.mjs && node test/module.spec.mjs && node test/redact.spec.mjs && node test/lock.spec.mjs && node test/jsonstore.spec.mjs && node test/views.spec.mjs && node test/registry.spec.mjs && node test/actions.spec.mjs && node test/tombstones.spec.mjs && node test/search.spec.mjs && node test/index.spec.mjs && node test/concurrent.spec.mjs && node test/registry-concurrent.spec.mjs && node test/wiring.spec.mjs && node test/commands.spec.mjs",
@@ -19,6 +24,7 @@
     "src",
     "test",
     "cordis.patch.yml",
+    "CONTRACT.md",
     "README.md",
     "README.zh.md",
     "LICENSE"
