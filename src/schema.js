@@ -1,0 +1,202 @@
+/**
+ * Memory record vocabulary, identity, and validation.
+ *
+ * This module is pure: it builds and checks records but never touches the file
+ * system, so the schema rules are exercised without a store. Validation fails
+ * loud and names the offending field, because a record that does not satisfy
+ * these rules must never reach `memories.json`.
+ *
+ * @module dsh-memory/schema
+ */
+
+import { randomUUID } from 'node:crypto'
+
+/** Persistent scopes. A session is deliberately not one; it owns the trajectory. */
+export const SCOPES = Object.freeze(['user', 'project'])
+
+/** Categories a writer may choose. Phase 1 never infers one. */
+export const CATEGORIES = Object.freeze(['preference', 'feedback', 'decision', 'lesson', 'state', 'reference'])
+
+/** Record lifecycle states. `archived` is a status, never a second copy on disk. */
+export const STATUSES = Object.freeze(['active', 'superseded', 'archived'])
+
+/** Provenance kinds, strongest first is a ranking hint only, never an ordering rule. */
+export const EVIDENCE_KINDS = Object.freeze(['user', 'tool', 'agent'])
+
+/** Longest accepted `content`, counted in Unicode code points. */
+export const MAX_CONTENT_CHARS = 500
+
+/**
+ * Mint one Memory id.
+ * @returns a `mem_`-prefixed identifier.
+ */
+export function newMemoryId() {
+  return `mem_${randomUUID()}`
+}
+
+/**
+ * Mint one project id.
+ * @returns a `proj_`-prefixed identifier.
+ */
+export function newProjectId() {
+  return `proj_${randomUUID()}`
+}
+
+/**
+ * Normalize content for exact-duplicate comparison.
+ *
+ * Case is preserved on purpose: `Model-X` and `model-x` can be different
+ * identifiers, so folding case would drop a genuinely distinct Memory.
+ * @param text - the raw content.
+ * @returns trimmed, whitespace-collapsed, NFC-normalized text.
+ */
+export function normalizeContent(text) {
+  return String(text).normalize('NFC').replace(/\s+/gu, ' ').trim()
+}
+
+/**
+ * Count Unicode code points, so a limit never splits a surrogate pair.
+ * @param text - the text to measure.
+ * @returns the number of code points.
+ */
+export function charLength(text) {
+  return Array.from(text).length
+}
+
+/**
+ * Truncate to a code-point budget.
+ * @param text - the text to truncate.
+ * @param limit - maximum number of code points to keep.
+ * @returns the truncated text.
+ */
+export function truncateChars(text, limit) {
+  const points = Array.from(text)
+  return points.length <= limit ? text : points.slice(0, limit).join('')
+}
+
+/**
+ * Whether a value is an ISO-8601 UTC instant with millisecond precision.
+ * @param value - the value to test.
+ * @returns true when the value is a canonical timestamp this plugin writes.
+ */
+export function isTimestamp(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(value)
+}
+
+/**
+ * Validate one Memory record against the contract's schema rules.
+ *
+ * Rule 4 of the contract ("`superseded_by` must name an existing record") is a
+ * property of the whole store, so it is enforced by the store rather than here.
+ * @param record - the candidate record.
+ * @param options - validation inputs that are not part of the record.
+ * @param options.maxEvidencePerMemory - largest accepted evidence list.
+ * @throws {TypeError} when the record violates any schema rule.
+ */
+export function validateMemory(record, options) {
+  if (typeof record !== 'object' || record === null || Array.isArray(record)) {
+    throw new TypeError('dsh-memory: memory record must be an object')
+  }
+
+  requireNonEmptyString(record.id, 'id')
+  requireMember(record.scope, SCOPES, 'scope')
+  requireMember(record.category, CATEGORIES, 'category')
+  requireMember(record.status, STATUSES, 'status')
+
+  if (record.scope === 'project') requireNonEmptyString(record.project_id, 'project_id')
+  else if (record.project_id !== null) {
+    throw new TypeError(`dsh-memory: memory ${record.id}: project_id must be null for scope "user", got ${JSON.stringify(record.project_id)}`)
+  }
+
+  if (typeof record.content !== 'string' || record.content.trim() === '') {
+    throw new TypeError(`dsh-memory: memory ${record.id}: content must be a non-empty string`)
+  }
+  if (/[\n\r\u2028\u2029]/u.test(record.content)) {
+    throw new TypeError(`dsh-memory: memory ${record.id}: content must be a single line`)
+  }
+  if (charLength(record.content) > MAX_CONTENT_CHARS) {
+    throw new TypeError(`dsh-memory: memory ${record.id}: content must be at most ${String(MAX_CONTENT_CHARS)} characters`)
+  }
+
+  if (typeof record.confidence !== 'number' || !Number.isFinite(record.confidence)
+    || record.confidence < 0 || record.confidence > 1) {
+    throw new TypeError(`dsh-memory: memory ${record.id}: confidence must be a number in [0, 1], got ${JSON.stringify(record.confidence)}`)
+  }
+
+  if (record.status === 'superseded') requireNonEmptyString(record.superseded_by, 'superseded_by')
+  else if (record.superseded_by !== null) {
+    throw new TypeError(`dsh-memory: memory ${record.id}: superseded_by must be null unless status is "superseded"`)
+  }
+
+  requireTimestamp(record.created_at, record.id, 'created_at')
+  requireTimestamp(record.updated_at, record.id, 'updated_at')
+  if (record.updated_at < record.created_at) {
+    throw new TypeError(`dsh-memory: memory ${record.id}: updated_at must not precede created_at`)
+  }
+
+  if (!Array.isArray(record.evidence)) {
+    throw new TypeError(`dsh-memory: memory ${record.id}: evidence must be an array`)
+  }
+  if (record.evidence.length > options.maxEvidencePerMemory) {
+    throw new TypeError(`dsh-memory: memory ${record.id}: evidence must hold at most ${String(options.maxEvidencePerMemory)} entries`)
+  }
+  record.evidence.forEach((entry, index) => { validateEvidence(entry, record.id, index) })
+}
+
+/**
+ * Validate one provenance entry.
+ * @param entry - the candidate evidence entry.
+ * @param memoryId - owning Memory id, named in the failure.
+ * @param index - position in the evidence list, named in the failure.
+ * @throws {TypeError} when the entry violates any schema rule.
+ */
+function validateEvidence(entry, memoryId, index) {
+  const where = `memory ${memoryId}: evidence[${String(index)}]`
+  if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+    throw new TypeError(`dsh-memory: ${where} must be an object`)
+  }
+  requireMember(entry.kind, EVIDENCE_KINDS, `${where}.kind`)
+  requireNonEmptyString(entry.session_id, `${where}.session_id`)
+  if (typeof entry.quote !== 'string') throw new TypeError(`dsh-memory: ${where}.quote must be a string`)
+  if (!Array.isArray(entry.event_seqs) || entry.event_seqs.some(seq => !Number.isInteger(seq) || seq < 0)) {
+    throw new TypeError(`dsh-memory: ${where}.event_seqs must be an array of non-negative integers`)
+  }
+  if (!isTimestamp(entry.observed_at)) {
+    throw new TypeError(`dsh-memory: ${where}.observed_at must be an ISO-8601 UTC timestamp`)
+  }
+}
+
+/**
+ * Require one non-empty string field.
+ * @param value - the value to test.
+ * @param field - field name, named in the failure.
+ */
+function requireNonEmptyString(value, field) {
+  if (typeof value !== 'string' || value === '') {
+    throw new TypeError(`dsh-memory: ${field} must be a non-empty string, got ${JSON.stringify(value)}`)
+  }
+}
+
+/**
+ * Require one field to be a member of a closed vocabulary.
+ * @param value - the value to test.
+ * @param allowed - the accepted members.
+ * @param field - field name, named in the failure.
+ */
+function requireMember(value, allowed, field) {
+  if (!allowed.includes(value)) {
+    throw new TypeError(`dsh-memory: ${field} must be one of ${allowed.join(', ')}, got ${JSON.stringify(value)}`)
+  }
+}
+
+/**
+ * Require one ISO-8601 UTC timestamp field.
+ * @param value - the value to test.
+ * @param memoryId - owning Memory id, named in the failure.
+ * @param field - field name, named in the failure.
+ */
+function requireTimestamp(value, memoryId, field) {
+  if (!isTimestamp(value)) {
+    throw new TypeError(`dsh-memory: memory ${memoryId}: ${field} must be an ISO-8601 UTC timestamp, got ${JSON.stringify(value)}`)
+  }
+}

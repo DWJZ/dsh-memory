@@ -1,0 +1,45 @@
+{
+  "name": "dsh-memory",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness 持久记忆插件：把用户与项目的长期记忆存在 $DSH_HOME/memory，并在每个新会话注入紧凑索引。 / Persistent user and project memory for DeepSeek Harness, stored under $DSH_HOME/memory and injected as a compact index.",
+  "type": "module",
+  "license": "MIT",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node test/paths.spec.mjs && node test/config.spec.mjs && node test/schema.spec.mjs && node test/module.spec.mjs && node test/redact.spec.mjs && node test/lock.spec.mjs && node test/jsonstore.spec.mjs && node test/views.spec.mjs && node test/registry.spec.mjs && node test/actions.spec.mjs && node test/tombstones.spec.mjs && node test/search.spec.mjs && node test/index.spec.mjs && node test/concurrent.spec.mjs && node test/registry-concurrent.spec.mjs && node test/wiring.spec.mjs && node test/commands.spec.mjs",
+    "test:unit": "node test/paths.spec.mjs && node test/config.spec.mjs && node test/schema.spec.mjs && node test/module.spec.mjs && node test/redact.spec.mjs && node test/lock.spec.mjs && node test/jsonstore.spec.mjs && node test/views.spec.mjs && node test/registry.spec.mjs && node test/actions.spec.mjs && node test/tombstones.spec.mjs && node test/search.spec.mjs && node test/index.spec.mjs && node test/concurrent.spec.mjs && node test/registry-concurrent.spec.mjs && node test/wiring.spec.mjs && node test/commands.spec.mjs",
+    "test:integration": "node test/integration.spec.mjs",
+    "test:all": "node test/paths.spec.mjs && node test/config.spec.mjs && node test/schema.spec.mjs && node test/module.spec.mjs && node test/redact.spec.mjs && node test/lock.spec.mjs && node test/jsonstore.spec.mjs && node test/views.spec.mjs && node test/registry.spec.mjs && node test/actions.spec.mjs && node test/tombstones.spec.mjs && node test/search.spec.mjs && node test/index.spec.mjs && node test/concurrent.spec.mjs && node test/registry-concurrent.spec.mjs && node test/wiring.spec.mjs && node test/commands.spec.mjs && node test/integration.spec.mjs"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "test",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh-plugin",
+    "memory"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    }
+  }
+}

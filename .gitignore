@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+*.log
+
+# Local working documents: the build plan and the superseded contract draft.
+# CONTRACT.md is the published authority; these stay on the maintainer's machine.
+PLAN.md
+CONTRACT.v0-draft.md
