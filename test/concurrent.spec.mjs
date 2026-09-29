@@ -38,7 +38,7 @@ const PER_WORKER = 12
  */
 function runWorker(prefix) {
   return new Promise((resolveRun, rejectRun) => {
-    const child = spawn(process.execPath, [WORKER, STORE, LOCK, prefix, String(PER_WORKER), '1'], {
+    const child = spawn(process.execPath, ['--import', 'tsx/esm', WORKER, STORE, LOCK, prefix, String(PER_WORKER), '1'], {
       stdio: ['ignore', 'ignore', 'pipe'],
     })
     let stderr = ''
@@ -88,7 +88,7 @@ const UNSAFE_WORKER = join(PLUGIN, 'test/fixtures/mutate-worker-unsafe.mjs')
  */
 function runUnsafeWorker(prefix) {
   return new Promise((resolveRun, rejectRun) => {
-    const child = spawn(process.execPath, [UNSAFE_WORKER, UNSAFE_STORE, prefix, '60'], {
+    const child = spawn(process.execPath, ['--import', 'tsx/esm', UNSAFE_WORKER, UNSAFE_STORE, prefix, '60'], {
       stdio: ['ignore', 'ignore', 'pipe'],
     })
     let stderr = ''

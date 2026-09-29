@@ -207,7 +207,7 @@ process.exit(failures === 0 ? 0 : 1)
  */
 function runReclaimer(lockPath, staleLockMs, startDelayMs) {
   return new Promise(resolveRun => {
-    const child = spawn(process.execPath, [
+    const child = spawn(process.execPath, ['--import', 'tsx/esm', 
       join(PLUGIN, 'test/fixtures/reclaim-worker.mjs'),
       lockPath,
       String(staleLockMs),

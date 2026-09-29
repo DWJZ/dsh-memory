@@ -110,7 +110,7 @@ const PER_WORKER = 20
  */
 function runWorker(prefix) {
   return new Promise((resolveRun, rejectRun) => {
-    const child = spawn(process.execPath, [WORKER, CONCURRENT.path, CONCURRENT.lockPath, prefix, String(PER_WORKER)], {
+    const child = spawn(process.execPath, ['--import', 'tsx/esm', WORKER, CONCURRENT.path, CONCURRENT.lockPath, prefix, String(PER_WORKER)], {
       stdio: ['ignore', 'ignore', 'pipe'],
     })
     let stderr = ''

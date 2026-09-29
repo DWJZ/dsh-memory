@@ -41,7 +41,7 @@ mkdirSync(WORKSPACE, { recursive: true })
  */
 function runWorker(script, args) {
   return new Promise((resolveRun, rejectRun) => {
-    const child = spawn(process.execPath, [join(PLUGIN, 'test/fixtures', script), ...args], {
+    const child = spawn(process.execPath, ['--import', 'tsx/esm', join(PLUGIN, 'test/fixtures', script), ...args], {
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     let stdout = ''

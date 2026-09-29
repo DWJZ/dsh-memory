@@ -116,7 +116,7 @@ async function runSession(options) {
     ...options.drive !== true ? {} : { DSH_MEMORY_DRIVER_LOG: `${log}.driver` },
   }
   const outcome = await new Promise((settle) => {
-    const child = spawn(process.execPath, [
+    const child = spawn(process.execPath, ['--import', 'tsx/esm', 
       '--import', 'tsx/esm',
       join(REPO, 'apps/cli/src/bin.ts'),
       '--profile', 'headless',
