@@ -221,6 +221,13 @@ export function createConsolidation(options) {
 
     const { afterSeq, gap } = await reconcile(sessionId)
     if (afterSeq === undefined) return { status: 'nothing-observed' }
+    if (gap !== undefined) {
+      // Recorded as soon as it is durable, not with this run's outcome: a window
+      // that cannot be read, or a model that fails, would otherwise leave a gap in
+      // the state that no audit ever mentions, and the retry no longer reports it
+      // because the mark has already moved past.
+      recordAudit(session, { status: 'gap', ...gap, trigger: runOptions.trigger ?? 'direct' })
+    }
     const window = batchWindow(collector.eventsFor(sessionId), {
       afterSeq,
       maxEvents: config.maxRelevantEventsPerBatch,
@@ -236,7 +243,6 @@ export function createConsolidation(options) {
       relevant_events: window.counts.relevant,
       ignored_events: window.counts.ignored + window.counts.internal + window.counts.skipped,
       trigger: runOptions.trigger ?? 'direct',
-      ...gap === undefined ? {} : { gap },
     }
 
     /**
@@ -318,12 +324,16 @@ export function createConsolidation(options) {
 
     const rejectedCount = reviewed.rejected.length
     const rejected = countRejections(reviewed.rejected)
+    // `skipped` means duplicate or conflict, which is what commit reports. An
+    // observation run writes nothing, so calling its proposals "skipped" would
+    // report the same operations as both proposed and skipped.
     const operations = {
       add: 0,
       update: 0,
       supersede: 0,
       noop: reviewed.noopReasons.length,
-      skipped: reviewed.accepted.length,
+      skipped: 0,
+      failed: 0,
     }
 
     if (config.autoCommit === false) {
@@ -331,9 +341,10 @@ export function createConsolidation(options) {
       // Advancing here would consume the window permanently and quietly: the
       // same events would never be offered again, and re-enabling automatic
       // writes would not recover them.
-      recordAudit(session, { ...auditBase, status: 'observed', operations, rejected: rejectedCount, ...rejected })
+      const observed = { ...operations, proposed: reviewed.accepted.length }
+      recordAudit(session, { ...auditBase, status: 'observed', operations: observed, rejected: rejectedCount, ...rejected })
       logger?.info?.(`dsh-memory: consolidation of ${sessionId} observed ${String(auditBase.relevant_events)} event(s) without committing`)
-      return { ...auditBase, status: 'observed', operations, rejected: rejectedCount, ...rejected }
+      return { ...auditBase, status: 'observed', operations: observed, rejected: rejectedCount, ...rejected }
     }
 
     const outcome = await commitOperations(options.actionOptions, reviewed.accepted)
@@ -342,10 +353,18 @@ export function createConsolidation(options) {
       // Something a review accepted could not be written. The mark stays put, so
       // the window is retried and the plan is formed again against current state.
       logger?.warn?.(`dsh-memory: consolidation left ${String(outcome.failures.length)} operation(s) unwritten for ${sessionId}`)
+      // Everything a plan contained is accounted for: written + duplicate-or-
+      // conflict + failed + no-op adds up to what the review accepted plus what
+      // it proposed nothing for.
       recordAudit(session, {
         ...auditBase,
         status: 'partial',
-        operations: { ...operations, ...outcome.committed },
+        operations: {
+          ...operations,
+          ...outcome.committed,
+          skipped: outcome.skipped.length,
+          failed: outcome.failures.length,
+        },
         rejected: rejectedCount,
         ...rejected,
       })
@@ -357,7 +376,7 @@ export function createConsolidation(options) {
       state: advanceHwm(current, sessionId, window.toSeq, new Date(now()).toISOString()),
     }))
     collector.dropConsumed(sessionId, window.toSeq)
-    const written = { ...operations, ...outcome.committed }
+    const written = { ...operations, ...outcome.committed, skipped: outcome.skipped.length }
     recordAudit(session, { ...auditBase, status: 'success', operations: written, rejected: rejectedCount, ...rejected })
     const wrote = written.add + written.update + written.supersede
     logger?.info?.(`dsh-memory: consolidation of ${sessionId} consumed ${String(auditBase.relevant_events)} event(s) and wrote ${String(wrote)}`)
@@ -502,6 +521,8 @@ export function describeOutcome(outcome) {
     }
     case 'partial':
       return `Consolidated seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)} but ${String(outcome.failures)} operation(s) could not be written; the window will be retried.`
+    case 'observed':
+      return `Observed seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)} without writing: ${String(outcome.operations.proposed)} proposal(s), ${String(outcome.operations.noop)} noop, ${String(outcome.rejected)} dropped. Automatic commit is off, so the progress mark stays before this window.`
     case 'no-human-turn':
       return `Nothing to learn from seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)}: this window holds no human turn. The window is consumed.`
     case 'nothing-pending': return 'Nothing new to consolidate.'

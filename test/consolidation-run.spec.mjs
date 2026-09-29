@@ -162,11 +162,14 @@ console.log('a successful run advances the mark')
   check('the Memory was written', stored.length === 1 && stored[0].content === 'The project uses pnpm.')
   check('the provenance was built by the plugin', stored[0].evidence[0].quote.includes('这个项目以后用 pnpm'))
   check('the cited seqs were stored', stored[0].evidence[0].event_seqs.join(',') === '1,3')
-  check('the audit was recorded', harnessed.audit.length === 1 && harnessed.audit[0].type === AUDIT_EVENT_TYPE)
-  check('the audit is marked ignorable', harnessed.audit[0].ignorable === true)
+  // The fixture starts at seq 1, so seq 0 is unobserved and is audited as a gap.
+  const runAudits = harnessed.audit.filter(entry => entry.data?.status !== 'gap')
+  check('the run audit was recorded', runAudits.length === 1 && runAudits[0].type === AUDIT_EVENT_TYPE)
+  const runAudit = harnessed.audit.filter(entry => entry.data?.status !== 'gap').at(-1)
+  check('the audit is marked ignorable', runAudit.ignorable === true)
   check('the audit carries counts, not content',
-    harnessed.audit[0].data.operations.add === 1 && !JSON.stringify(harnessed.audit[0].data).includes('pnpm'))
-  check('the audit records the window', harnessed.audit[0].data.from_seq === 1 && harnessed.audit[0].data.to_seq === 3)
+    runAudit.data.operations.add === 1 && !JSON.stringify(runAudit.data).includes('pnpm'))
+  check('the audit records the window', runAudit.data.from_seq === 1 && runAudit.data.to_seq === 3)
   check('the description names the counts', describeOutcome(outcome).includes('1 added'))
 }
 
@@ -287,6 +290,23 @@ console.log('an unobserved range is recorded as a gap')
   check('the gap is announced', harnessed.warnings.length >= 0 && progress.gaps[0].at.length > 0)
 }
 
+console.log('a gap is audited even when the run afterwards fails')
+{
+  const harnessed = harness({ sessionId: 'session_gap_fail', modelAnswer: 'not json at all' })
+  observe(harnessed, [human(5, '这个项目用 pnpm')])
+  await harnessed.consolidation.consolidate(harnessed.agent).catch(() => undefined)
+  const gapAudit = harnessed.audit.find(entry => entry.data?.status === 'gap')
+  check('the gap reached an audit although the run failed afterwards',
+    gapAudit?.data?.from_seq === 0 && gapAudit?.data?.to_seq === 4, JSON.stringify(harnessed.audit.map(entry => entry.data)))
+  // The retry no longer sees a gap, so only the dedicated audit can report it.
+  const retry = harness({ sessionId: 'session_gap_fail', modelAnswer: addProjectFact([5]) })
+  observe(retry, [human(5, '这个项目用 pnpm')])
+  const outcome = await retry.consolidation.consolidate(retry.agent)
+  check('the retry succeeds', outcome.status === 'success', JSON.stringify(outcome))
+  check('and its audit carries no gap, because reconcile no longer reports one',
+    retry.audit.every(entry => entry.data?.status !== 'gap'), JSON.stringify(retry.audit.map(entry => entry.data)))
+}
+
 console.log('a buffer that evicted events records the gap')
 {
   // The buffer keeps only the newest few events, so the older ones were never
@@ -307,9 +327,10 @@ console.log('a buffer that evicted events records the gap')
   check('the gap covers exactly the evicted events', progress.gaps[0].from_seq === 0 && progress.gaps[0].to_seq === 6)
   check('the mark is the last consumed event, not the gap end', progress.last_processed_seq === 9)
   check('the remaining window started after the gap', outcome.from_seq === 7)
-  check('the audit carries the gap it recorded',
-    harnessed.audit.at(-1)?.data?.gap?.from_seq === 0 && harnessed.audit.at(-1)?.data?.gap?.to_seq === 6,
-    JSON.stringify(harnessed.audit.at(-1)?.data?.gap))
+  check('the gap is audited on its own, as soon as it is durable',
+    harnessed.audit.some(entry => entry.data?.status === 'gap'
+      && entry.data.from_seq === 0 && entry.data.to_seq === 6),
+    JSON.stringify(harnessed.audit.map(entry => entry.data)))
 }
 
 console.log('scope decides where a fact lands')
@@ -495,13 +516,36 @@ console.log('a run that did nothing writes no audit')
   check('an agent that cannot grant the phase refuses rather than running beside the turn', refused === true)
 }
 
+console.log('operation counts mean one thing each')
+{
+  // A duplicate add is skipped by commit, and that is what skipped must report.
+  const countsPlan = '{"operations":[{"action":"add","scope":"project","category":"state","content":"A fact for the counts test.","confidence":0.9,"evidence_event_seqs":[0]}]}'
+  const harnessed = harness({ sessionId: 'session_counts', modelAnswer: countsPlan })
+  observe(harnessed, [human(0, '这个项目用 pnpm')])
+  const first = await harnessed.consolidation.consolidate(harnessed.agent)
+  check('a first add reports one write and no skip',
+    first.operations.add === 1 && first.operations.skipped === 0, JSON.stringify(first.operations))
+  // A second window in the same project: the first run consumed seq 0, so the
+  // duplicate proposal has to arrive on events the mark has not passed.
+  const duplicate = harness({
+    sessionId: 'session_counts',
+    modelAnswer: countsPlan.replace('"evidence_event_seqs":[0]', '"evidence_event_seqs":[10]'),
+  })
+  observe(duplicate, [human(10, '这个项目用 pnpm')])
+  const again = await duplicate.consolidation.consolidate(duplicate.agent)
+  check('a duplicate is reported as skipped, not as written',
+    again.operations.add === 0 && again.operations.skipped === 1, JSON.stringify(again.operations))
+}
+
 console.log('observation mode leaves the window alone')
 {
   const harnessed = harness({ sessionId: 'session_observe', modelAnswer: addProjectFact([1]), autoCommit: false })
   observe(harnessed, [human(1, '这个项目以后用 pnpm'), assistant(2, '好的'), toolResult(3, 'pnpm@10')])
   const observed = await harnessed.consolidation.consolidate(harnessed.agent)
   check('the run reports that it only observed', observed.status === 'observed', JSON.stringify(observed))
-  check('it says how much it saw', observed.operations.add === 0 && observed.operations.skipped === 1)
+  check('it says how much it saw',
+    observed.operations.add === 0 && observed.operations.proposed === 1 && observed.operations.skipped === 0,
+    JSON.stringify(observed.operations))
   check('nothing was written', !projectStoreHas('该项目使用 pnpm'))
   // The fixture starts at seq 1, so seq 0 is a real gap and moves the mark to 0.
   // What matters is that nothing inside the window was consumed.

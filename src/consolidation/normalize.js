@@ -284,10 +284,14 @@ function capEntry(entry, maxBytes) {
     [field]: kept >= points.length ? text : `${points.slice(0, kept).join('')}${TRUNCATION_MARKER}`,
   })
   if (Buffer.byteLength(JSON.stringify({ ...entry, [field]: '' }), 'utf8') >= maxBytes) {
-    // The budget cannot hold this entry with any text. A truncated fragment
-    // would not fit either, so the entry keeps only what it says about itself.
+    // The budget cannot hold this entry with any text. A truncated fragment would
+    // not fit either, so the entry keeps only what it says about itself — and if
+    // even that does not fit, a placeholder that always does. A field this
+    // function cannot shrink (a tool name, say) must not become an entry that
+    // silently exceeds the ceiling it was given.
     const empty = build(0)
-    return Buffer.byteLength(JSON.stringify(empty), 'utf8') <= maxBytes ? empty : entry
+    if (Buffer.byteLength(JSON.stringify(empty), 'utf8') <= maxBytes) return empty
+    return { seq: entry.seq, type: 'truncated', truncated: true }
   }
   // The kept length is measured by serializing the candidate, not by counting
   // bytes of the field: JSON escapes what it writes, so the two differ.
@@ -301,31 +305,7 @@ function capEntry(entry, maxBytes) {
   return build(low)
 }
 
-/**
- * Shorten one string to a UTF-8 byte budget.
- *
- * Slicing by `String.length` would count UTF-16 code units, so a Chinese entry
- * capped at N "characters" would arrive as roughly 3N bytes and the batch budget
- * would not hold. Counting is done in code points as well, so a cut never splits
- * a surrogate pair.
- * @param text - the text to shorten.
- * @param maxBytes - the largest accepted UTF-8 size.
- * @returns the text, marked when it had to be shortened.
- */
-function truncateToBytes(text, maxBytes) {
-  if (Buffer.byteLength(text, 'utf8') <= maxBytes) return text
-  const marker = TRUNCATION_MARKER
-  const room = Math.max(0, maxBytes - Buffer.byteLength(marker, 'utf8'))
-  let used = 0
-  let kept = ''
-  for (const character of text) {
-    const size = Buffer.byteLength(character, 'utf8')
-    if (used + size > room) break
-    used += size
-    kept += character
-  }
-  return `${kept}${marker}`
-}
+
 
 /**
  * A zeroed tally of what a window contained.

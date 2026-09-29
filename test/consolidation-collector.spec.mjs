@@ -166,6 +166,25 @@ console.log('the ceiling covers tool arguments and budgets too small to hold an 
   }
 }
 
+console.log('the ceiling holds for what the model actually reads')
+{
+  // The request joins entries with newlines, so the separators count too.
+  const many = Array.from({ length: 6 }, (_, index) => human(900 + index, '中'.repeat(30)))
+  const window = normalize.batchWindow(many, { afterSeq: 899, maxBytes: 400 })
+  const rendered = window.entries.map(entry => JSON.stringify(entry)).join('\n')
+  check('the rendered trajectory is within the budget',
+    Buffer.byteLength(rendered, 'utf8') <= 400, String(Buffer.byteLength(rendered, 'utf8')))
+
+  // A field this code cannot shrink must not become an oversized entry.
+  const longTool = { seq: 950, type: 'tool/call', data: { name: 'x'.repeat(500), arguments: 'y'.repeat(5000) } }
+  const pinned = normalize.batchWindow([longTool], { afterSeq: 949, maxBytes: 128 })
+  check('an unshrinkable field cannot push the entry over the ceiling',
+    Buffer.byteLength(JSON.stringify(pinned.entries[0]), 'utf8') <= 128,
+    String(Buffer.byteLength(JSON.stringify(pinned.entries[0]), 'utf8')))
+  check('and the placeholder carries no original text',
+    !JSON.stringify(pinned.entries[0]).includes('yyy'))
+}
+
 console.log('collector')
 const collector = createCollector()
 const session = { id: 'session_a' }
