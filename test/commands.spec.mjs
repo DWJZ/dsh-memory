@@ -57,7 +57,7 @@ async function start() {
   const ctx = createStubContext()
   plugin.apply(ctx, { dshHome: ROOT, memoryDir: MEMORY })
   if (ctx.registrations.injections.length === 0) throw new Error('the runtime did not mount')
-  const agent = { session: { header: { id: 'session-1', cwd: PROJECT } } }
+  const agent = { session: { id: 'session-1', header: { id: 'session-1', cwd: PROJECT } } }
   ctx.emit('agent/created', { agent })
   await new Promise(resolveTick => { setTimeout(resolveTick, 30) })
   return { ctx, agent }
@@ -91,6 +91,19 @@ check('usage names the memory root', textOf(usage).includes(MEMORY))
 const unknown = await run(ctx, 'nonsense', agent)
 check('an unknown subcommand is an error', unknown.kind === 'error')
 check('the error repeats the usage', textOf(unknown).includes('/memory inspect'))
+
+console.log('consolidate')
+// The manual trigger runs the same pipeline the debounce runs. Nothing has been
+// observed for this Session, so it reports that without reaching a model.
+check('usage names the consolidation command', textOf(usage).includes('/memory consolidate'))
+const consolidateNow = await run(ctx, 'consolidate', agent)
+check('consolidate succeeds', consolidateNow.kind === 'success', textOf(consolidateNow))
+check('it reports that nothing was observed',
+  textOf(consolidateNow).includes('no events this process has observed'), textOf(consolidateNow))
+const dryConsolidate = await run(ctx, 'consolidate --dry-run', agent)
+check('--dry-run is accepted', dryConsolidate.kind === 'success')
+check('a dry run over nothing is still a no-op report',
+  textOf(dryConsolidate).includes('no events this process has observed'))
 
 console.log('list')
 const listed = await run(ctx, 'list', agent)
@@ -296,7 +309,7 @@ const plain = join(ROOT, 'plain-workspace')
 mkdirSync(plain, { recursive: true })
 const fresh = createStubContext()
 plugin.apply(fresh, { dshHome: ROOT, memoryDir: MEMORY })
-const plainAgent = { session: { header: { id: 'session-plain', cwd: plain } } }
+const plainAgent = { session: { id: 'session-plain', header: { id: 'session-plain', cwd: plain } } }
 await fresh.emitAsync('agent/created', { agent: plainAgent })
 const beforeBind = await run(fresh, 'clear --project --yes', plainAgent)
 check('a directory with no marker has no project scope yet', beforeBind.kind === 'error')

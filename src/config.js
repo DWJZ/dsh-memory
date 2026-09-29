@@ -27,6 +27,15 @@ export const DEFAULTS = Object.freeze({
   maxEvidencePerMemory: 8,
   exportInlineMaxBytes: 24000,
   evidenceQuoteMaxChars: 200,
+  consolidation: Object.freeze({
+    enabled: true,
+    autoCommit: true,
+    debounceMs: 10000,
+    minConfidence: 0.8,
+    maxRelevantEventsPerBatch: 200,
+    maxTrajectoryBytesPerBatch: 65536,
+    maxOutputTokens: 2048,
+  }),
 })
 
 /** Tolerance for the floating-point index budget split sum. */
@@ -54,6 +63,38 @@ export function resolveConfig(config, env = process.env) {
     maxEvidencePerMemory: integerSetting(raw.maxEvidencePerMemory, DEFAULTS.maxEvidencePerMemory, 'maxEvidencePerMemory', 1),
     exportInlineMaxBytes: integerSetting(raw.exportInlineMaxBytes, DEFAULTS.exportInlineMaxBytes, 'exportInlineMaxBytes', 1),
     evidenceQuoteMaxChars: integerSetting(raw.evidenceQuoteMaxChars, DEFAULTS.evidenceQuoteMaxChars, 'evidenceQuoteMaxChars', 0),
+    consolidation: consolidationSetting(raw.consolidation),
+  }
+}
+
+/**
+ * Read the automatic-consolidation settings.
+ *
+ * Nested rather than flat because they answer one question together, and because
+ * a deployment that turns consolidation off should not have to restate the six
+ * numbers it no longer uses.
+ * @param value - raw value from cordis.yml.
+ * @returns the validated settings.
+ * @throws {TypeError} when a field is present and unusable.
+ */
+function consolidationSetting(value) {
+  const fallback = DEFAULTS.consolidation
+  if (value === undefined) return { ...fallback }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new TypeError(`dsh-memory: config consolidation must be an object, got ${JSON.stringify(value)}`)
+  }
+  const minConfidence = numberSetting(value.minConfidence, fallback.minConfidence, 'consolidation.minConfidence', 0)
+  if (minConfidence > 1) {
+    throw new TypeError(`dsh-memory: config consolidation.minConfidence must be at most 1, got ${JSON.stringify(value.minConfidence)}`)
+  }
+  return {
+    enabled: booleanSetting(value.enabled, fallback.enabled, 'consolidation.enabled'),
+    autoCommit: booleanSetting(value.autoCommit, fallback.autoCommit, 'consolidation.autoCommit'),
+    debounceMs: integerSetting(value.debounceMs, fallback.debounceMs, 'consolidation.debounceMs', 0),
+    minConfidence,
+    maxRelevantEventsPerBatch: integerSetting(value.maxRelevantEventsPerBatch, fallback.maxRelevantEventsPerBatch, 'consolidation.maxRelevantEventsPerBatch', 1),
+    maxTrajectoryBytesPerBatch: integerSetting(value.maxTrajectoryBytesPerBatch, fallback.maxTrajectoryBytesPerBatch, 'consolidation.maxTrajectoryBytesPerBatch', 1),
+    maxOutputTokens: integerSetting(value.maxOutputTokens, fallback.maxOutputTokens, 'consolidation.maxOutputTokens', 1),
   }
 }
 

@@ -23,7 +23,6 @@
  */
 
 import { readStore } from '../jsonstore.js'
-import { normalizeContent } from '../schema.js'
 import { createTrigger } from './trigger.js'
 import { batchWindow } from './normalize.js'
 import { buildRequest } from './policy.js'
@@ -292,37 +291,38 @@ export function createConsolidation(options) {
 }
 
 /**
- * Render one run's outcome for a command answer.
+ * Render one run's outcome for a person.
  * @param outcome - the outcome from {@link createConsolidation}.
  * @returns the text to show.
  */
 export function describeOutcome(outcome) {
   if (outcome.status === 'dry-run') {
     const lines = [
-      `Dry run: seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)}, ${String(outcome.relevant_events)} relevant event(s).`,
+      `Dry run over seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)} (${String(outcome.relevant_events)} relevant, ${String(outcome.ignored_events)} ignored).`,
       `Proposed operations: ${String(outcome.accepted.length)}`,
     ]
     for (const operation of outcome.accepted) {
-      lines.push(`- ${operation.action} [${operation.scope}/${operation.category}] ${normalizeContent(operation.content)} (confidence ${String(operation.confidence)}; evidence ${operation.evidence_event_seqs.join(',')})`)
+      const target = operation.target_id === undefined ? '' : ` -> ${operation.target_id}`
+      lines.push(`- ${operation.action} [${operation.scope}/${operation.category}] ${operation.content}${target}`)
+      lines.push(`  confidence ${String(operation.confidence)}; evidence ${operation.evidence_event_seqs.join(',')}; quote: ${operation.quote}`)
     }
-    for (const rejected of outcome.rejected) lines.push(`- dropped: ${rejected.reason}`)
+    for (const rejected of outcome.rejected) lines.push(`- dropped (${String(rejected.index)}): ${rejected.reason}`)
     for (const reason of outcome.noopReasons) lines.push(`- noop: ${reason}`)
+    lines.push('Nothing was written and the progress mark is unchanged.')
     return lines.join('\n')
   }
   switch (outcome.status) {
     case 'success': {
-      const operations = outcome.operations
-      return `Consolidated seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)}: ${String(operations.add)} added, ${String(operations.update)} updated, ${String(operations.supersede)} superseded, ${String(operations.noop)} noop.`
+      const { add, update, supersede, noop } = outcome.operations
+      return `Consolidated seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)}: ${String(add)} added, ${String(update)} updated, ${String(supersede)} superseded, ${String(noop)} noop${outcome.rejected === 0 ? '' : `, ${String(outcome.rejected)} dropped`}.`
     }
     case 'partial':
-      return `Consolidated seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)} with ${String(outcome.failures)} operation(s) unwritten; the window will be retried.`
+      return `Consolidated seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)} but ${String(outcome.failures)} operation(s) could not be written; the window will be retried.`
     case 'no-human-turn':
-      return `Nothing to learn from seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)}: no human turn.`
-    case 'nothing-pending':
-      return 'Nothing new to consolidate.'
-    case 'nothing-observed':
-      return 'This Session has produced no events this process has seen.'
-    default:
-      return `Consolidation did not run: ${String(outcome.status)}`
+      return `Nothing to learn from seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)}: this window holds no human turn. The window is consumed.`
+    case 'nothing-pending': return 'Nothing new to consolidate.'
+    case 'nothing-observed': return 'This Session has produced no events this process has observed.'
+    case 'no-session': return 'dsh-memory: this invocation has no Session to consolidate.'
+    default: return `Consolidation did not run: ${String(outcome.status)}`
   }
 }

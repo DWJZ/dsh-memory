@@ -18,6 +18,7 @@ import { bindProject, listProjects, relinkProject } from './registry.js'
 import { searchRecords } from './retrieval.js'
 import { archiveMemory, clearScope, forgetMemory } from './actions.js'
 import { CATEGORIES, STATUSES } from './schema.js'
+import { describeOutcome as describeConsolidation } from './consolidation/index.js'
 import { isAbsolute, resolve } from 'node:path'
 
 /** Largest number of rows `list` prints before it says how many remain. */
@@ -33,7 +34,7 @@ export function registerMemoryCommands(ctx, deps) {
   return ctx.commands.register({
     name: 'memory',
     description: 'Inspect and control persistent Memory',
-    input: { hint: 'list | search | inspect | archive | forget | clear | export | enable | disable | project' },
+    input: { hint: 'list | search | inspect | archive | forget | clear | export | consolidate | enable | disable | project' },
     handler: invocation => run(deps, invocation),
   })
 }
@@ -58,6 +59,7 @@ async function run(deps, invocation) {
       case 'forget': return await forgetCommand(deps, invocation, rest)
       case 'clear': return await clearCommand(deps, invocation, flags)
       case 'export': return await exportCommand(deps, invocation, flags)
+      case 'consolidate': return await consolidateCommand(deps, invocation, flags)
       case 'enable': return enableCommand(deps, true)
       case 'disable': return enableCommand(deps, false)
       case 'project': return await projectCommand(deps, invocation, rest)
@@ -172,6 +174,31 @@ async function forgetCommand(deps, invocation, rest) {
     : `${describeOutcome('forgotten', outcome)}\n${gone}${outcome.tombstoneWritten === true
       ? ' A tombstone without content remains.'
       : ' The audit tombstone could not be written; the deletion itself succeeded.'}`)
+}
+
+/**
+ * Run automatic consolidation now, instead of waiting for an idle debounce.
+ *
+ * The manual trigger exists for debugging and for evaluation: it runs the same
+ * pipeline the debounce runs, so what it reports is what an automatic run would
+ * have done. `--dry-run` stops before the commit and before the progress mark,
+ * so the same window can be inspected repeatedly.
+ * @param deps - what the command controls.
+ * @param invocation - the command invocation.
+ * @param flags - parsed flags.
+ * @returns the outcome, or a refusal when the switch is off.
+ */
+async function consolidateCommand(deps, invocation, flags) {
+  if (deps.isEnabled() === false) return error('dsh-memory is disabled; run /memory enable first')
+  if (deps.consolidationEnabled?.() === false) {
+    return error('dsh-memory: automatic consolidation is turned off in this profile (consolidation.enabled)')
+  }
+  try {
+    const outcome = await deps.consolidate(invocation.agent, { dryRun: flags.has('dry-run') === true })
+    return ok(describeConsolidation(outcome))
+  } catch (failure) {
+    return error(`dsh-memory: consolidation failed: ${String(failure?.message ?? failure)}`)
+  }
 }
 
 /**
@@ -299,6 +326,7 @@ function usageText(deps) {
     '/memory forget <id>',
     '/memory clear --user|--project --yes',
     '/memory export [--user|--project] [--format md|json]',
+    '/memory consolidate [--dry-run]',
     '/memory enable | /memory disable',
     '/memory project bind <path> | relink <old> <new> | show',
   ].join('\n')

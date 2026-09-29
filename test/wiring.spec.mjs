@@ -38,7 +38,7 @@ const CONFIG = { dshHome: ROOT, memoryDir: MEMORY, enabled: true }
 
 /** One agent stub bound to a session and working directory. */
 const agentStub = (sessionId = 'session-1', cwd = PROJECT_DIR) => ({
-  session: { header: { id: sessionId, cwd } },
+  session: { id: sessionId, header: { id: sessionId, cwd } },
 })
 
 /** One human user message as the event feed would carry it. */
@@ -336,7 +336,7 @@ const lateDir = join(ROOT, 'late-project')
 mkdirSync(join(lateDir, '.git'), { recursive: true })
 const lateCtx = createStubContext()
 plugin.apply(lateCtx, { dshHome: ROOT, memoryDir: MEMORY })
-const lateAgent = { session: { header: { id: 'session-late', cwd: lateDir } } }
+const lateAgent = { session: { id: 'session-late', header: { id: 'session-late', cwd: lateDir } } }
 await lateCtx.emitAsync('agent/created', { agent: lateAgent })
 const lateCommand = await lateCtx.registrations.commands[0].handler({ rawInput: 'clear --project --yes', agent: lateAgent })
 check('the session already has a project when creation resolves', lateCommand.kind === 'success')

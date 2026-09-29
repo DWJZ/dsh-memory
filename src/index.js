@@ -21,7 +21,7 @@
  */
 
 import { resolveConfig } from './config.js'
-import { projectLayout, registryLayout, tombstoneLayout, userLayout } from './paths.js'
+import { projectLayout, registryLayout, tombstoneLayout, userLayout, consolidationLayout } from './paths.js'
 import { readRegistry, resolveProject } from './registry.js'
 import { cleanupStaleTemps, readStore } from './jsonstore.js'
 import { rebuildView } from './views.js'
@@ -30,6 +30,8 @@ import { registerMemoryTools } from './tools.js'
 import { registerMemoryCommands } from './commands.js'
 import { renderMemoryIndex } from './retention.js'
 import { resolveEnabled, writeEnabled } from './settings.js'
+import { createCollector } from './consolidation/collector.js'
+import { createConsolidation } from './consolidation/index.js'
 import { isAbsolute, relative } from 'node:path'
 
 /** Stable Cordis plugin name. */
@@ -172,7 +174,45 @@ function createController(ctx, settings) {
         // The cache is keyed by directory and bounded by how many directories one
         // process ever works in, so it is left to outlive individual agents.
       })
+      const consolidation = createConsolidation({
+        ctx,
+        collector: createCollector(),
+        scopes,
+        state: consolidationLayout(settings.memoryDir),
+        actionOptions: {
+          scopes,
+          tombstones,
+          maxEvidencePerMemory: settings.maxEvidencePerMemory,
+          lockTimeoutMs: settings.lockTimeoutMs,
+          staleLockMs: settings.staleLockMs,
+          logger,
+          host: settings.host,
+          kill: settings.kill,
+        },
+        config: {
+          ...settings.consolidation,
+          lockTimeoutMs: settings.lockTimeoutMs,
+          staleLockMs: settings.staleLockMs,
+          maxEvidencePerMemory: settings.maxEvidencePerMemory,
+          quoteMaxChars: settings.evidenceQuoteMaxChars,
+        },
+        projectFor: agent => projectsByCwd.get(cwdOf(agent)) ?? null,
+        logger,
+      })
+      deps.consolidate = (agent, runOptions) => consolidation.consolidate(agent, runOptions)
+      deps.consolidationEnabled = () => settings.consolidation.enabled
+      // Every committed event is offered to the collector; it keeps what it saw
+      // and drops what a settled batch has consumed.
+      const disposeEvents = ctx.on('session/event', (session, event) => {
+        if (settings.consolidation.enabled) consolidation.observe(session, event)
+      })
+      const disposeStatus = ctx.on('agent/status', ({ agent, status }) => {
+        if (settings.consolidation.enabled) consolidation.statusChanged(agent, status)
+      })
       ctx.effect(() => () => {
+        consolidation.dispose()
+        disposeStatus()
+        disposeEvents()
         disposeDisposed()
         disposeCreated()
         disposeCommands()

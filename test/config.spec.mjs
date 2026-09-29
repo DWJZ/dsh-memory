@@ -107,5 +107,30 @@ check('a resolved split is a copy', once.indexBudgetSplit.user === 0.5)
 check('the module defaults are untouched',
   DEFAULTS.indexBudgetSplit.user === 0.4 && DEFAULTS.projectRootMarkers.length === 1)
 
+console.log('consolidation settings')
+const defaults = resolveConfig({}, {})
+check('consolidation is on by default', defaults.consolidation.enabled === true)
+check('automatic commits are on by default', defaults.consolidation.autoCommit === true)
+check('the debounce default is ten seconds', defaults.consolidation.debounceMs === 10000)
+check('the confidence floor defaults to 0.8', defaults.consolidation.minConfidence === 0.8)
+check('the batch is bounded in events', defaults.consolidation.maxRelevantEventsPerBatch === 200)
+check('the batch is bounded in bytes', defaults.consolidation.maxTrajectoryBytesPerBatch === 65536)
+check('a deployment can turn it off',
+  resolveConfig({ consolidation: { enabled: false } }, {}).consolidation.enabled === false)
+check('a deployment can raise the floor',
+  resolveConfig({ consolidation: { minConfidence: 0.95 } }, {}).consolidation.minConfidence === 0.95)
+check('a nested default is copied, not shared',
+  resolveConfig({}, {}).consolidation !== DEFAULTS.consolidation)
+check('a non-object consolidation block is refused',
+  rejects({ consolidation: 'on' }, 'must be an object'))
+check('a floor above 1 is refused',
+  rejects({ consolidation: { minConfidence: 1.5 } }, 'at most 1'))
+check('a fractional debounce is refused',
+  rejects({ consolidation: { debounceMs: 0.5 } }, 'integer'))
+check('a zero event ceiling is refused',
+  rejects({ consolidation: { maxRelevantEventsPerBatch: 0 } }, 'integer >= 1'))
+check('a negative byte ceiling is refused',
+  rejects({ consolidation: { maxTrajectoryBytesPerBatch: -1 } }, 'integer >= 1'))
+
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)
 process.exit(failures === 0 ? 0 : 1)
