@@ -8,7 +8,7 @@
  *
  * Usage: `node test/actions.spec.mjs`.
  */
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -409,6 +409,39 @@ const cappedRecord = readStore(userLayout(MEMORY).storePath).records.find(record
 check('the writer keeps only the newest entries', cappedRecord.evidence.length === 2)
 check('the newest entry is kept', cappedRecord.evidence.at(-1).quote === 'third')
 check('the oldest entry was evicted', !cappedRecord.evidence.some(entry => entry.quote === 'first'))
+
+console.log('clear reports whether it left a trace')
+const clearTarget = await actions.addMemory(clocked(131000), {
+  content: 'cleared by the suite', scope: 'user', category: 'state',
+})
+const traced = await actions.clearScope(clocked(132000), { scope: 'user' })
+check('clear reports the action', traced.action === 'cleared')
+check('clear reports the count', traced.count >= 1)
+check('clear reports the tombstone it wrote', traced.tombstoneWritten === true)
+check('the records are gone',
+  !readStore(userLayout(MEMORY).storePath).records.some(record => record.id === clearTarget.id))
+const clearTrace = tombstones().filter(entry => entry.op === 'clear').at(-1)
+check('the clear tombstone carries no content', !JSON.stringify(clearTrace).includes('cleared by the suite'))
+check('the clear tombstone records a count', clearTrace.count === traced.count)
+
+const secondClear = await actions.addMemory(clocked(133000), {
+  content: 'cleared without a trace', scope: 'user', category: 'state',
+})
+const blockedTombstones = tombstoneLayout(MEMORY).path
+const savedTraces = readFileSync(blockedTombstones, 'utf8')
+rmSync(blockedTombstones, { force: true })
+mkdirSync(blockedTombstones)
+const untraced = await actions.clearScope(clocked(134000), { scope: 'user' })
+check('clear still reports the action when the trace fails', untraced.action === 'cleared')
+check('clear reports the tombstone it could not write', untraced.tombstoneWritten === false)
+check('a failed trace does not undo the delete',
+  !readStore(userLayout(MEMORY).storePath).records.some(record => record.id === secondClear.id))
+check('the canonical store is empty, not rolled back',
+  readStore(userLayout(MEMORY).storePath).records.length === 0)
+rmSync(blockedTombstones, { recursive: true, force: true })
+writeFileSync(blockedTombstones, savedTraces)
+check('an empty scope reports nothing to clear, without a trace',
+  (await actions.clearScope(clocked(135000), { scope: 'user' })).action === 'noop')
 
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)

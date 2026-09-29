@@ -84,6 +84,8 @@ project:
 
 `forget` 是真删，只留下不含正文的 tombstone。`archive` 保留记录但移出索引。`list` 可能截断并说明还剩多少行；`export` 从不截断 —— 它会直接报错并给出建议。
 
+带空格的路径是一个参数：加引号（`bind "/Users/me/My Project"`、`relink '/Old Project' '/New Project'`）或转义空格。没闭合的引号会被拒绝并提示 `Invalid command arguments: unterminated quote.`，而不是去猜 —— 猜参数边界正是 bind 绑错目录的原因。
+
 ### 配置
 
 在 profile 的 `cordis.patch.yml` 里给插件行写字段：

@@ -719,7 +719,9 @@ memory_search / memory_get → 按 read tool 正常展示必要参数
 - [ ] `.reclaim` 互斥不做自动回收；两个 reclaimer 竞争只有一个成功，且都不会删掉对方新建的互斥
 - [ ] `maxEvidencePerMemory` 只是 writer policy：写入时保留最新 N 条，读入时不用它判定记录是否合法
 - [ ] registry 载入时按 realpath 判重：同一目录的两种拼写不能成为两个 Project
-- [ ] 命令解析支持引号与转义，带空格的路径是一个参数
+- [ ] 命令解析支持引号与转义（`"..."`、`'...'`、`\ `），带空格的路径是一个参数
+- [ ] 未闭合的引号不静默解析：拒绝整行并说明原因，绝不按猜出的参数边界执行
+- [ ] 每次 mutation 在运行前先校验读到的 store；noop mutation 也要拒绝损坏的 store
 - [ ] `clear` 与 `forget` 一样，在 tombstone 写不进去时如实报告
 - [ ] `MEMORY.md` 自动生成且只含 active
 - [ ] view 生成失败不影响 canonical commit；view 重建不倒退

@@ -205,6 +205,29 @@ check('a write that keeps it is accepted',
     changed: true,
     records: current.records,
   }))))
+// The case the cap actually broke: one record written when the cap was large
+// must not make an unrelated later addition fail.
+const unrelated = memoryRecord()
+check('adding an unrelated record is accepted',
+  !await rejectsWrite(() => store.withStore(OPTIONS, current => ({
+    changed: true,
+    records: [...current.records, unrelated],
+  }))))
+check('both records are on disk', store.readStore(STORE).records.length === 2)
+
+console.log('noop_mutation_still_validates_existing_store')
+// A mutation that changes nothing still reads the store, so a corrupt one must
+// fail there rather than pass as "nothing to do".
+writeRaw([memoryRecord({ status: 'superseded', superseded_by: memoryId() })])
+let noopError
+try {
+  await store.withStore(OPTIONS, current => ({ changed: false, result: current.records.length }))
+} catch (error) {
+  noopError = error
+}
+check('a noop mutation refuses a store that violates its schema', noopError !== undefined)
+check('the refusal names the dangling target', String(noopError?.message).includes('does not hold'))
+check('the lock is released after the noop refusal', !existsSync(LOCK))
 
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)

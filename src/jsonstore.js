@@ -197,10 +197,11 @@ function findTemps(dir) {
  */
 export async function withStore(options, operation) {
   return withLock(options, () => {
-    // The document is parsed here without per-record validation, because the
-    // result of the mutation is what must hold: validating it below covers both
-    // what this call changed and whatever the file already held.
     const store = parseStore(options.storePath)
+    // Validate what is already on disk before the mutation runs. An operation
+    // that changes nothing must still refuse a store that violates its own
+    // schema, and every operation is then allowed to build on a store that holds.
+    validateStoreRecords(store.records)
     const outcome = operation(store)
     if (outcome?.changed !== true) return { result: outcome?.result, revision: store.revision, store }
     const next = {
@@ -208,9 +209,7 @@ export async function withStore(options, operation) {
       revision: store.revision + 1,
       records: outcome.records,
     }
-    // The result of the mutation is what must hold: validating it below covers
-    // both what this call changed and whatever the file already held. The
-    // evidence cap is deliberately not applied here — it bounds what a writer
+    // The evidence cap is deliberately not applied here — it bounds what a writer
     // may append, not what a valid record is, so a store written under a larger
     // cap must still load after a deployment lowers it.
     validateStoreRecords(next.records)

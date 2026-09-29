@@ -84,6 +84,8 @@ project:
 
 `forget` deletes outright and leaves only a tombstone that carries no content. `archive` keeps the record and takes it out of the index. `list` may truncate and says how many rows remain; `export` never truncates — it fails with guidance instead.
 
+A path with a space is one argument: quote it (`bind "/Users/me/My Project"`, `relink '/Old Project' '/New Project'`) or escape the space. A quote that is never closed is refused with `Invalid command arguments: unterminated quote.` rather than guessed at, because guessing the argument boundary is how a bind lands on the wrong directory.
+
 ### Configuration
 
 Set fields on the plugin row in the profile's `cordis.patch.yml`:

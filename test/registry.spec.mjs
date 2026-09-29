@@ -247,6 +247,22 @@ writeRegistry([entry({ canonical_root: claimDir })])
 check('a single project on the real directory is accepted',
   registry.readRegistry(LAYOUT.registryPath).projects.length === 1)
 
+const otherDir = join(ROOT, 'another-real-project')
+mkdirSync(otherDir, { recursive: true })
+writeRegistry([
+  entry({ canonical_root: claimDir }),
+  entry({ canonical_root: otherDir }),
+])
+check('two genuinely different directories are accepted',
+  registry.readRegistry(LAYOUT.registryPath).projects.length === 2)
+
+writeRegistry([
+  entry({ canonical_root: claimDir }),
+  entry({ aliases: [join(ROOT, 'moved-away-long-ago')] }),
+])
+check('an alias whose directory no longer exists is accepted',
+  registry.readRegistry(LAYOUT.registryPath).projects.length === 2)
+
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)
 process.exit(failures === 0 ? 0 : 1)

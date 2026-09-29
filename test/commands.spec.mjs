@@ -233,6 +233,17 @@ await withStore({ ...userScope, lockTimeoutMs: 3000, staleLockMs: 60000 }, curre
 check('a quoted multi-word query is one argument',
   (await run(ctx, 'search "quoted phrase"', agent)).kind === 'success')
 
+console.log('unterminated_quote_fails_cleanly')
+const unclosed = await run(ctx, 'project bind "/Users/me/My Projects', agent)
+check('an unterminated quote is refused', unclosed.kind === 'error')
+check('the refusal names the problem', textOf(unclosed).includes('unterminated quote'))
+check('nothing was bound from a guessed argument boundary',
+  !readFileSync(join(MEMORY, 'registry.json'), 'utf8').includes('/Users/me/My'))
+const unclosedFlag = await run(ctx, 'list --status "active', agent)
+check('an unterminated quote in a flag value is refused too', unclosedFlag.kind === 'error')
+check('a closed quote in the same position still works',
+  (await run(ctx, 'list --status "active"', agent)).kind === 'success')
+
 console.log('the read tools execute')
 const searchTool = ctx.registrations.tools.find(definition => definition.name === 'memory_search')
 const getTool = ctx.registrations.tools.find(definition => definition.name === 'memory_get')

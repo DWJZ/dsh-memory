@@ -45,7 +45,8 @@ export function registerMemoryCommands(ctx, deps) {
  * @returns the text to show, or an error.
  */
 async function run(deps, invocation) {
-  const { positional, flags } = parseArguments(invocation.rawInput)
+  const { positional, flags, error: argumentError } = parseArguments(invocation.rawInput)
+  if (argumentError !== undefined) return error(`Invalid command arguments: ${argumentError}`)
   const [group, ...rest] = positional
   try {
     switch (group) {
@@ -397,7 +398,7 @@ const VALUE_FLAGS = new Set(['status', 'category', 'top', 'format'])
  * this, `/memory project bind /Users/me/My Projects` would silently bind
  * `/Users/me/My` and treat `Projects` as a second positional argument.
  * @param rawInput - the text after the command name.
- * @returns the tokens, in order.
+ * @returns the tokens and, when a quote is never closed, the reason to refuse.
  */
 function tokenize(rawInput) {
   const text = String(rawInput ?? '')
@@ -440,11 +441,12 @@ function tokenize(rawInput) {
     current += char
     started = true
   }
-  // An unterminated quote is closed at the end rather than throwing: the command
-  // still has an argument, and refusing the whole line would be the less useful
-  // failure.
+  // A quote that never closes is refused rather than closed here: the argument
+  // boundary would then be this function's guess, and binding a path assembled
+  // from a guess is worse than asking for the line again.
+  if (quote !== null) return { tokens: [], error: 'unterminated quote.' }
   if (started) tokens.push(current)
-  return tokens
+  return { tokens, error: undefined }
 }
 
 /**
@@ -453,10 +455,12 @@ function tokenize(rawInput) {
  * Both `--name value` and `--name=value` are accepted, for the flags that take a
  * value; every other flag is a switch, so a following word stays positional.
  * @param rawInput - the text after the command name.
- * @returns positional arguments and flags, where a bare switch maps to `true`.
+ * @returns positional arguments, flags where a bare switch maps to `true`, and
+ *   the reason to refuse the line when it cannot be tokenized.
  */
 function parseArguments(rawInput) {
-  const tokens = tokenize(rawInput)
+  const { tokens, error } = tokenize(rawInput)
+  if (error !== undefined) return { positional: [], flags: new Map(), error }
   const positional = []
   const flags = new Map()
   for (let index = 0; index < tokens.length; index += 1) {
@@ -479,7 +483,7 @@ function parseArguments(rawInput) {
     }
     flags.set(name, true)
   }
-  return { positional, flags }
+  return { positional, flags, error: undefined }
 }
 
 /**
