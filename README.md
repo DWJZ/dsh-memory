@@ -153,7 +153,7 @@ The browser half is declared through `package.json`'s `dsh.client`, so the bundl
 
 ## Understand the implementation
 
-Three properties shape the code:
+These properties shape the code:
 
 - **Writers serialize.** Every mutation takes an in-process chain and an exclusive lock file, re-reads the canonical store, and validates against that revision — so a desktop session and a headless run sharing one harness home cannot lose each other's writes. A lock from a crashed process is reclaimed only when its recorded pid is provably gone (`ESRCH`); `EPERM` means the process is alive and keeps it. Reclaiming is itself serialized, because two processes that both judge the same lock stale would otherwise let the slower one delete the lock the faster one has just taken.
 - **What is read is checked.** `memories.json` and `registry.json` are validated on the way in as well as on the way out — ids, timestamps, uniqueness, and every supersession reference. A document someone edited by hand fails loudly instead of feeding an index, a view, or a model request, and a project id is checked before it becomes a directory name. A canonical store that cannot be read stops the turn, naming the file: degrading to an empty index would present a broken store as an agent that has simply forgotten, which is the harder failure to diagnose. An absent store is not corruption — that is what a first run looks like.
