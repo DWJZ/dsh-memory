@@ -162,3 +162,25 @@ npm run test:all         # both
 ```
 
 The integration suite mounts this plugin and a scripted model adapter straight from the checkout by absolute path, so nothing is installed into a profile. Its four scenarios write Memory in one Session and read it in the next, prove one project cannot see another's Memory, show user Memory crossing projects, and retire a record through an explicit supersede.
+
+### Checking the automatic path by hand
+
+The one behaviour no scripted run can show is the debounce, because it waits
+outside the agent's maintenance phase and a one-shot run exits first. Observing
+it needs a long-lived profile, a real account route, and a process that does
+nothing but wait:
+
+```sh
+dsh --profile <a web-based profile with dsh-memory> --patch <overlay> --no-open
+```
+
+`test/fixtures/real-trigger-probe.ts` is that process. Given the task text and a
+report path in its config, it drives one turn, waits past the debounce without
+invoking anything, switches Memory off, drives a second turn, and writes each
+step to the report. What to look for, in the Session log and the store:
+
+- an audit event with `"trigger": "idle-debounce"` and a non-zero operation, with
+  no command in the transcript;
+- after the second turn, one audit only, a mark that did not move past the first
+  run, and no new record — the events the switch was off for are not collected,
+  and a gap appears for them on the next run that does observe.
