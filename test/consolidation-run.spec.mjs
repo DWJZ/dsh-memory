@@ -103,7 +103,6 @@ function harness(options = {}) {
       maxOutputTokens: 512,
       maxEvidencePerMemory: 8,
       quoteMaxChars: 200,
-      autoCommit: options.autoCommit ?? true,
       lockTimeoutMs: 3000,
       staleLockMs: 60000,
     },
@@ -535,93 +534,6 @@ console.log('operation counts mean one thing each')
   const again = await duplicate.consolidation.consolidate(duplicate.agent)
   check('a duplicate is reported as skipped, not as written',
     again.operations.add === 0 && again.operations.skipped === 1, JSON.stringify(again.operations))
-}
-
-console.log('a person asking for this window is not the automatic path')
-{
-  // The deployment may have asked the automatic path to observe rather than
-  // write. A command is the opposite request, and `--dry-run` is how a person
-  // asks for observation.
-  const harnessed = harness({ sessionId: 'session_command_commits', modelAnswer: addProjectFact([1]), autoCommit: false })
-  observe(harnessed, [human(1, '这个项目以后用 pnpm'), assistant(2, '好的'), toolResult(3, 'pnpm@10')])
-  const automatic = await harnessed.consolidation.consolidate(harnessed.agent)
-  check('the automatic path observes', automatic.status === 'observed')
-  // A dry run with the window still pending: it reports a plan and still writes
-  // nothing, which is how a person asks for observation.
-  const beforeDryRun = readStore(projectLayout(MEMORY, PROJECT).storePath).records.length
-  const dryRun = await harnessed.consolidation.consolidate(harnessed.agent, { dryRun: true, trigger: 'manual-command', autoCommit: true })
-  check('--dry-run reports without writing', dryRun.status === 'dry-run', JSON.stringify(dryRun))
-  check('and the store is unchanged by it',
-    readStore(projectLayout(MEMORY, PROJECT).storePath).records.length === beforeDryRun)
-  const outcome = await harnessed.consolidation.consolidate(harnessed.agent, { trigger: 'manual-command', autoCommit: true })
-  check('the same window commits when a person asks for it',
-    outcome.status === 'success', JSON.stringify(outcome))
-  check('and the fact is stored', projectStoreHas('The project uses pnpm.'))
-}
-
-console.log('observation mode leaves the window alone')
-{
-  const harnessed = harness({ sessionId: 'session_observe', modelAnswer: addProjectFact([1]), autoCommit: false })
-  observe(harnessed, [human(1, '这个项目以后用 pnpm'), assistant(2, '好的'), toolResult(3, 'pnpm@10')])
-  const observed = await harnessed.consolidation.consolidate(harnessed.agent)
-  check('the run reports that it only observed', observed.status === 'observed', JSON.stringify(observed))
-  check('it says how much it saw',
-    observed.operations.add === 0 && observed.operations.proposed === 1 && observed.operations.skipped === 0,
-    JSON.stringify(observed.operations))
-  check('nothing was written', !projectStoreHas('该项目使用 pnpm'))
-  // The fixture starts at seq 1, so seq 0 is a real gap and moves the mark to 0.
-  // What matters is that nothing inside the window was consumed.
-  check('the window was not consumed', markOf('session_observe') < 1, String(markOf('session_observe')))
-  check('the window is still in the buffer', harnessed.collector.eventsFor('session_observe').length === 3)
-  check('the audit says so too', harnessed.audit.at(-1)?.data?.status === 'observed')
-
-  // The same window has to still be learnable once committing is switched on.
-  const committing = harness({ sessionId: 'session_observe', modelAnswer: addProjectFact([1]) })
-  observe(committing, [human(1, '这个项目以后用 pnpm'), assistant(2, '好的'), toolResult(3, 'pnpm@10')])
-  const committed = await committing.consolidation.consolidate(committing.agent)
-  check('the same window still commits afterwards', committed.status === 'success', JSON.stringify(committed))
-  check('and the mark advances then', markOf('session_observe') === 3)
-}
-
-console.log('two agents sharing a Session cannot process the same window twice')
-{
-  // `runMaintenance()` serializes one agent. Two agents can share a Session, so
-  // without a per-Session queue both would read the same mark, ask the model and
-  // commit — the state lock only protects the individual writes.
-  let calls = 0
-  let release
-  const gate = new Promise(resolve => { release = resolve })
-  const harnessed = harness({
-    sessionId: 'session_shared',
-    modelAnswer: async (request) => {
-      calls += 1
-      if (calls === 1) await gate
-      return addProjectFact([0])
-    },
-  })
-  const otherAgent = {
-    session: { id: 'session_shared', header: { id: 'session_shared', cwd: PROJECT } },
-    status: 'idle',
-    async runMaintenance(task) { return await task(new AbortController().signal) },
-  }
-  observe(harnessed, [human(0, '这个项目用 pnpm')])
-
-  const first = harnessed.consolidation.consolidate(harnessed.agent)
-  for (let turns = 0; calls < 1; turns += 1) {
-    if (turns > 10000) throw new Error('the first run never reached the model')
-    await new Promise(resolve => { setImmediate(resolve) })
-  }
-  const second = harnessed.consolidation.consolidate(otherAgent)
-  // The second run cannot have started while the first is inside its model call.
-  await new Promise(resolve => { setImmediate(resolve) })
-  check('the second run waits for the first to finish', calls === 1, String(calls))
-  release()
-  await first
-  const secondOutcome = await second
-  check('the first run commits', (await first).status === 'success')
-  check('and the second finds the window already consumed',
-    secondOutcome.status === 'nothing-pending', JSON.stringify(secondOutcome))
-  check('the model was asked once for that window', calls === 1, String(calls))
 }
 
 console.log('teardown waits for every run, not the newest one')

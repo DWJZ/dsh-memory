@@ -225,12 +225,16 @@ function createController(ctx, settings) {
       // Both seams follow the runtime switch as well as the deployment config:
       // switching Memory off has to stop collection and the debounce, or a
       // disabled plugin would keep asking a model and writing Memory.
-      const automaticLearning = () => enabled && settings.consolidation.enabled
+      const collecting = () => enabled && settings.consolidation.enabled
+      // `autoCommit: false` means "do not learn on your own". Only the debounce
+      // is gated: collecting costs nothing, so the events stay available to
+      // `/memory consolidate`, which a person runs deliberately.
+      const learningOnItsOwn = () => collecting() && settings.consolidation.autoCommit === true
       const disposeEvents = ctx.on('session/event', (session, event) => {
-        if (automaticLearning()) consolidation.observe(session, event)
+        if (collecting()) consolidation.observe(session, event)
       })
       const disposeStatus = ctx.on('agent/status', ({ agent, status }) => {
-        if (automaticLearning()) consolidation.statusChanged(agent, status)
+        if (learningOnItsOwn()) consolidation.statusChanged(agent, status)
       })
       ctx.effect(() => () => {
         llmScope = null

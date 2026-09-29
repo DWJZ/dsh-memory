@@ -119,7 +119,7 @@ project:
 | 子字段 | 默认 | 含义 |
 |---|---|---|
 | `enabled` | `true` | 自动学习开关；显式写入不受影响 |
-| `autoCommit` | `true` | 只管**自动**路径：`false` 时只评估、什么都不写（不写 Memory、不推进 mark、不丢弃窗口）。人敲的 `/memory consolidate` 照样写入；要观察用 `--dry-run` |
+| `autoCommit` | `true` | `false` 时完全停止自动学习：不排期、不调模型、不花 token。事件照旧采集，所以你主动敲 `/memory consolidate` 仍可用；只看不写用 `--dry-run` |
 | `debounceMs` | `10000` | agent 空闲多久后开始整理这一轮 |
 | `minConfidence` | `0.8` | 低于此值的提案被丢弃，不落库 |
 | `maxRelevantEventsPerBatch` | `200` | 交给模型的最大窗口 |
@@ -154,7 +154,6 @@ project:
 
 - **自动学习只读它"在场时"看到的东西。** 在别处 resume 的 Session、插件挂载时已经在跑的 Session，以及被缓冲上限淘汰掉的事件，都会留下本进程从未见过的一段。它们无法回读，因此该区间被记为 gap 并跳过；那几轮不会被学习。
 - **自动学习需要长驻实例。** 它的 debounce 按设计等在 agent 的 maintenance 之外，所以一次性 `headless` 运行会在定时器到期前就退出并 dispose。这是**已接受的范围**而不是缺陷：一次性运行请用 `/memory consolidate`，桌面应用里定时器才会真的触发。
-- **观察模式不消费窗口，因此无法评估每一个新窗口。** `autoCommit: false` 时同一批最旧事件会一直被送去评估，直到打开提交 —— 因为 mark 有意不动。超过配置上限的窗口按有界前缀评估，而且每次观察都会真的调用模型。要持续评估新窗口需要独立的 observation cursor，要在重新打开提交后补学全部旧窗口需要 durable backlog，两者都还没有（见 CONTRACT P2-6c）。
 - **关闭 Memory 同时停止自动学习，并等待它收束。** `/memory disable` 返回后不会再发生新采集、模型调用、写入或 mark 推进，已在进行的运行也已结束。关闭期间产生的事件之后不会被补采。
 - **进度文件随 Session 数量增长。** 每个产生过事件的 Session 会永久保留一条小记录，因为唯一站得住的清理方式是按年龄，而本版本没有这个策略。按每 Session 几百字节估算，几千个 Session 后大约 1 MB。
 - **没有语义去重与冲突检测。** 唯一识别的重叠是精确重复，且比较时不做大小写折叠，因为 `Model-X` 与 `model-x` 可以是不同的东西。`pnpm` 是否与 `npm` 矛盾由模型判断，通过带 `target_id` 的 `supersede` 表达。

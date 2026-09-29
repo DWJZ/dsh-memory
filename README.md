@@ -119,7 +119,7 @@ Set fields on the plugin row in the profile's `cordis.patch.yml`:
 | sub-field | default | meaning |
 |---|---|---|
 | `enabled` | `true` | automatic learning on or off; explicit writes are unaffected |
-| `autoCommit` | `true` | the *automatic* path: `false` evaluates a window and writes nothing — no Memory, no mark, no window dropped. `/memory consolidate` still writes; `--dry-run` is how a person observes |
+| `autoCommit` | `true` | `false` stops automatic learning entirely: no debounce, no model call, no tokens. Events are still collected, so `/memory consolidate` works when you run it; `--dry-run` reports without writing |
 | `debounceMs` | `10000` | how long an idle agent waits before its turn is consolidated |
 | `minConfidence` | `0.8` | a proposal below this is dropped rather than stored |
 | `maxRelevantEventsPerBatch` | `200` | largest window offered to the model |
@@ -154,7 +154,6 @@ Three properties shape the code:
 
 - **Automatic learning reads only what it was present for.** A Session resumed elsewhere, one already running when the plugin mounts, or events the buffer had to evict under its cap all leave a range this process never saw. They cannot be read back, so the range is recorded as a gap and skipped; those turns are not learned from.
 - **Automatic learning needs a long-lived instance.** Its debounce waits outside the agent's maintenance phase, by design, so a one-shot `headless` run exits and disposes before the timer can expire. That is the accepted scope rather than a defect: run `/memory consolidate` in a one-shot run, or use the desktop app, where the timer does fire.
-- **Observation mode does not consume the window, and cannot evaluate every new one.** With `autoCommit: false` the same oldest window is offered to the model until committing is switched on, because the mark deliberately does not move. A window larger than the configured caps is evaluated in bounded prefixes, and the model is called on every observation. Evaluating new windows continuously needs a separate observation cursor, and learning the whole backlog after switching committing back on needs a durable backlog; neither exists yet (see CONTRACT P2-6c).
 - **Disabling Memory stops automatic learning too, and waits for it.** Once `/memory disable` returns, nothing new is collected, asked, written, or marked, and a run already under way has settled. Events produced while it was off are not collected later.
 - **The progress file grows with the number of Sessions.** One small record per Session that has produced events is kept forever, because the only sound way to drop one is an age policy this version does not have. At a few hundred bytes per Session that is a megabyte after a few thousand Sessions.
 - **No semantic dedupe or conflict detection.** The only overlap recognised is an exact duplicate, compared without folding case, because `Model-X` and `model-x` can differ. Whether `pnpm` contradicts `npm` is the model's judgement, expressed by calling `supersede` with a target id.

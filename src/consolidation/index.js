@@ -324,9 +324,6 @@ export function createConsolidation(options) {
 
     const rejectedCount = reviewed.rejected.length
     const rejected = countRejections(reviewed.rejected)
-    // `skipped` means duplicate or conflict, which is what commit reports. An
-    // observation run writes nothing, so calling its proposals "skipped" would
-    // report the same operations as both proposed and skipped.
     const operations = {
       add: 0,
       update: 0,
@@ -334,17 +331,6 @@ export function createConsolidation(options) {
       noop: reviewed.noopReasons.length,
       skipped: 0,
       failed: 0,
-    }
-
-    if ((runOptions.autoCommit ?? config.autoCommit) === false) {
-      // Nothing was written, so nothing justifies moving past these events.
-      // Advancing here would consume the window permanently and quietly: the
-      // same events would never be offered again, and re-enabling automatic
-      // writes would not recover them.
-      const observed = { ...operations, proposed: reviewed.accepted.length }
-      recordAudit(session, { ...auditBase, status: 'observed', operations: observed, rejected: rejectedCount, ...rejected })
-      logger?.info?.(`dsh-memory: consolidation of ${sessionId} observed ${String(auditBase.relevant_events)} event(s) without committing`)
-      return { ...auditBase, status: 'observed', operations: observed, rejected: rejectedCount, ...rejected }
     }
 
     const outcome = await commitOperations(options.actionOptions, reviewed.accepted)
@@ -521,8 +507,6 @@ export function describeOutcome(outcome) {
     }
     case 'partial':
       return `Consolidated seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)} but ${String(outcome.failures)} operation(s) could not be written; the window will be retried.`
-    case 'observed':
-      return `Observed seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)} without writing: ${String(outcome.operations.proposed)} proposal(s), ${String(outcome.operations.noop)} noop, ${String(outcome.rejected)} dropped. Automatic commit is off, so the progress mark stays before this window.`
     case 'no-human-turn':
       return `Nothing to learn from seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)}: this window holds no human turn. The window is consumed.`
     case 'nothing-pending': return 'Nothing new to consolidate.'

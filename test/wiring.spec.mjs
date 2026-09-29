@@ -343,6 +343,32 @@ console.log('an audit does not seed the next window')
   await disposeEffects(loopCtx)
 }
 
+console.log('autoCommit false stops learning on its own, not the command')
+{
+  const offCtx = start({ ...CONFIG, enabled: true, consolidation: { autoCommit: false } })
+  await runCommand(offCtx, 'enable')
+  const idleAgent = agentStub('session-no-auto', null)
+  // A window with no human turn, which the automatic path would consume on its
+  // own if the debounce were allowed to fire.
+  offCtx.emit('session/event', idleAgent.session, {
+    seq: 0,
+    type: 'assistant/message',
+    data: { message: { content: [{ type: 'text', text: 'I ran the tests.' }] } },
+  })
+  offCtx.emit('agent/status', { agent: idleAgent, status: 'idle' })
+  const statePath = join(MEMORY, 'consolidation-state.json')
+  check('nothing was consumed on its own',
+    !existsSync(statePath)
+    || Object.keys(JSON.parse(readFileSync(statePath, 'utf8')).sessions).every(id => id !== 'session-no-auto'),
+    existsSync(statePath) ? readFileSync(statePath, 'utf8') : '')
+  // Collecting still happens, so a person asking for this window gets it.
+  const asked = await runCommand(offCtx, 'consolidate', idleAgent)
+  check('and the command still finds the window and consumes it',
+    String(asked.text).includes('no human turn'), String(asked.text))
+  check('the command advanced the mark', String(asked.text).includes('seqs 0..0'), String(asked.text))
+  await disposeEffects(offCtx)
+}
+
 console.log('disabling Memory stops automatic learning')
 {
   const offCtx = start({ ...CONFIG, enabled: true })
