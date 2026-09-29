@@ -198,17 +198,18 @@ best-effort optional = event_seqs
 实现：
 
 ```text
-订阅 agent/inbox/claimed（payload {agent, message, turn}）
-  ↓ 缓存当前 session 的 claimed human message + turn
+订阅 session/event（post-commit 的追加流）
+  ↓ 记下最后一条人类 user/message 及其 seq
+  ↓ 每次 turn/start 时把它快照成"本轮输入"
 memory_remember
-  ↓ quote 直接使用 cached claimed message
-  ↓ 能唯一解析出 seq → event_seqs = [seq]
-  ↓ 否则            → event_seqs = []
+  ↓ quote 使用本轮输入的文本，截断到 evidenceQuoteMaxChars
+  ↓ 该事件自带 seq → event_seqs = [seq]
+  ↓ 无从确定时      → event_seqs = []
 ```
 
-**不得为了填 `event_seqs` 去做模糊文本匹配。** 找不到就留空，绝不伪造。
+`quote` 与 `session_id` 是主要 provenance，`event_seqs` 是尽力而为：事件流本身就带 seq，所以填得上就填；填不上就留空。
 
-回退（插件未观测到该 session，例如 resume 后才挂载）：以最后一个 `turn/start` 为边界向前找人类 `user/message`，只用于 quote；seq 仍按"能唯一确定才填"处理。
+**不得为了填 `event_seqs` 去做模糊文本匹配。** 找不到就留空，绝不伪造。同理，插件未观测到该 session 时（例如它是在插件挂载前开始的），provenance 退化为"session id + 空 quote + 空 seq"，而不是去猜一条消息。
 
 引用用户消息时，判别"人类输入"用明确的用户 source kind，排除 `agent-instructions` 等注入 kind。
 
@@ -601,7 +602,7 @@ project:
 - 超预算**整行移除**；
 - 两个 scope 都为空时**连标签都不输出**；
 - **预算用 UTF-8 字节数**：`Buffer.byteLength(line, 'utf8')`，不用 JS `length`（UTF-16 code units，中文会严重低估）；绝不截断半行；
-- 两个 scope 各自按 `indexBudgetSplit` 分配预算。
+- 两个 scope 共享 `indexBudgetBytes` 这个上限；`indexBudgetSplit` 不是各自的上限，而是**超预算时谁先让位**：每次丢弃比较两个 scope 的"已用字节 ÷ 自己的份额"，从压力大的一侧丢。因此只有一个 scope 有内容时它可以占用整个预算。
 
 ---
 
@@ -689,7 +690,7 @@ memory_search / memory_get → 按 read tool 正常展示必要参数
 6. `getContextOrder()` 只接受中央分配的名字，本地插件只能给字面量 order；
 7. `ctx.workspaceRegistry` 只在 Web bundle 挂载，只作解析顺序第 2 步；
 8. 不 import harness 包：自己解析 `$DSH_HOME`，不用 `ctx.storageDomain`，不写 `~/.dsh/storages`；
-9. Tool exec context 只提供 `{callId, rootCallId, name, schema, arguments, agent, parent, signal}`，没有 turn / user message / event seq，所以 §6.1 用 `agent/inbox/claimed` 绑定 turn。
+9. Tool exec context 只提供 `{callId, rootCallId, name, schema, arguments, agent, parent, signal}`，没有 turn / user message / event seq，所以 §6.1 的 provenance 从 `session/event` 事件流取；同步读日志的 `eventAt` 已被上游标记为禁止新调用。
 
 ---
 
@@ -704,6 +705,16 @@ memory_search / memory_get → 按 read tool 正常展示必要参数
 - [ ] canonical 有 revision；两进程并发写无 lost update
 - [ ] 任何失败路径都释放锁；atomic write 失败不留 temp
 - [ ] dead stale lock 可恢复；live lock（含 EPERM）不被误抢
+- [ ] stale reclaim 自身被串行化：两个 reclaimer 竞争只有一个成功，且都不会删掉对方新建的锁
+- [ ] `agent/created` 的 dispatch 解析完成时，该 session 的 project 已经可用（首轮不会缺 project index 或被拒的 project-scope 写入）
+- [ ] session 的 project 缓存在 bind / relink 之后立即刷新
+- [ ] 删除一条被引用的记录时，前驱要么接上新后继，要么转为 archived；store 里不留悬空的 `superseded_by`
+- [ ] 读入 `memories.json` / `registry.json` 时校验记录与条目；损坏或越界的文档 fail loud，不进入 index、view 或模型请求
+- [ ] project id 不能变成 Memory 根之外的路径
+- [ ] temp 清理递归覆盖嵌套 scope，且只删超过阈值的自有临时文件
+- [ ] `memory_get` 只把"不可见"当作 not-found；store 读失败照常抛出
+- [ ] `forget` 在 tombstone 写不进去时如实报告，不谎称留痕
+- [ ] `memory_search` 的 `top_k` 受 `retrievalTopK` 约束
 - [ ] `MEMORY.md` 自动生成且只含 active
 - [ ] view 生成失败不影响 canonical commit；view 重建不倒退
 - [ ] Memory index 能进入新 Session 的实际 request

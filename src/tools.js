@@ -15,7 +15,7 @@
  */
 
 import { readStore } from './jsonstore.js'
-import { locateVisible, addMemory, supersedeMemory, updateMemory } from './actions.js'
+import { MemoryNotVisibleError, locateVisible, addMemory, supersedeMemory, updateMemory } from './actions.js'
 import { searchRecords } from './retrieval.js'
 import { CATEGORIES } from './schema.js'
 
@@ -91,7 +91,14 @@ function searchTool(deps) {
         query: { type: 'string', description: 'What to look for, in the user\'s own words.' },
         scope: { type: 'string', enum: [...SEARCH_SCOPES], description: 'Defaults to all.' },
         category: { type: 'string', enum: [...CATEGORIES], description: 'Restrict to one kind of Memory.' },
-        top_k: { type: 'integer', minimum: 1, description: 'Largest number of results.' },
+        top_k: {
+          type: 'integer',
+          minimum: 1,
+          maximum: deps.config.retrievalTopK,
+          // The deployment's retrieval bound is also the largest result a model
+          // may ask for, so one call cannot balloon as the store grows.
+          description: `Largest number of results, at most ${String(deps.config.retrievalTopK)}.`,
+        },
       },
       required: ['query'],
       additionalProperties: false,
@@ -104,7 +111,9 @@ function searchTool(deps) {
         scope: args.scope,
         projectId: project?.project_id,
         category: args.category,
-        topK: args.top_k ?? deps.config.retrievalTopK,
+        // Schema validation is the caller's job upstream; clamping here keeps the
+        // bound true even when a caller bypasses the declared maximum.
+        topK: Math.min(args.top_k ?? deps.config.retrievalTopK, deps.config.retrievalTopK),
       })
       return { results: found.results.map(stripScore), total: found.total }
     },
@@ -133,8 +142,14 @@ function getTool(deps) {
       try {
         const located = locateVisible(scopeOptions(deps, project), args.id, project?.project_id ?? null)
         return { found: true, memory: located.record }
-      } catch {
-        return { found: false, id: args.id, reason: 'not-found' }
+      } catch (failure) {
+        // Only an invisible id is an answer. A store that cannot be read is a
+        // real fault, and reporting it as "not found" would hide it from whoever
+        // has to diagnose it.
+        if (failure instanceof MemoryNotVisibleError) {
+          return { found: false, id: args.id, reason: 'not-found' }
+        }
+        throw failure
       }
     },
     presentCall: args => ({ card: 'generic', title: 'Read memory', kind: 'read', rawInput: args }),

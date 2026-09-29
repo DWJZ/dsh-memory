@@ -108,6 +108,17 @@ export function createStubContext(options = {}) {
     return list.length
   }
 
+  /**
+   * Deliver one serial event and await every listener, as the loop does.
+   * @param name - the event name.
+   * @param args - the listener arguments.
+   * @returns fulfillment once every listener has settled.
+   */
+  ctx.emitAsync = async (name, ...args) => {
+    const list = [...(registrations.listeners.get(name) ?? [])]
+    for (const listener of list) await listener(...args)
+  }
+
   return ctx
 }
 

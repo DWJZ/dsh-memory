@@ -18,6 +18,7 @@ const actions = await import(pathToFileURL(join(PLUGIN, 'src/actions.js')).href)
 const { readStore } = await import(pathToFileURL(join(PLUGIN, 'src/jsonstore.js')).href)
 const { userLayout, projectLayout, tombstoneLayout } = await import(pathToFileURL(join(PLUGIN, 'src/paths.js')).href)
 const { findSecret } = await import(pathToFileURL(join(PLUGIN, 'src/redact.js')).href)
+const { newProjectId } = await import(pathToFileURL(join(PLUGIN, 'src/schema.js')).href)
 
 let failures = 0
 const check = (name, condition, detail = '') => {
@@ -33,8 +34,8 @@ const BASE_MS = Date.parse(AT)
 const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-actions-'))
 const MEMORY = join(ROOT, 'memory')
 mkdirSync(MEMORY, { recursive: true })
-const PROJECT_A = 'proj_a'
-const PROJECT_B = 'proj_b'
+const PROJECT_A = newProjectId()
+const PROJECT_B = newProjectId()
 const warnings = []
 
 const OPTIONS = {
@@ -358,6 +359,44 @@ check('an over-long content is refused',
   await rejects(() => actions.addMemory(clocked(120000), { content: '记'.repeat(501), scope: 'user', category: 'state' }), 'at most 500'))
 check('an unknown category is refused',
   await rejects(() => actions.addMemory(clocked(121000), { content: 'x', scope: 'user', category: 'misc' }), 'category must be one of'))
+
+console.log('forget keeps the supersession chain sound')
+const chainA = await actions.addMemory(clocked(122000), {
+  content: 'chain step one', scope: 'project', category: 'state', projectId: PROJECT_A,
+})
+const chainB = await actions.supersedeMemory(clocked(123000), {
+  id: chainA.id, content: 'chain step two', projectId: PROJECT_A,
+})
+const chainC = await actions.supersedeMemory(clocked(124000), {
+  id: chainB.id, content: 'chain step three', projectId: PROJECT_A,
+})
+check('the chain is three records deep',
+  recordOf(PROJECT_A, chainA.id).superseded_by === chainB.id
+  && recordOf(PROJECT_A, chainB.id).superseded_by === chainC.id)
+
+const droppedMiddle = await actions.forgetMemory(clocked(125000), { id: chainB.id, projectId: PROJECT_A })
+check('the middle of the chain is deleted', droppedMiddle.action === 'forgotten')
+check('the predecessor now names the survivor',
+  recordOf(PROJECT_A, chainA.id).superseded_by === chainC.id)
+check('the predecessor is still superseded',
+  recordOf(PROJECT_A, chainA.id).status === 'superseded')
+check('the surviving store still validates', recordsOf(PROJECT_A).length >= 2)
+
+check('deleting the head of the chain archives its predecessor',
+  await actions.forgetMemory(clocked(126000), { id: chainC.id, projectId: PROJECT_A })
+    .then(outcome => outcome.action === 'forgotten'
+      && recordOf(PROJECT_A, chainA.id).status === 'archived'
+      && recordOf(PROJECT_A, chainA.id).superseded_by === null))
+
+const userChain = await actions.addMemory(clocked(127000), {
+  content: 'user chain step one', scope: 'user', category: 'state',
+})
+const userReplacement = await actions.supersedeMemory(clocked(128000), {
+  id: userChain.id, content: 'user chain step two', projectId: PROJECT_A,
+})
+await actions.forgetMemory(clocked(129000), { id: userReplacement.id, projectId: PROJECT_A })
+check('a user-scope predecessor is archived when its successor goes',
+  readStore(userLayout(MEMORY).storePath).records.find(record => record.id === userChain.id)?.status === 'archived')
 
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)

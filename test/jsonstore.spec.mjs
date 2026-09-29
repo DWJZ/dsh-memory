@@ -4,13 +4,14 @@
  *
  * Usage: `node test/jsonstore.spec.mjs`.
  */
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const PLUGIN = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const store = await import(pathToFileURL(join(PLUGIN, 'src/jsonstore.js')).href)
+const { memoryRecord, memoryId } = await import('./fixtures/records.mjs')
 
 let failures = 0
 const check = (name, condition, detail = '') => {
@@ -62,12 +63,14 @@ check('a JSON array is refused', throws(() => store.readStore(STORE)))
 rmSync(STORE, { force: true })
 
 console.log('revision_increment')
-const first = await append({ id: 'mem_a' })
+const firstRecord = memoryRecord()
+const secondRecord = memoryRecord()
+const first = await append(firstRecord)
 check('the first write advances revision to 1', first.revision === 1)
-const second = await append({ id: 'mem_b' })
+const second = await append(secondRecord)
 check('the second write advances revision to 2', second.revision === 2)
 check('both records survive', store.readStore(STORE).records.length === 2)
-check('the mutation result is returned', second.result.id === 'mem_b')
+check('the mutation result is returned', second.result.id === secondRecord.id)
 check('nothing temporary is left behind', temps().length === 0)
 check('the store file ends with one newline', readFileSync(STORE, 'utf8').endsWith('}\n'))
 
@@ -94,12 +97,30 @@ check('a write onto a directory fails', throws(() => store.writeAtomic(blocked, 
 check('the failed write leaves no temporary file', temps().length === 0)
 
 console.log('cleanupStaleTemps')
-writeFileSync(join(ROOT, `stale${store.TEMP_MARKER}memories.json`), 'leftover')
+const abandoned = join(ROOT, `stale${store.TEMP_MARKER}memories.json`)
+const recent = join(ROOT, `recent${store.TEMP_MARKER}memories.json`)
+writeFileSync(abandoned, 'leftover')
+writeFileSync(recent, 'in flight')
 writeFileSync(join(ROOT, 'unrelated.tmp'), 'not ours')
-const removed = store.cleanupStaleTemps(ROOT)
-check('the plugin removes its own leftover temporary file', removed === 1)
-check('the leftover is gone', !existsSync(join(ROOT, `stale${store.TEMP_MARKER}memories.json`)))
+const backdate = (path, ageMs) => {
+  const seconds = (Date.now() - ageMs) / 1000
+  utimesSync(path, seconds, seconds)
+}
+backdate(abandoned, 60_000)
+backdate(recent, 10)
+const removed = store.cleanupStaleTemps(ROOT, { staleTempMs: 30_000 })
+check('the plugin removes its own abandoned temporary file', removed === 1)
+check('the abandoned file is gone', !existsSync(abandoned))
+check('a recent temporary file is left for its writer', existsSync(recent))
 check('an unrelated .tmp file is left alone', existsSync(join(ROOT, 'unrelated.tmp')))
+const nested = join(ROOT, 'projects', 'proj_x')
+mkdirSync(nested, { recursive: true })
+const nestedTemp = join(nested, `old${store.TEMP_MARKER}memories.json`)
+writeFileSync(nestedTemp, 'leftover')
+backdate(nestedTemp, 60_000)
+check('a nested scope is swept too', store.cleanupStaleTemps(ROOT, { staleTempMs: 30_000 }) === 1)
+check('the nested file is gone', !existsSync(nestedTemp))
+rmSync(recent, { force: true })
 check('a missing directory sweeps cleanly', store.cleanupStaleTemps(join(ROOT, 'absent')) === 0)
 
 console.log('lock_released_on_validation_error')
@@ -126,6 +147,41 @@ check('the write failure propagates', writeError !== undefined)
 check('the lock is released after a write failure', !existsSync(LOCK))
 check('a failed write leaves no temporary file', temps().length === 0)
 
+console.log('a store that violates its own schema is refused')
+const writeRaw = records => {
+  writeFileSync(STORE, `${JSON.stringify({ schema_version: 1, revision: 1, records }, null, 2)}\n`)
+}
+writeRaw([{ id: 'mem_not-a-uuid' }])
+check('a hand-written id is refused', throws(() => store.readStore(STORE)))
+
+const dangling = memoryRecord({ status: 'superseded', superseded_by: memoryId() })
+writeRaw([dangling])
+check('a supersession that points nowhere is refused', throws(() => store.readStore(STORE)))
+let danglingError
+try {
+  store.readStore(STORE)
+} catch (error) {
+  danglingError = error
+}
+check('the refusal names the dangling target',
+  String(danglingError?.message).includes(dangling.superseded_by))
+
+const repeated = memoryRecord()
+writeRaw([repeated, repeated])
+check('a duplicated id is refused', throws(() => store.readStore(STORE)))
+
+const sound = memoryRecord()
+const successor = memoryRecord({ status: 'superseded', superseded_by: sound.id })
+writeRaw([sound, successor])
+check('a sound supersession is accepted', store.readStore(STORE).records.length === 2)
+check('a mutation that would dangle is refused before the write',
+  await rejectsWrite(() => store.withStore(OPTIONS, current => ({
+    changed: true,
+    records: [...current.records, memoryRecord({ status: 'superseded', superseded_by: memoryId() })],
+  }))))
+check('the store on disk is unchanged after the refusal', store.readStore(STORE).records.length === 2)
+check('the lock is released after a validation refusal', !existsSync(LOCK))
+
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)
 process.exit(failures === 0 ? 0 : 1)
@@ -138,6 +194,20 @@ process.exit(failures === 0 ? 0 : 1)
 function throws(thunk) {
   try {
     thunk()
+    return false
+  } catch {
+    return true
+  }
+}
+
+/**
+ * Whether running this mutation rejects.
+ * @param thunk - the call to attempt.
+ * @returns true when it rejected.
+ */
+async function rejectsWrite(thunk) {
+  try {
+    await thunk()
     return false
   } catch {
     return true

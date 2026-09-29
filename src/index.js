@@ -30,6 +30,7 @@ import { registerMemoryTools } from './tools.js'
 import { registerMemoryCommands } from './commands.js'
 import { renderMemoryIndex } from './retention.js'
 import { resolveEnabled, writeEnabled } from './settings.js'
+import { isAbsolute, relative } from 'node:path'
 
 /** Stable Cordis plugin name. */
 export const name = 'dsh-memory'
@@ -159,11 +160,16 @@ function createController(ctx, settings) {
     start() {
       deps.setEnabled = setEnabled
       deps.isEnabled = () => enabled
+      // A command that rebinds a directory must be able to refresh the session's
+      // cached project, or the next command would still see the old one.
+      deps.resolveProjectFor = resolveForAgent
       const disposeCommands = registerMemoryCommands(ctx, deps)
-      const disposeCreated = ctx.on('agent/created', ({ agent }) => {
-        void resolveForAgent(agent)
-        // A new session may be the first chance to render a stale view.
-        void refreshViewsOnMount(deps)
+      const disposeCreated = ctx.on('agent/created', async ({ agent }) => {
+        // `agent/created` is a serial event: the loop awaits each listener before
+        // the first request, which is exactly the guarantee this lookup needs.
+        // Resolving in the background would let the first turn run without a
+        // project, losing both the project index and a project-scoped remember.
+        await resolveForAgent(agent)
       })
       const disposeDisposed = ctx.on('agent/disposed', () => {
         // The cache is keyed by directory and bounded by how many directories one
@@ -230,7 +236,11 @@ function renderIndex(deps, agent) {
 async function refreshViewsOnMount(deps) {
   const { lockTimeoutMs, staleLockMs, logger } = deps.config
   try {
-    cleanupStaleTemps(deps.config.memoryDir)
+    // A reaper never holds anything for long, so a temporary file is abandoned
+    // only once it has outlived the longest legitimate write by a wide margin.
+    cleanupStaleTemps(deps.config.memoryDir, {
+      staleTempMs: Math.max(staleLockMs, lockTimeoutMs * 2),
+    })
   } catch (failure) {
     logger?.warn(`dsh-memory: could not sweep temporary files: ${String(failure?.message ?? failure)}`)
   }
@@ -283,9 +293,19 @@ function workspaceOf(ctx, cwd) {
   let best
   for (const workspace of workspaces) {
     const root = typeof workspace?.path === 'string' ? workspace.path : undefined
-    if (root === undefined) continue
-    if (cwd !== root && !cwd.startsWith(`${root}/`)) continue
+    if (root === undefined || !contains(root, cwd)) continue
     if (best === undefined || root.length > best.root.length) best = { root, id: workspace.id }
   }
   return best
+}
+
+/**
+ * Whether one directory contains another.
+ * @param root - the candidate ancestor.
+ * @param path - the path to test.
+ * @returns true when `path` is `root` or lies below it.
+ */
+function contains(root, path) {
+  const rel = relative(root, path)
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
 }

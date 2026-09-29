@@ -14,12 +14,13 @@
 
 import {
   closeSync, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync,
-  renameSync, rmSync, unlinkSync, writeSync,
+  renameSync, statSync, unlinkSync, writeSync,
 } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { withLock } from './lock.js'
+import { validateStoreRecords } from './schema.js'
 
 /** Format version this build writes; an unknown version is refused, never guessed. */
 export const STORE_SCHEMA_VERSION = 1
@@ -36,12 +37,28 @@ export function emptyStore() {
 }
 
 /**
- * Read one canonical store.
+ * Read one canonical store and validate every record it holds.
+ *
+ * Validation happens on the way in as well as on the way out: a store someone
+ * edited by hand, or one left by an older build, must fail loudly here rather
+ * than have its invalid records reach an index, a view, or a model request.
+ * @param storePath - absolute path of `memories.json`.
+ * @returns the stored document, or an empty store when the file is absent.
+ * @throws when the file is unreadable, malformed, or violates the record schema.
+ */
+export function readStore(storePath) {
+  const document = parseStore(storePath)
+  validateStoreRecords(document.records)
+  return document
+}
+
+/**
+ * Read one canonical store, checking only the document's own shape.
  * @param storePath - absolute path of `memories.json`.
  * @returns the stored document, or an empty store when the file is absent.
  * @throws when the file is unreadable, malformed, or written by another format version.
  */
-export function readStore(storePath) {
+function parseStore(storePath) {
   if (!existsSync(storePath)) return emptyStore()
   const text = readFileSync(storePath, 'utf8')
   let parsed
@@ -74,7 +91,7 @@ export function readStore(storePath) {
 export function writeAtomic(targetPath, text) {
   const dir = dirname(targetPath)
   mkdirSync(dir, { recursive: true })
-  const tmpPath = join(dir, `${randomUUID()}${TEMP_MARKER}${basenameOf(targetPath)}`)
+  const tmpPath = join(dir, `${randomUUID()}${TEMP_MARKER}${basename(targetPath)}`)
   let fd
   let committed = false
   try {
@@ -105,26 +122,60 @@ export function writeAtomic(targetPath, text) {
 }
 
 /**
- * Remove this plugin's leftover temporary files from one directory.
+ * Remove this plugin's abandoned temporary files below one directory.
  *
- * Only files carrying this plugin's own marker are removed, so an unrelated
- * `.tmp` file from another tool is never touched.
- * @param dir - the directory to sweep.
+ * Temporary files live beside the store they belong to, so scopes nested under
+ * the Memory root are swept too. A file is removed only when it carries this
+ * plugin's own marker AND is older than the threshold: a marker alone cannot
+ * mean "abandoned", because another process may be writing that very file right
+ * now, and deleting it would make that writer's rename fail.
+ * @param dir - the Memory root to sweep.
+ * @param options - sweep inputs.
+ * @param options.staleTempMs - age at which a temporary file is abandoned.
+ * @param options.now - clock, injectable for tests.
  * @returns the number of files removed.
  */
-export function cleanupStaleTemps(dir) {
+export function cleanupStaleTemps(dir, options = {}) {
   if (!existsSync(dir)) return 0
+  const now = options.now ?? Date.now
+  const staleTempMs = options.staleTempMs ?? Number.POSITIVE_INFINITY
   let removed = 0
-  for (const entry of readdirSync(dir)) {
-    if (!entry.includes(TEMP_MARKER)) continue
+  for (const path of findTemps(dir)) {
     try {
-      rmSync(join(dir, entry), { force: true })
+      const stats = statSync(path)
+      if (!stats.isFile()) continue
+      if (now() - stats.mtimeMs <= staleTempMs) continue
+      unlinkSync(path)
       removed += 1
     } catch {
       // A concurrent writer may own this file; it cleans up after itself.
     }
   }
   return removed
+}
+
+/**
+ * Every temporary file this plugin left below one directory.
+ * @param dir - the directory to walk.
+ * @returns absolute paths, deepest last.
+ */
+function findTemps(dir) {
+  const found = []
+  let entries
+  try {
+    entries = readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return found
+  }
+  for (const entry of entries) {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) {
+      found.push(...findTemps(path))
+      continue
+    }
+    if (entry.name.includes(TEMP_MARKER)) found.push(path)
+  }
+  return found
 }
 
 /**
@@ -146,7 +197,10 @@ export function cleanupStaleTemps(dir) {
  */
 export async function withStore(options, operation) {
   return withLock(options, () => {
-    const store = readStore(options.storePath)
+    // The document is parsed here without per-record validation, because the
+    // result of the mutation is what must hold: validating it below covers both
+    // what this call changed and whatever the file already held.
+    const store = parseStore(options.storePath)
     const outcome = operation(store)
     if (outcome?.changed !== true) return { result: outcome?.result, revision: store.revision, store }
     const next = {
@@ -154,6 +208,9 @@ export async function withStore(options, operation) {
       revision: store.revision + 1,
       records: outcome.records,
     }
+    validateStoreRecords(next.records, {
+      ...options.maxEvidencePerMemory === undefined ? {} : { maxEvidencePerMemory: options.maxEvidencePerMemory },
+    })
     writeAtomic(options.storePath, `${JSON.stringify(next, null, 2)}\n`)
     return { result: outcome.result, revision: next.revision, store: next }
   })
@@ -166,16 +223,6 @@ export async function withStore(options, operation) {
  */
 export async function removeStoreDir(dir) {
   await rm(dir, { recursive: true, force: true })
-}
-
-/**
- * Final path segment of one path.
- * @param path - the path to split.
- * @returns its last segment.
- */
-function basenameOf(path) {
-  const index = path.lastIndexOf('/')
-  return index < 0 ? path : path.slice(index + 1)
 }
 
 /**

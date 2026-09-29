@@ -4,7 +4,8 @@
  *
  * Usage: `node test/lock.spec.mjs`.
  */
-import { existsSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { spawn } from 'node:child_process'
+import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -79,6 +80,36 @@ check('another host is never reclaimed, since its pid cannot be probed',
   reclaim(LOCK, { kill: () => { throw errnoError('ESRCH') } }) === false)
 check('the foreign lock file survives', existsSync(LOCK))
 
+console.log('reclaim is serialized')
+rmSync(LOCK, { force: true })
+writeLock(LOCK, { pid: 4242, host: HOST, at: new Date().toISOString(), nonce: 'stale' }, 5000)
+writeLock(`${LOCK}.reclaim`, 'another reaper', 0)
+check('a reclaimer that cannot take the mutex leaves the lock alone',
+  reclaim(LOCK, { kill: () => { throw errnoError('ESRCH') } }) === false)
+check('the lock is untouched while another reaper holds the mutex',
+  existsSync(LOCK) && JSON.parse(readFileSync(LOCK, 'utf8')).nonce === 'stale')
+rmSync(`${LOCK}.reclaim`, { force: true })
+check('with the mutex free the lock is reclaimed',
+  reclaim(LOCK, { kill: () => { throw errnoError('ESRCH') } }) === true)
+check('the mutex is released after reclaiming', !existsSync(`${LOCK}.reclaim`))
+
+// A lock created after the stale one was observed must survive: this is the
+// window in which the slower reclaimer used to delete the faster one's lock.
+writeLock(LOCK, { pid: 4242, host: HOST, at: new Date().toISOString(), nonce: 'fresh' }, 0)
+check('a freshly created lock is never reclaimed', reclaim(LOCK) === false)
+check('the fresh lock survives', JSON.parse(readFileSync(LOCK, 'utf8')).nonce === 'fresh')
+
+console.log('stale_lock_two_reclaimers_only_one_owner')
+rmSync(LOCK, { force: true })
+writeLock(LOCK, { pid: 4242, host: HOST, at: new Date().toISOString(), nonce: 'contested' }, 5000)
+const contenders = await Promise.all([0, 0, 0].map(() => runReclaimer(LOCK, 1000, 60)))
+check('every contender runs', contenders.every(report => report !== undefined))
+check('exactly one contender reclaims the lock',
+  contenders.filter(report => report?.reclaimed === true).length === 1,
+  JSON.stringify(contenders))
+check('the contested lock is gone', !existsSync(LOCK))
+check('no reclaim mutex is left behind', !existsSync(`${LOCK}.reclaim`))
+
 writeLock(LOCK, '{ not json', 5000)
 check('a malformed lock older than the threshold is reclaimed', reclaim(LOCK) === true)
 
@@ -126,3 +157,35 @@ rmSync(LOCK, { force: true })
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)
 process.exit(failures === 0 ? 0 : 1)
+
+/**
+ * Run one reclaim contender in its own process.
+ * @param lockPath - the contested lock file.
+ * @param staleLockMs - threshold the contender applies.
+ * @param startDelayMs - how long the contender waits before acting.
+ * @returns the contender's report, or undefined when it failed.
+ */
+function runReclaimer(lockPath, staleLockMs, startDelayMs) {
+  return new Promise(resolveRun => {
+    const child = spawn(process.execPath, [
+      join(PLUGIN, 'test/fixtures/reclaim-worker.mjs'),
+      lockPath,
+      String(staleLockMs),
+      String(startDelayMs),
+    ], { stdio: ['ignore', 'pipe', 'pipe'] })
+    let stdout = ''
+    child.on('error', () => resolveRun(undefined))
+    child.on('close', code => {
+      if (code !== 0) {
+        resolveRun(undefined)
+        return
+      }
+      try {
+        resolveRun(JSON.parse(stdout.trim()))
+      } catch {
+        resolveRun(undefined)
+      }
+    })
+    child.stdout.on('data', chunk => { stdout += String(chunk) })
+  })
+}

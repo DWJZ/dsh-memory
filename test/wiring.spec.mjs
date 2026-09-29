@@ -8,11 +8,12 @@
  *
  * Usage: `node test/wiring.spec.mjs`.
  */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createStubContext, disposeEffects } from './fixtures/stub-context.mjs'
+import { memoryRecord, projectMemoryRecord } from './fixtures/records.mjs'
 
 const PLUGIN = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const plugin = await import(pathToFileURL(join(PLUGIN, 'src/index.js')).href)
@@ -79,19 +80,10 @@ const userScope = userLayout(MEMORY)
 const { withStore } = await import(pathToFileURL(join(PLUGIN, 'src/jsonstore.js')).href)
 await withStore({ ...userScope, lockTimeoutMs: 3000, staleLockMs: 60000 }, current => ({
   changed: true,
-  records: [...current.records, {
-    id: 'mem_seeded',
-    scope: 'user',
-    project_id: null,
+  records: [...current.records, memoryRecord({
     category: 'preference',
     content: '用户偏好中文解释',
-    confidence: 1,
-    evidence: [],
-    created_at: '2026-09-26T00:00:00.000Z',
-    updated_at: '2026-09-26T00:00:00.000Z',
-    status: 'active',
-    superseded_by: null,
-  }],
+  })],
 }))
 const rendered = ctx.registrations.contexts[0].text({ agent: agentStub() })
 check('the index lists the stored fact', rendered.includes('- [preference] 用户偏好中文解释'))
@@ -105,19 +97,10 @@ const resolvedProjectId = readProjectId()
 check('the project was registered', resolvedProjectId !== undefined)
 await withStore({ ...projectLayout(MEMORY, resolvedProjectId), lockTimeoutMs: 3000, staleLockMs: 60000 }, current => ({
   changed: true,
-  records: [...current.records, {
-    id: 'mem_project',
-    scope: 'project',
-    project_id: resolvedProjectId,
+  records: [...current.records, projectMemoryRecord(resolvedProjectId, {
     category: 'state',
     content: '该项目使用 pnpm',
-    confidence: 1,
-    evidence: [],
-    created_at: '2026-09-26T00:00:00.000Z',
-    updated_at: '2026-09-26T00:00:00.000Z',
-    status: 'active',
-    superseded_by: null,
-  }],
+  })],
 }))
 const projectIndex = ctx.registrations.contexts[0].text({ agent: projectAgent })
 check('the project fact is injected for that session', projectIndex.includes('- [state] 该项目使用 pnpm'))
@@ -230,6 +213,23 @@ check('unloading removes the tools', disposal.registrations.tools.length === 0)
 check('unloading removes the command', disposal.registrations.commands.length === 0)
 check('unloading removes the listeners', [...disposal.registrations.listeners.values()].every(list => list.length === 0))
 check('every disposer ran', disposal.registrations.disposeCalls > 0)
+
+console.log('the project lookup finishes before agent creation resolves')
+// `agent/created` is a serial event, so awaiting the dispatch must be enough:
+// no extra settling, and a directory that has never been registered before, so
+// the lookup really has to write the registry.
+const lateDir = join(ROOT, 'late-project')
+mkdirSync(join(lateDir, '.git'), { recursive: true })
+const lateCtx = createStubContext()
+plugin.apply(lateCtx, { dshHome: ROOT, memoryDir: MEMORY })
+const lateAgent = { session: { header: { id: 'session-late', cwd: lateDir } } }
+await lateCtx.emitAsync('agent/created', { agent: lateAgent })
+const lateCommand = await lateCtx.registrations.commands[0].handler({ rawInput: 'clear --project --yes', agent: lateAgent })
+check('the session already has a project when creation resolves', lateCommand.kind === 'success')
+check('the late directory was registered',
+  JSON.parse(readFileSync(join(MEMORY, 'registry.json'), 'utf8')).projects
+    .some(entry => entry.canonical_root === resolve(lateDir) || entry.canonical_root === realpathSync(lateDir)))
+disposeEffects(lateCtx)
 
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)

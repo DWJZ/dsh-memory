@@ -18,6 +18,7 @@ import { bindProject, listProjects, relinkProject } from './registry.js'
 import { searchRecords } from './retrieval.js'
 import { archiveMemory, clearScope, forgetMemory } from './actions.js'
 import { CATEGORIES, STATUSES } from './schema.js'
+import { isAbsolute, resolve } from 'node:path'
 
 /** Largest number of rows `list` prints before it says how many remain. */
 const LIST_PAGE = 100
@@ -164,7 +165,12 @@ async function forgetCommand(deps, invocation, rest) {
     id,
     projectId: deps.projectFor(invocation.agent)?.project_id,
   })
-  return ok(`${describeOutcome('forgotten', outcome)}\nThe record and its content are gone from ${deps.config.memoryDir}; only a tombstone without content remains.`)
+  const gone = `The record and its content are gone from ${deps.config.memoryDir}.`
+  return ok(outcome.action !== 'forgotten'
+    ? describeOutcome('forgotten', outcome)
+    : `${describeOutcome('forgotten', outcome)}\n${gone}${outcome.tombstoneWritten === true
+      ? ' A tombstone without content remains.'
+      : ' The audit tombstone could not be written; the deletion itself succeeded.'}`)
 }
 
 /**
@@ -257,12 +263,17 @@ async function projectCommand(deps, invocation, rest) {
     const [path] = args
     if (path === undefined) return error('usage: /memory project bind <path>')
     const bound = await bindProject(registryOptions, resolvePath(cwd, path))
+    // The session's own project is cached, so a bind that changes where this
+    // session works must refresh it; otherwise the very next command would still
+    // see no project.
+    await deps.resolveProjectFor(invocation.agent)
     return ok(`${bound.created ? 'Bound' : 'Already bound'} ${bound.project.canonical_root} as ${bound.project.project_id}.`)
   }
   if (action === 'relink') {
     const [oldPath, newPath] = args
     if (oldPath === undefined || newPath === undefined) return error('usage: /memory project relink <old-path> <new-path>')
     const relinked = await relinkProject(registryOptions, resolvePath(cwd, oldPath), resolvePath(cwd, newPath))
+    await deps.resolveProjectFor(invocation.agent)
     return ok(relinked.changed
       ? `${relinked.project.project_id} now lives at ${relinked.project.canonical_root}.`
       : `${relinked.project.project_id} already lives at ${relinked.project.canonical_root}.`)
@@ -371,8 +382,7 @@ function describeOutcome(verb, outcome) {
  * @returns an absolute path.
  */
 function resolvePath(cwd, path) {
-  if (path.startsWith('/')) return path
-  return `${cwd ?? process.cwd()}/${path}`
+  return isAbsolute(path) ? path : resolve(cwd ?? process.cwd(), path)
 }
 
 /** Flags that consume the following token as their value. */

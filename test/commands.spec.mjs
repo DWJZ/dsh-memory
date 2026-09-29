@@ -8,11 +8,12 @@
  *
  * Usage: `node test/commands.spec.mjs`.
  */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createStubContext, disposeEffects } from './fixtures/stub-context.mjs'
+import { memoryId } from './fixtures/records.mjs'
 
 const PLUGIN = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const plugin = await import(pathToFileURL(join(PLUGIN, 'src/index.js')).href)
@@ -37,7 +38,7 @@ mkdirSync(MEMORY, { recursive: true })
 
 /** One record the store holds. */
 const record = (overrides = {}) => ({
-  id: 'mem_a',
+  id: memoryId(),
   scope: 'user',
   project_id: null,
   category: 'state',
@@ -70,13 +71,11 @@ const textOf = result => String(result.text ?? '')
 
 // Seed the user scope with two records.
 const userScope = userLayout(MEMORY)
+const pnpmRecord = record({ content: '用户偏好 pnpm', category: 'preference' })
+const langRecord = record({ content: '用户偏好中文解释', category: 'preference' })
 await withStore({ ...userScope, lockTimeoutMs: 3000, staleLockMs: 60000 }, current => ({
   changed: true,
-  records: [
-    ...current.records,
-    record({ id: 'mem_pnpm', content: '用户偏好 pnpm', category: 'preference' }),
-    record({ id: 'mem_lang', content: '用户偏好中文解释', category: 'preference' }),
-  ],
+  records: [...current.records, pnpmRecord, langRecord],
 }))
 
 const { ctx, agent } = await start()
@@ -97,7 +96,7 @@ console.log('list')
 const listed = await run(ctx, 'list', agent)
 check('list succeeds', listed.kind === 'success')
 check('list shows a stored record', textOf(listed).includes('用户偏好 pnpm'))
-check('list shows the id and scope', textOf(listed).includes('mem_pnpm') && textOf(listed).includes('[user/preference]'))
+check('list shows the id and scope', textOf(listed).includes(pnpmRecord.id) && textOf(listed).includes('[user/preference]'))
 check('list shows both records', textOf(listed).includes('用户偏好中文解释'))
 check('list accepts --user', (await run(ctx, 'list --user', agent)).kind === 'success')
 check('list accepts --project', (await run(ctx, 'list --project', agent)).kind === 'success')
@@ -117,9 +116,9 @@ check('a bad --top is refused', (await run(ctx, 'search 中文 --top=0', agent))
 check('an unmatched query says so', textOf(await run(ctx, 'search zzz', agent)).includes('No Memory matches'))
 
 console.log('inspect')
-const inspected = await run(ctx, 'inspect mem_pnpm', agent)
+const inspected = await run(ctx, `inspect ${pnpmRecord.id}`, agent)
 check('inspect succeeds', inspected.kind === 'success')
-check('inspect prints the record as JSON', textOf(inspected).includes('"id": "mem_pnpm"'))
+check('inspect prints the record as JSON', textOf(inspected).includes(`"id": "${pnpmRecord.id}"`))
 check('inspect prints provenance', textOf(inspected).includes('"evidence"'))
 check('a missing id is an error', (await run(ctx, 'inspect mem_absent', agent)).kind === 'error')
 check('inspect without an id is an error', (await run(ctx, 'inspect', agent)).kind === 'error')
@@ -127,7 +126,7 @@ check('inspect without an id is an error', (await run(ctx, 'inspect', agent)).ki
 console.log('export')
 const exported = await run(ctx, 'export --user', agent)
 check('export succeeds', exported.kind === 'success')
-check('export names both records', textOf(exported).includes('mem_pnpm') && textOf(exported).includes('mem_lang'))
+check('export names both records', textOf(exported).includes(pnpmRecord.id) && textOf(exported).includes(langRecord.id))
 const exportedJson = await run(ctx, 'export --user --format=json', agent)
 check('export supports json', exportedJson.kind === 'success' && textOf(exportedJson).includes('"scope": "user"'))
 check('an unknown format is refused', (await run(ctx, 'export --format=xml', agent)).kind === 'error')
@@ -147,21 +146,21 @@ check('the records are still present', readStore(userScope.storePath).records.le
 check('clear without a scope is refused', (await run(ctx, 'clear --yes', agent)).kind === 'error')
 
 console.log('archive and forget')
-const archived = await run(ctx, 'archive mem_lang', agent)
+const archived = await run(ctx, `archive ${langRecord.id}`, agent)
 check('archive succeeds', archived.kind === 'success')
-check('the record becomes archived', readStore(userScope.storePath).records.find(r => r.id === 'mem_lang').status === 'archived')
+check('the record becomes archived', readStore(userScope.storePath).records.find(r => r.id === langRecord.id).status === 'archived')
 check('the index drops it', !readFileSync(userScope.viewPath, 'utf8').includes('用户偏好中文解释'))
-check('archiving twice is a conflict', (await run(ctx, 'archive mem_lang', agent)).kind === 'error')
+check('archiving twice is a conflict', (await run(ctx, `archive ${langRecord.id}`, agent)).kind === 'error')
 
-const forgotten = await run(ctx, 'forget mem_pnpm', agent)
+const forgotten = await run(ctx, `forget ${pnpmRecord.id}`, agent)
 check('forget succeeds', forgotten.kind === 'success')
-check('the record is gone', !readStore(userScope.storePath).records.some(r => r.id === 'mem_pnpm'))
+check('the record is gone', !readStore(userScope.storePath).records.some(r => r.id === pnpmRecord.id))
 check('the view no longer holds it', !readFileSync(userScope.viewPath, 'utf8').includes('用户偏好 pnpm'))
 check('a tombstone records the deletion',
   readFileSync(tombstoneLayout(MEMORY).path, 'utf8').includes('"op":"forget"'))
 check('the tombstone carries no content',
   !readFileSync(tombstoneLayout(MEMORY).path, 'utf8').includes('用户偏好 pnpm'))
-check('forgetting an absent Memory is an error', (await run(ctx, 'forget mem_pnpm', agent)).kind === 'error')
+check('forgetting an absent Memory is an error', (await run(ctx, `forget ${pnpmRecord.id}`, agent)).kind === 'error')
 
 const cleared = await run(ctx, 'clear --user --yes', agent)
 check('clear with --yes succeeds', cleared.kind === 'success')
@@ -199,30 +198,82 @@ const searchTool = ctx.registrations.tools.find(definition => definition.name ==
 const getTool = ctx.registrations.tools.find(definition => definition.name === 'memory_get')
 const registeredProjects = JSON.parse(readFileSync(join(MEMORY, 'registry.json'), 'utf8')).projects
 const currentProject = registeredProjects.find(entry => entry.canonical_root === join(PROJECT)) ?? registeredProjects[0]
+const projectRecord = record({
+  scope: 'project',
+  project_id: currentProject.project_id,
+  content: '该项目使用 pnpm',
+})
 await withStore({ ...projectLayout(MEMORY, currentProject.project_id), lockTimeoutMs: 3000, staleLockMs: 60000 }, current => ({
   changed: true,
-  records: [...current.records, record({
-    id: 'mem_project',
-    scope: 'project',
-    project_id: currentProject.project_id,
-    content: '该项目使用 pnpm',
-  })],
+  records: [...current.records, projectRecord],
 }))
 const searchResult = await searchTool.execute({ query: 'pnpm' }, { agent })
-check('memory_search returns the project record', searchResult.results.some(hit => hit.id === 'mem_project'))
+check('memory_search returns the project record', searchResult.results.some(hit => hit.id === projectRecord.id))
 check('memory_search reports a total', searchResult.total === 1)
 check('memory_search hides the internal score', searchResult.results.every(hit => !('score' in hit)))
 check('memory_search honours top_k',
   (await searchTool.execute({ query: 'pnpm', top_k: 1 }, { agent })).results.length === 1)
+check('memory_search caps top_k at the configured bound',
+  (await searchTool.execute({ query: 'pnpm', top_k: 999 }, { agent })).results.length === 1)
+check('memory_search declares the same bound in its schema',
+  searchTool.parameters.properties.top_k.maximum === 8)
 check('memory_search with no match is empty',
   (await searchTool.execute({ query: 'zzz' }, { agent })).results.length === 0)
 
-const fetched = await getTool.execute({ id: 'mem_project' }, { agent })
-check('memory_get finds the record', fetched.found === true && fetched.memory.id === 'mem_project')
+const fetched = await getTool.execute({ id: projectRecord.id }, { agent })
+check('memory_get finds the record', fetched.found === true && fetched.memory.id === projectRecord.id)
 check('memory_get returns provenance', Array.isArray(fetched.memory.evidence))
-const absent = await getTool.execute({ id: 'mem_absent' }, { agent })
+const absent = await getTool.execute({ id: memoryId() }, { agent })
 check('memory_get reports a missing id explicitly', absent.found === false && absent.reason === 'not-found')
 check('memory_get does not throw for a foreign id', absent.found === false)
+
+console.log('memory_get does not hide a broken store')
+const savedStore = readFileSync(userScope.storePath, 'utf8')
+writeFileSync(userScope.storePath, '{ not json')
+let corruptError
+try {
+  await getTool.execute({ id: projectRecord.id }, { agent })
+} catch (error) {
+  corruptError = error
+}
+check('a corrupt store propagates instead of reading as not-found', corruptError !== undefined)
+writeFileSync(userScope.storePath, savedStore)
+check('the restored store reads again', (await getTool.execute({ id: projectRecord.id }, { agent })).found === true)
+
+console.log('binding a directory refreshes the session project')
+const plain = join(ROOT, 'plain-workspace')
+mkdirSync(plain, { recursive: true })
+const fresh = createStubContext()
+plugin.apply(fresh, { dshHome: ROOT, memoryDir: MEMORY })
+const plainAgent = { session: { header: { id: 'session-plain', cwd: plain } } }
+await fresh.emitAsync('agent/created', { agent: plainAgent })
+const beforeBind = await run(fresh, 'clear --project --yes', plainAgent)
+check('a directory with no marker has no project scope yet', beforeBind.kind === 'error')
+const boundPlain = await run(fresh, `project bind ${plain}`, plainAgent)
+check('binding succeeds', boundPlain.kind === 'success')
+const afterBind = await run(fresh, 'clear --project --yes', plainAgent)
+check('the bound directory is now the session project', afterBind.kind === 'success')
+check('the project scope is empty, so nothing was deleted',
+  textOf(afterBind).includes('Nothing to delete'))
+disposeEffects(fresh)
+
+console.log('forget reports a tombstone it could not write')
+const doomed = record({ content: 'to be deleted' })
+await withStore({ ...userScope, lockTimeoutMs: 3000, staleLockMs: 60000 }, current => ({
+  changed: true,
+  records: [...current.records, doomed],
+}))
+const tombstonePath = tombstoneLayout(MEMORY).path
+const savedTombstones = existsSync(tombstonePath) ? readFileSync(tombstonePath, 'utf8') : undefined
+rmSync(tombstonePath, { force: true })
+mkdirSync(tombstonePath)
+const blockedForget = await run(ctx, `forget ${doomed.id}`, agent)
+check('the deletion still succeeds', blockedForget.kind === 'success')
+check('the record is gone', !readStore(userScope.storePath).records.some(r => r.id === doomed.id))
+check('the report does not promise a tombstone', !textOf(blockedForget).includes('A tombstone without content remains'))
+check('the report names what failed', textOf(blockedForget).includes('audit tombstone could not be written'))
+rmSync(tombstonePath, { recursive: true, force: true })
+if (savedTombstones !== undefined) writeFileSync(tombstonePath, savedTombstones)
 
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)

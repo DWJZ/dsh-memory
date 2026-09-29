@@ -58,9 +58,52 @@ export function isProcessAlive(pid, kill = process.kill) {
  * @returns true when the caller should retry acquisition.
  */
 export function reclaimIfStale(lockPath, options) {
-  const age = lockAgeMs(lockPath, options.now)
-  if (age === undefined || age <= options.staleLockMs) return false
+  const observed = observeLock(lockPath, options)
+  if (observed === undefined) return false
+  if (observed.record !== undefined && observed.record.host !== options.host) {
+    // Another machine's process cannot be probed, so the lock stands until the
+    // waiter times out and reports it; a shared volume needs manual cleanup.
+    return false
+  }
+  if (observed.record !== undefined && isProcessAlive(observed.record.pid, options.kill)) return false
 
+  // Two processes can see the same stale lock. Without serializing the removal,
+  // the slower one deletes the lock the faster one has just created, and both go
+  // on to believe they hold it.
+  const mutexPath = `${lockPath}.reclaim`
+  if (!takeReclaimMutex(mutexPath, options)) return false
+  try {
+    // Re-observe under the mutex: the lock may be gone, refreshed, or replaced.
+    const current = observeLock(lockPath, options)
+    if (current === undefined) return true
+    if (current.mtimeMs !== observed.mtimeMs || current.record?.nonce !== observed.record?.nonce) return false
+    if (current.record !== undefined && isProcessAlive(current.record.pid, options.kill)) return false
+    unlinkSync(lockPath)
+    options.onWarn?.(`reclaimed stale lock ${lockPath} (age ${String(Math.round(current.ageMs))}ms, pid ${String(current.record?.pid ?? 'unknown')})`)
+    return true
+  } catch (error) {
+    if (error?.code === 'ENOENT') return true
+    return false
+  } finally {
+    releaseReclaimMutex(mutexPath)
+  }
+}
+
+/**
+ * Read one lock file's identity and freshness.
+ * @param lockPath - the lock file path.
+ * @param options - staleness threshold and clock.
+ * @returns the observation, or undefined when the lock is absent or still fresh.
+ */
+function observeLock(lockPath, options) {
+  let stats
+  try {
+    stats = statSync(lockPath)
+  } catch {
+    return undefined
+  }
+  const ageMs = options.now() - stats.mtimeMs
+  if (ageMs <= options.staleLockMs) return undefined
   let record
   try {
     record = JSON.parse(readFileSync(lockPath, 'utf8'))
@@ -68,23 +111,52 @@ export function reclaimIfStale(lockPath, options) {
     // A malformed lock older than the threshold has no owner to protect.
     record = undefined
   }
+  return { ageMs, mtimeMs: stats.mtimeMs, record }
+}
 
-  if (record !== undefined && record.host !== options.host) {
-    // Another machine's process cannot be probed, so the lock stands until the
-    // waiter times out and reports it; a shared volume needs manual cleanup.
+/**
+ * Take the mutex that serializes stale-lock reclaim.
+ *
+ * A reaper holds it for microseconds, so an older one is abandoned rather than
+ * waited for; the bound is the shorter of the lock timeout and the staleness
+ * threshold, which keeps a crashed reaper from blocking reclaims for long.
+ * @param mutexPath - the mutex file path.
+ * @param options - clock and thresholds.
+ * @returns true when this call now holds the mutex.
+ */
+function takeReclaimMutex(mutexPath, options) {
+  const abandonedMs = Math.min(options.staleLockMs, options.lockTimeoutMs ?? options.staleLockMs)
+  try {
+    const fd = openSync(mutexPath, 'wx', 0o600)
+    closeSync(fd)
+    return true
+  } catch (error) {
+    if (error?.code !== 'EEXIST') return false
+  }
+  try {
+    if (options.now() - statSync(mutexPath).mtimeMs <= abandonedMs) return false
+    unlinkSync(mutexPath)
+  } catch {
     return false
   }
-
-  const pid = record?.pid
-  if (record !== undefined && isProcessAlive(pid, options.kill)) return false
-
   try {
-    unlinkSync(lockPath)
-  } catch (error) {
-    if (error?.code !== 'ENOENT') return false
+    closeSync(openSync(mutexPath, 'wx', 0o600))
+    return true
+  } catch {
+    return false
   }
-  options.onWarn?.(`reclaimed stale lock ${lockPath} (age ${String(Math.round(age))}ms, pid ${String(pid ?? 'unknown')})`)
-  return true
+}
+
+/**
+ * Release the reclaim mutex.
+ * @param mutexPath - the mutex file path.
+ */
+function releaseReclaimMutex(mutexPath) {
+  try {
+    unlinkSync(mutexPath)
+  } catch {
+    // Another reaper's mutex, or already gone; either way nothing to release.
+  }
 }
 
 /**
@@ -162,6 +234,7 @@ async function acquire(options, nonce) {
 
     const reclaimed = reclaimIfStale(options.lockPath, {
       staleLockMs: options.staleLockMs,
+      lockTimeoutMs: options.lockTimeoutMs,
       host: options.host,
       kill: options.kill,
       now: options.now,
@@ -187,20 +260,6 @@ function releaseLockFile(lockPath, nonce) {
     unlinkSync(lockPath)
   } catch (error) {
     if (error?.code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
-  }
-}
-
-/**
- * Age of one lock file, or undefined when it is gone.
- * @param lockPath - the lock file path.
- * @param now - clock, injectable for tests.
- * @returns the age in milliseconds.
- */
-function lockAgeMs(lockPath, now) {
-  try {
-    return now() - statSync(lockPath).mtimeMs
-  } catch {
-    return undefined
   }
 }
 
@@ -238,6 +297,20 @@ export function lockExists(lockPath) {
  */
 function withoutUndefined(options) {
   return Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined))
+}
+
+/**
+ * Age of one lock file, or undefined when it is gone.
+ * @param lockPath - the lock file path.
+ * @param now - clock, injectable for tests.
+ * @returns the age in milliseconds.
+ */
+function lockAgeMs(lockPath, now) {
+  try {
+    return now() - statSync(lockPath).mtimeMs
+  } catch {
+    return undefined
+  }
 }
 
 /**

@@ -45,16 +45,36 @@ export function resolveConfig(config, env = process.env) {
     enabled: booleanSetting(raw.enabled, DEFAULTS.enabled, 'enabled'),
     dshHome,
     memoryDir: resolveMemoryDir(dshHome),
-    indexBudgetBytes: numberSetting(raw.indexBudgetBytes, DEFAULTS.indexBudgetBytes, 'indexBudgetBytes', 0),
+    indexBudgetBytes: integerSetting(raw.indexBudgetBytes, DEFAULTS.indexBudgetBytes, 'indexBudgetBytes', 0),
     indexBudgetSplit: splitSetting(raw.indexBudgetSplit),
-    retrievalTopK: numberSetting(raw.retrievalTopK, DEFAULTS.retrievalTopK, 'retrievalTopK', 1),
+    retrievalTopK: integerSetting(raw.retrievalTopK, DEFAULTS.retrievalTopK, 'retrievalTopK', 1),
     projectRootMarkers: markersSetting(raw.projectRootMarkers),
-    lockTimeoutMs: numberSetting(raw.lockTimeoutMs, DEFAULTS.lockTimeoutMs, 'lockTimeoutMs', 1),
-    staleLockMs: numberSetting(raw.staleLockMs, DEFAULTS.staleLockMs, 'staleLockMs', 1),
-    maxEvidencePerMemory: numberSetting(raw.maxEvidencePerMemory, DEFAULTS.maxEvidencePerMemory, 'maxEvidencePerMemory', 1),
-    exportInlineMaxBytes: numberSetting(raw.exportInlineMaxBytes, DEFAULTS.exportInlineMaxBytes, 'exportInlineMaxBytes', 1),
-    evidenceQuoteMaxChars: numberSetting(raw.evidenceQuoteMaxChars, DEFAULTS.evidenceQuoteMaxChars, 'evidenceQuoteMaxChars', 0),
+    lockTimeoutMs: integerSetting(raw.lockTimeoutMs, DEFAULTS.lockTimeoutMs, 'lockTimeoutMs', 1),
+    staleLockMs: integerSetting(raw.staleLockMs, DEFAULTS.staleLockMs, 'staleLockMs', 1),
+    maxEvidencePerMemory: integerSetting(raw.maxEvidencePerMemory, DEFAULTS.maxEvidencePerMemory, 'maxEvidencePerMemory', 1),
+    exportInlineMaxBytes: integerSetting(raw.exportInlineMaxBytes, DEFAULTS.exportInlineMaxBytes, 'exportInlineMaxBytes', 1),
+    evidenceQuoteMaxChars: integerSetting(raw.evidenceQuoteMaxChars, DEFAULTS.evidenceQuoteMaxChars, 'evidenceQuoteMaxChars', 0),
   }
+}
+
+/**
+ * Read one counted or measured setting.
+ *
+ * Bytes, entries, results, and milliseconds are all counts: a fractional value
+ * would be silently truncated somewhere downstream, so it is refused here where
+ * the deployment can see why.
+ * @param value - raw value from cordis.yml.
+ * @param fallback - value used when the setting is absent.
+ * @param field - setting name, named in the failure.
+ * @param minimum - smallest accepted value.
+ * @returns the validated integer.
+ */
+function integerSetting(value, fallback, field, minimum) {
+  if (value === undefined) return fallback
+  if (!Number.isInteger(value) || value < minimum) {
+    throw new TypeError(`dsh-memory: config ${field} must be an integer >= ${String(minimum)}, got ${JSON.stringify(value)}`)
+  }
+  return value
 }
 
 /**

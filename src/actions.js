@@ -184,26 +184,42 @@ export async function archiveMemory(options, input) {
 export async function forgetMemory(options, input) {
   const located = locateVisible(options, input.id, input.projectId)
   const outcome = await apply(options, located.layout, (store) => {
-    if (!store.records.some(entry => entry.id === input.id)) {
+    const doomed = store.records.find(entry => entry.id === input.id)
+    if (doomed === undefined) {
       throw new Error(`dsh-memory: memory ${input.id} is no longer present`)
     }
-    const remaining = store.records.filter(entry => entry.id !== input.id)
+    // Deleting a record must not leave others claiming to be superseded by it.
+    // A predecessor either inherits the deleted record's successor, keeping the
+    // chain intact, or — when there is nothing to inherit — becomes an archived
+    // record that no longer asserts anything about a successor.
+    const survivor = doomed.superseded_by !== null
+      && store.records.some(entry => entry.id === doomed.superseded_by)
+      ? doomed.superseded_by
+      : undefined
+    const repaired = store.records
+      .filter(entry => entry.id !== input.id)
+      .map((entry) => {
+        if (entry.superseded_by !== input.id) return entry
+        return survivor === undefined
+          ? { ...entry, status: 'archived', superseded_by: null }
+          : { ...entry, superseded_by: survivor }
+      })
     return {
       changed: true,
-      records: remaining,
+      records: repaired,
       result: { action: 'forgotten', id: input.id },
     }
   })
   // The deletion is the guarantee; the tombstone is a body-free trace of it, so a
-  // failure to write the trace is reported but does not undo a completed delete.
-  await recordTombstone(options, {
+  // failure to write the trace is reported rather than undoing a completed delete.
+  const tombstoned = await recordTombstone(options, {
     op: 'forget',
     id: input.id,
     scope: located.record.scope,
     project_id: located.record.project_id,
     deleted_at: nowIso(options),
   })
-  return outcome
+  return { ...outcome, tombstoneWritten: tombstoned }
 }
 
 /**
@@ -239,19 +255,39 @@ export async function clearScope(options, input) {
 }
 
 /**
+ * Raised when a Memory is not among the scopes a caller may read.
+ *
+ * A store that cannot be read is a different failure with a different remedy, so
+ * callers that turn "not found" into a user-facing answer must be able to tell
+ * the two apart.
+ */
+export class MemoryNotVisibleError extends Error {
+  /**
+   * Describe one invisible record.
+   * @param id - the record the caller asked for.
+   */
+  constructor(id) {
+    super(`dsh-memory: memory ${id} is not visible to this session`)
+    this.name = 'MemoryNotVisibleError'
+    /** The id that could not be found. */
+    this.id = id
+  }
+}
+
+/**
  * Find one record among the scopes the caller may read.
  * @param options - scopes and thresholds.
  * @param id - the record to find.
  * @param projectId - the caller's current project, when it has one.
  * @returns the record, its scope, and that scope's layout.
- * @throws when no visible scope holds the record.
+ * @throws {MemoryNotVisibleError} when no visible scope holds the record.
  */
 export function locateVisible(options, id, projectId) {
   for (const candidate of visibleScopes(options, projectId)) {
     const record = readStore(candidate.layout.storePath).records.find(entry => entry.id === id)
     if (record !== undefined) return { scope: candidate.scope, layout: candidate.layout, record }
   }
-  throw new Error(`dsh-memory: memory ${id} is not visible to this session`)
+  throw new MemoryNotVisibleError(id)
 }
 
 /**
@@ -291,13 +327,16 @@ export async function appendTombstone(options, entry) {
  * Append a tombstone, reporting rather than failing when the log is unwritable.
  * @param options - tombstone location, thresholds, and logger.
  * @param entry - the tombstone record.
- * @returns fulfillment once the attempt is settled.
+ * @returns whether the tombstone reached the log, so a caller can word its
+ *   report truthfully instead of promising a trace it does not have.
  */
 async function recordTombstone(options, entry) {
   try {
     await appendTombstone(options, entry)
+    return true
   } catch (error) {
     options.logger?.warn(`dsh-memory: could not append the tombstone for ${String(entry.id ?? entry.op)}: ${String(error?.message ?? error)}`)
+    return false
   }
 }
 

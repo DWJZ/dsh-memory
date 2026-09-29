@@ -9,6 +9,7 @@
  * Usage: `node test/fixtures/mutate-worker-unsafe.mjs <storePath> <prefix> <holdMs>`.
  */
 import { readStore, writeAtomic } from '../../src/jsonstore.js'
+import { memoryRecord } from './records.mjs'
 
 const [storePath, prefix, rawHold] = process.argv.slice(2)
 const holdMs = Number(rawHold)
@@ -19,5 +20,5 @@ await new Promise(resolve => { setTimeout(resolve, holdMs) })
 writeAtomic(storePath, `${JSON.stringify({
   schema_version: store.schema_version,
   revision: store.revision + 1,
-  records: [...store.records, { id: `${prefix}-0` }],
+  records: [...store.records, memoryRecord({ content: `${prefix}-0` })],
 }, null, 2)}\n`)

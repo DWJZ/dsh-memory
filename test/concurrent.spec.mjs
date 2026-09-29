@@ -66,7 +66,7 @@ check('the revision counts every mutation', store.revision === expected)
 check('no record is lost', store.records.length === expected)
 check('the revision and the record count agree', store.revision === store.records.length)
 for (const prefix of PREFIXES) {
-  const present = store.records.filter(record => record.id.startsWith(`${prefix}-`)).length
+  const present = store.records.filter(record => record.content.startsWith(`${prefix}-`)).length
   check(`every ${prefix} record survives`, present === PER_WORKER)
 }
 const ids = new Set(store.records.map(record => record.id))

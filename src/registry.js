@@ -19,7 +19,7 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { writeAtomic } from './jsonstore.js'
 import { withLock } from './lock.js'
-import { newProjectId } from './schema.js'
+import { newProjectId, isProjectId, isTimestamp } from './schema.js'
 
 /** Registry format version this build writes; an unknown version is refused. */
 export const REGISTRY_SCHEMA_VERSION = 1
@@ -33,10 +33,14 @@ export function emptyRegistry() {
 }
 
 /**
- * Read the project registry.
+ * Read the project registry and validate every entry it holds.
+ *
+ * Registry entries decide which directory a project's Memory lives in, so a
+ * document that was edited by hand or left by an older build is refused here
+ * rather than trusted downstream.
  * @param registryPath - absolute path of `registry.json`.
  * @returns the stored registry, or an empty one when the file is absent.
- * @throws when the file is unreadable, malformed, or from another format version.
+ * @throws when the file is unreadable, malformed, or violates the entry schema.
  */
 export function readRegistry(registryPath) {
   if (!existsSync(registryPath)) return emptyRegistry()
@@ -58,7 +62,57 @@ export function readRegistry(registryPath) {
   if (!Array.isArray(parsed.projects)) {
     throw new Error(`dsh-memory: ${registryPath} must hold a projects array`)
   }
+  validateRegistry(parsed)
   return parsed
+}
+
+/**
+ * Validate every project entry of one registry document.
+ *
+ * Uniqueness of the lexical roots is part of the schema rather than a
+ * convention: the resolver picks the longest ancestor, so two projects claiming
+ * one path would make which project a session belongs to depend on array order.
+ * @param registry - the parsed registry document.
+ * @throws {TypeError} when any entry is invalid or two entries claim one path.
+ */
+export function validateRegistry(registry) {
+  const ids = new Set()
+  const roots = new Map()
+  for (const entry of registry.projects) {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+      throw new TypeError('dsh-memory: a registry entry must be an object')
+    }
+    if (!isProjectId(entry.project_id)) {
+      throw new TypeError(`dsh-memory: project_id must be a project id, got ${JSON.stringify(entry.project_id)}`)
+    }
+    if (ids.has(entry.project_id)) {
+      throw new TypeError(`dsh-memory: project ${entry.project_id} appears more than once`)
+    }
+    ids.add(entry.project_id)
+    if (typeof entry.canonical_root !== 'string' || !isAbsolute(entry.canonical_root)) {
+      throw new TypeError(`dsh-memory: project ${entry.project_id} must have an absolute canonical_root, got ${JSON.stringify(entry.canonical_root)}`)
+    }
+    for (const field of ['aliases', 'workspace_ids']) {
+      if (!Array.isArray(entry[field]) || entry[field].some(value => typeof value !== 'string')) {
+        throw new TypeError(`dsh-memory: project ${entry.project_id} ${field} must be an array of strings`)
+      }
+    }
+    for (const root of projectRoots(entry)) {
+      if (!isAbsolute(root)) {
+        throw new TypeError(`dsh-memory: project ${entry.project_id} has a non-absolute root ${JSON.stringify(root)}`)
+      }
+      const owner = roots.get(root)
+      if (owner !== undefined && owner !== entry.project_id) {
+        throw new TypeError(`dsh-memory: ${root} is claimed by both ${owner} and ${entry.project_id}`)
+      }
+      roots.set(root, entry.project_id)
+    }
+    for (const field of ['created_at', 'updated_at']) {
+      if (!isTimestamp(entry[field])) {
+        throw new TypeError(`dsh-memory: project ${entry.project_id} ${field} must be an ISO-8601 UTC timestamp`)
+      }
+    }
+  }
 }
 
 /**

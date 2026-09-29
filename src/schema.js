@@ -42,6 +42,33 @@ export function newProjectId() {
   return `proj_${randomUUID()}`
 }
 
+/** Exact shape of a Memory id, as minted by {@link newMemoryId}. */
+export const MEMORY_ID_PATTERN = /^mem_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u
+
+/** Exact shape of a project id, as minted by {@link newProjectId}. */
+export const PROJECT_ID_PATTERN = /^proj_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u
+
+/**
+ * Whether a value is a well-formed Memory id.
+ * @param value - the value to test.
+ * @returns true when the value is a `mem_` id this plugin could have minted.
+ */
+export function isMemoryId(value) {
+  return typeof value === 'string' && MEMORY_ID_PATTERN.test(value)
+}
+
+/**
+ * Whether a value is a well-formed project id.
+ *
+ * A project id becomes a directory name, so a malformed one is a path-safety
+ * question rather than only a schema question.
+ * @param value - the value to test.
+ * @returns true when the value is a `proj_` id this plugin could have minted.
+ */
+export function isProjectId(value) {
+  return typeof value === 'string' && PROJECT_ID_PATTERN.test(value)
+}
+
 /**
  * Normalize content for exact-duplicate comparison.
  *
@@ -86,25 +113,33 @@ export function isTimestamp(value) {
 /**
  * Validate one Memory record against the contract's schema rules.
  *
- * Rule 4 of the contract ("`superseded_by` must name an existing record") is a
- * property of the whole store, so it is enforced by the store rather than here.
+ * Rule 4's second half — that `superseded_by` names a record the store actually
+ * holds — is a property of the whole store, so {@link validateStoreRecords}
+ * enforces it.
  * @param record - the candidate record.
  * @param options - validation inputs that are not part of the record.
- * @param options.maxEvidencePerMemory - largest accepted evidence list.
+ * @param options.maxEvidencePerMemory - largest accepted evidence list; reading a
+ *   stored document omits it, because the cap is a writer's choice rather than a
+ *   property of a valid record.
  * @throws {TypeError} when the record violates any schema rule.
  */
-export function validateMemory(record, options) {
+export function validateMemory(record, options = {}) {
   if (typeof record !== 'object' || record === null || Array.isArray(record)) {
     throw new TypeError('dsh-memory: memory record must be an object')
   }
 
-  requireNonEmptyString(record.id, 'id')
+  if (!isMemoryId(record.id)) {
+    throw new TypeError(`dsh-memory: id must be a Memory id, got ${JSON.stringify(record.id)}`)
+  }
   requireMember(record.scope, SCOPES, 'scope')
   requireMember(record.category, CATEGORIES, 'category')
   requireMember(record.status, STATUSES, 'status')
 
-  if (record.scope === 'project') requireNonEmptyString(record.project_id, 'project_id')
-  else if (record.project_id !== null) {
+  if (record.scope === 'project') {
+    if (!isProjectId(record.project_id)) {
+      throw new TypeError(`dsh-memory: memory ${record.id}: project_id must be a project id, got ${JSON.stringify(record.project_id)}`)
+    }
+  } else if (record.project_id !== null) {
     throw new TypeError(`dsh-memory: memory ${record.id}: project_id must be null for scope "user", got ${JSON.stringify(record.project_id)}`)
   }
 
@@ -123,8 +158,11 @@ export function validateMemory(record, options) {
     throw new TypeError(`dsh-memory: memory ${record.id}: confidence must be a number in [0, 1], got ${JSON.stringify(record.confidence)}`)
   }
 
-  if (record.status === 'superseded') requireNonEmptyString(record.superseded_by, 'superseded_by')
-  else if (record.superseded_by !== null) {
+  if (record.status === 'superseded') {
+    if (!isMemoryId(record.superseded_by)) {
+      throw new TypeError(`dsh-memory: memory ${record.id}: superseded_by must be a Memory id, got ${JSON.stringify(record.superseded_by)}`)
+    }
+  } else if (record.superseded_by !== null) {
     throw new TypeError(`dsh-memory: memory ${record.id}: superseded_by must be null unless status is "superseded"`)
   }
 
@@ -137,10 +175,43 @@ export function validateMemory(record, options) {
   if (!Array.isArray(record.evidence)) {
     throw new TypeError(`dsh-memory: memory ${record.id}: evidence must be an array`)
   }
-  if (record.evidence.length > options.maxEvidencePerMemory) {
-    throw new TypeError(`dsh-memory: memory ${record.id}: evidence must hold at most ${String(options.maxEvidencePerMemory)} entries`)
+  const cap = options.maxEvidencePerMemory ?? Number.POSITIVE_INFINITY
+  if (record.evidence.length > cap) {
+    throw new TypeError(`dsh-memory: memory ${record.id}: evidence must hold at most ${String(cap)} entries`)
   }
   record.evidence.forEach((entry, index) => { validateEvidence(entry, record.id, index) })
+}
+
+/**
+ * Validate a whole store's records, including the rules no single record can
+ * answer.
+ *
+ * `memories.json` is the source of truth, so a document that violates its own
+ * schema is refused rather than propagated into an index or a view: a record
+ * claiming to be superseded by a record that is not there is an inconsistency a
+ * reader would silently believe.
+ * @param records - every record the store holds.
+ * @param options - validation inputs that are not part of a record.
+ * @param options.maxEvidencePerMemory - largest accepted evidence list.
+ * @throws {TypeError} when any record is invalid, ids repeat, or a supersession
+ *   reference dangles.
+ */
+export function validateStoreRecords(records, options = {}) {
+  if (!Array.isArray(records)) throw new TypeError('dsh-memory: a store document must hold a records array')
+  const known = new Set()
+  for (const record of records) {
+    validateMemory(record, options)
+    if (known.has(record.id)) {
+      throw new TypeError(`dsh-memory: memory ${record.id} appears more than once in one store`)
+    }
+    known.add(record.id)
+  }
+  for (const record of records) {
+    if (record.status !== 'superseded') continue
+    if (!known.has(record.superseded_by)) {
+      throw new TypeError(`dsh-memory: memory ${record.id} claims to be superseded by ${record.superseded_by}, which this store does not hold`)
+    }
+  }
 }
 
 /**

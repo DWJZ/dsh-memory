@@ -16,6 +16,7 @@ const PLUGIN = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const registry = await import(pathToFileURL(join(PLUGIN, 'src/registry.js')).href)
 const { registryLayout, projectLayout, userLayout } = await import(pathToFileURL(join(PLUGIN, 'src/paths.js')).href)
 const { readStore, withStore } = await import(pathToFileURL(join(PLUGIN, 'src/jsonstore.js')).href)
+const { projectMemoryRecord, projectId: newProjectId } = await import('./fixtures/records.mjs')
 
 let failures = 0
 const check = (name, condition, detail = '') => {
@@ -163,9 +164,10 @@ check('the user scope is separate from every project',
   userLayout(MEMORY).dir !== scopeA.dir && userLayout(MEMORY).dir !== scopeB.dir)
 check('a project layout lives below the projects directory',
   scopeA.dir.startsWith(join(MEMORY, 'projects')))
-await withStore(scopeA, current => ({ changed: true, records: [...current.records, { id: 'mem_a' }] }))
+const storedRecord = projectMemoryRecord(betaBound.project.project_id)
+await withStore(scopeA, current => ({ changed: true, records: [...current.records, storedRecord] }))
 check('the record is stored under its own project',
-  readStore(scopeA.storePath).records.some(record => record.id === 'mem_a'))
+  readStore(scopeA.storePath).records.some(record => record.id === storedRecord.id))
 check('the other project sees nothing',
   readStore(scopeB.storePath).records.length === 0)
 check('the other project has no store file', !existsSync(scopeB.storePath))
@@ -180,6 +182,52 @@ try {
 }
 check('an unknown registry schema_version is refused', versionError !== undefined)
 check('the refusal names the field', String(versionError?.message).includes('schema_version'))
+
+console.log('a registry that violates its own schema is refused')
+const writeRegistry = projects => {
+  writeFileSync(LAYOUT.registryPath, JSON.stringify({ schema_version: 1, revision: 1, projects }, null, 2))
+}
+const at = new Date(0).toISOString()
+const entry = (overrides = {}) => ({
+  project_id: newProjectId(),
+  canonical_root: '/tmp/dsh-memory-registry-entry',
+  aliases: [],
+  workspace_ids: [],
+  created_at: at,
+  updated_at: at,
+  ...overrides,
+})
+
+writeRegistry([entry({ project_id: 'proj_not-a-uuid' })])
+check('a hand-written project id is refused', await rejects(() => registry.readRegistry(LAYOUT.registryPath)))
+check('the refusal names project_id',
+  await rejects(() => registry.readRegistry(LAYOUT.registryPath), 'project_id'))
+
+writeRegistry([entry({ canonical_root: 'relative/path' })])
+check('a relative root is refused', await rejects(() => registry.readRegistry(LAYOUT.registryPath), 'absolute'))
+
+const duplicate = entry()
+writeRegistry([duplicate, { ...duplicate, project_id: newProjectId() }])
+check('two projects claiming one path are refused',
+  await rejects(() => registry.readRegistry(LAYOUT.registryPath), 'claimed by both'))
+
+writeRegistry([entry({ aliases: 'not-an-array' })])
+check('a non-array alias list is refused', await rejects(() => registry.readRegistry(LAYOUT.registryPath), 'aliases'))
+
+writeRegistry([entry({ updated_at: 'yesterday' })])
+check('a malformed timestamp is refused', await rejects(() => registry.readRegistry(LAYOUT.registryPath), 'updated_at'))
+
+writeRegistry([entry({ project_id: '../escape' })])
+check('a path-shaped project id is refused',
+  await rejects(() => registry.readRegistry(LAYOUT.registryPath), 'project id'))
+
+console.log('a project id cannot become a path outside the Memory root')
+check('projectLayout refuses a traversal id',
+  await rejects(() => projectLayout(MEMORY, '../escape'), 'project id'))
+check('projectLayout refuses a bare name',
+  await rejects(() => projectLayout(MEMORY, 'escape'), 'project id'))
+check('projectLayout accepts a minted id',
+  projectLayout(MEMORY, newProjectId()).dir.startsWith(join(MEMORY, 'projects')))
 
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)

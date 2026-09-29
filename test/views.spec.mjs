@@ -17,6 +17,8 @@ const { renderMemoryView, rebuildView, mutateAndRefreshView } = await import(pat
 const { scopeLayout } = await import(pathToFileURL(join(PLUGIN, 'src/paths.js')).href)
 const { readStore, withStore, TEMP_MARKER } = await import(pathToFileURL(join(PLUGIN, 'src/jsonstore.js')).href)
 const { compareRecords } = await import(pathToFileURL(join(PLUGIN, 'src/retention.js')).href)
+const { newMemoryId } = await import(pathToFileURL(join(PLUGIN, 'src/schema.js')).href)
+const memoryId = newMemoryId
 
 let failures = 0
 const check = (name, condition, detail = '') => {
@@ -31,9 +33,9 @@ const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-view-'))
 const layout = scopeLayout(join(ROOT, 'user'))
 const OPTIONS = { ...layout, lockTimeoutMs: 2000, staleLockMs: 60000 }
 
-/** One record shaped well enough for rendering. */
+/** One record shaped well enough for rendering, with a valid identity. */
 const record = (overrides = {}) => ({
-  id: 'mem_a',
+  id: memoryId(),
   scope: 'user',
   project_id: null,
   category: 'state',
@@ -84,7 +86,7 @@ check('the empty view records revision 0', emptyView.includes('dsh-memory: revis
 console.log('rebuildView writes what is on disk')
 await withStore(OPTIONS, current => ({
   changed: true,
-  records: [...current.records, record({ id: 'mem_one', content: 'first fact' })],
+  records: [...current.records, record({ content: 'first fact' })],
 }))
 const rebuilt = await rebuildView(OPTIONS)
 check('the rebuild reports the committed revision', rebuilt.revision === 1)
@@ -96,7 +98,7 @@ check('no temporary file is left behind',
 console.log('view_rebuild_reads_latest_revision')
 await withStore(OPTIONS, current => ({
   changed: true,
-  records: [...current.records, record({ id: 'mem_two', content: 'second fact' })],
+  records: [...current.records, record({ content: 'second fact' })],
 }))
 await rebuildView(OPTIONS)
 const latest = readFileSync(layout.viewPath, 'utf8')
@@ -108,22 +110,23 @@ console.log('view_failure_does_not_fail_commit')
 const warnings = []
 rmSync(layout.viewPath, { force: true })
 mkdirSync(layout.viewPath)
+const thirdRecord = record({ content: 'third fact' })
 const blocked = await mutateAndRefreshView(
   { ...OPTIONS, logger: { warn: message => warnings.push(message) } },
-  current => ({ changed: true, records: [...current.records, record({ id: 'mem_three', content: 'third fact' })], result: 'ok' }),
+  current => ({ changed: true, records: [...current.records, thirdRecord], result: 'ok' }),
 )
 check('the mutation still reports success', blocked.result === 'ok')
 check('the canonical revision advanced', blocked.revision === 3)
 check('the mutation is marked view-stale', blocked.viewStale === true)
 check('a warning names the stale view', String(warnings[0]).includes('memory-view-stale'))
 check('the record reached the canonical store',
-  readStore(layout.storePath).records.some(item => item.id === 'mem_three'))
+  readStore(layout.storePath).records.some(item => item.id === thirdRecord.id))
 
 console.log('a healthy rebuild reports no staleness')
 rmSync(layout.viewPath, { recursive: true, force: true })
 const healthy = await mutateAndRefreshView(OPTIONS, current => ({
   changed: true,
-  records: [...current.records, record({ id: 'mem_four', content: 'fourth fact' })],
+  records: [...current.records, record({ content: 'fourth fact' })],
   result: 'ok',
 }))
 check('the mutation reports success', healthy.result === 'ok')

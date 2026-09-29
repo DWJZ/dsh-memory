@@ -13,6 +13,7 @@
 
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { isProjectId } from './schema.js'
 
 /**
  * Expand a leading `~` against the current user's home directory.
@@ -83,7 +84,21 @@ export function registryLayout(memoryDir) {
  * @param projectId - the project whose Memory this is.
  * @returns the store, lock, and view paths for that project.
  */
+/**
+ * Resolve one project's layout below the Memory root.
+ *
+ * A project id becomes a directory name, so it is checked here rather than
+ * trusted: a registry that was edited by hand must not be able to point this
+ * layout at a directory outside the Memory root.
+ * @param memoryDir - the Memory root.
+ * @param projectId - the project whose Memory this is.
+ * @returns the store, lock, and view paths for that project.
+ * @throws {TypeError} when the id is not a project id.
+ */
 export function projectLayout(memoryDir, projectId) {
+  if (!isProjectId(projectId)) {
+    throw new TypeError(`dsh-memory: project id must be a project id, got ${JSON.stringify(projectId)}`)
+  }
   return scopeLayout(join(resolve(expandHome(memoryDir)), 'projects', projectId))
 }
 

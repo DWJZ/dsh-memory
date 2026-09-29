@@ -15,6 +15,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const PLUGIN = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const actions = await import(pathToFileURL(join(PLUGIN, 'src/actions.js')).href)
 const { projectLayout, userLayout, tombstoneLayout } = await import(pathToFileURL(join(PLUGIN, 'src/paths.js')).href)
+const { newProjectId } = await import(pathToFileURL(join(PLUGIN, 'src/schema.js')).href)
 
 let failures = 0
 const check = (name, condition, detail = '') => {
@@ -29,7 +30,7 @@ const AT = '2026-09-26T00:00:00.000Z'
 const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-tombstone-'))
 const MEMORY = join(ROOT, 'memory')
 mkdirSync(MEMORY, { recursive: true })
-const PROJECT = 'proj_tombstone'
+const PROJECT = newProjectId()
 const TOMBSTONES = tombstoneLayout(MEMORY)
 const OPTIONS = {
   scopes: { user: userLayout(MEMORY), project: id => projectLayout(MEMORY, id) },
