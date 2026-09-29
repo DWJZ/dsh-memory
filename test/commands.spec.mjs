@@ -136,7 +136,7 @@ const refused = await tiny.registrations.commands[0].handler({ rawInput: 'export
 check('an over-limit export fails loud', refused.kind === 'error')
 check('the refusal says nothing was truncated', textOf(refused).includes('Nothing was truncated'))
 check('the refusal suggests narrowing', textOf(refused).includes('--user'))
-disposeEffects(tiny)
+await disposeEffects(tiny)
 
 console.log('clear guards the destructive path')
 const reported = await run(ctx, 'clear --user', agent)
@@ -192,6 +192,46 @@ const relative = await run(ctx, 'project bind relative-dir', agent)
 check('a relative path binds against the session directory', relative.kind === 'success')
 check('the relative path was resolved, not stored verbatim',
   readFileSync(join(MEMORY, 'registry.json'), 'utf8').includes(join(PROJECT, 'relative-dir')))
+
+console.log('paths with spaces survive the command line')
+const spaced = join(ROOT, 'My Projects')
+mkdirSync(spaced, { recursive: true })
+const quoted = await run(ctx, `project bind "${spaced}"`, agent)
+check('a double-quoted path binds as one argument', quoted.kind === 'success')
+check('the whole path is stored, not its first word',
+  readFileSync(join(MEMORY, 'registry.json'), 'utf8').includes(spaced))
+check('binding the quoted path again is not a second project',
+  textOf(await run(ctx, `project bind "${spaced}"`, agent)).includes('Already bound'))
+
+const singleQuoted = join(ROOT, 'Single Quoted')
+mkdirSync(singleQuoted, { recursive: true })
+check('a single-quoted path binds as one argument',
+  (await run(ctx, `project bind '${singleQuoted}'`, agent)).kind === 'success')
+check('the whole single-quoted path is stored',
+  readFileSync(join(MEMORY, 'registry.json'), 'utf8').includes(singleQuoted))
+
+const escaped = join(ROOT, 'Escaped Path')
+mkdirSync(escaped, { recursive: true })
+check('an escaped space binds as one argument',
+  (await run(ctx, `project bind ${ROOT}/Escaped\\ Path`, agent)).kind === 'success')
+check('the escaped path is stored whole',
+  readFileSync(join(MEMORY, 'registry.json'), 'utf8').includes(escaped))
+
+const spacedMove = join(ROOT, 'Moved Projects')
+mkdirSync(spacedMove, { recursive: true })
+check('relink accepts two quoted paths',
+  (await run(ctx, `project relink "${spaced}" "${spacedMove}"`, agent)).kind === 'success')
+check('relink kept the old path as an alias and added the new one',
+  readFileSync(join(MEMORY, 'registry.json'), 'utf8').includes(spacedMove))
+
+console.log('a search query keeps its quotes')
+const spacedRecord = record({ content: 'quoted phrase here' })
+await withStore({ ...userScope, lockTimeoutMs: 3000, staleLockMs: 60000 }, current => ({
+  changed: true,
+  records: [...current.records, spacedRecord],
+}))
+check('a quoted multi-word query is one argument',
+  (await run(ctx, 'search "quoted phrase"', agent)).kind === 'success')
 
 console.log('the read tools execute')
 const searchTool = ctx.registrations.tools.find(definition => definition.name === 'memory_search')
@@ -255,7 +295,7 @@ const afterBind = await run(fresh, 'clear --project --yes', plainAgent)
 check('the bound directory is now the session project', afterBind.kind === 'success')
 check('the project scope is empty, so nothing was deleted',
   textOf(afterBind).includes('Nothing to delete'))
-disposeEffects(fresh)
+await disposeEffects(fresh)
 
 console.log('forget reports a tombstone it could not write')
 const doomed = record({ content: 'to be deleted' })
@@ -274,6 +314,38 @@ check('the report does not promise a tombstone', !textOf(blockedForget).includes
 check('the report names what failed', textOf(blockedForget).includes('audit tombstone could not be written'))
 rmSync(tombstonePath, { recursive: true, force: true })
 if (savedTombstones !== undefined) writeFileSync(tombstonePath, savedTombstones)
+
+console.log('clear reports its tombstone honestly')
+const clearedRecord = record({ content: 'cleared soon' })
+await withStore({ ...userScope, lockTimeoutMs: 3000, staleLockMs: 60000 }, current => ({
+  changed: true,
+  records: [...current.records, clearedRecord],
+}))
+const clearTombstonePath = tombstoneLayout(MEMORY).path
+rmSync(clearTombstonePath, { force: true })
+const goodClear = await run(ctx, 'clear --user --yes', agent)
+check('clear deletes every user-scope record', goodClear.kind === 'success')
+check('clear says how many it deleted', textOf(goodClear).includes('Deleted'))
+check('clear promises a summary tombstone it wrote',
+  textOf(goodClear).includes('summary tombstone without content remains'))
+check('the tombstone holds no content',
+  !readFileSync(clearTombstonePath, 'utf8').includes('cleared soon'))
+check('the tombstone records a count',
+  JSON.parse(readFileSync(clearTombstonePath, 'utf8').trim().split('\n').at(-1)).count >= 1)
+
+await withStore({ ...userScope, lockTimeoutMs: 3000, staleLockMs: 60000 }, current => ({
+  changed: true,
+  records: [...current.records, record({ content: 'cleared again' })],
+}))
+rmSync(clearTombstonePath, { force: true })
+mkdirSync(clearTombstonePath)
+const blockedClear = await run(ctx, 'clear --user --yes', agent)
+check('clear still deletes when the tombstone cannot be written', blockedClear.kind === 'success')
+check('the records are gone', readStore(userScope.storePath).records.length === 0)
+check('clear does not promise the tombstone it failed to write',
+  !textOf(blockedClear).includes('tombstone without content remains'))
+check('clear names what failed', textOf(blockedClear).includes('audit tombstone could not be written'))
+rmSync(clearTombstonePath, { recursive: true, force: true })
 
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)

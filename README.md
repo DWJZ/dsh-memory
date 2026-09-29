@@ -98,7 +98,7 @@ Set fields on the plugin row in the profile's `cordis.patch.yml`:
 | `projectRootMarkers` | `['.git']` | Names that identify a project root |
 | `lockTimeoutMs` | `10000` | Wait for the store lock before failing |
 | `staleLockMs` | `60000` | Age at which a lock may be reclaimed |
-| `maxEvidencePerMemory` | `8` | Provenance entries kept per record |
+| `maxEvidencePerMemory` | `8` | Provenance entries a writer keeps per record; an older, longer list still loads |
 | `exportInlineMaxBytes` | `24000` | Largest inline `/memory export` |
 | `evidenceQuoteMaxChars` | `200` | Longest stored quote, in code points |
 
@@ -133,6 +133,7 @@ Three properties shape the code:
 - **Forget is not crash-transactional.** The guarantee is that nothing under `$DSH_HOME/memory` holds the content after a successful return; an interruption between the delete and the tombstone is not recovered. A journal is deferred until something needs it.
 - **The secret guarantee covers this plugin's own data.** A credential is never written to Memory, its view, its tombstones, or its logs. The user's original message and the harness's own `tool/call` record of the arguments belong to the Session log, which an append-only history does not rewrite.
 - **A stale lock on a shared volume needs manual cleanup.** Another machine's process cannot be probed, so an abandoned lock there is reported rather than stolen.
+- **An abandoned reclaim mutex needs manual cleanup too.** `<store>.lock.reclaim` is taken only while a stale lock is being removed, and it is deliberately never reclaimed: recovering it automatically would repeat, one level down, the very race it exists to prevent. A process that dies inside that window leaves the file behind, and the next writer reports the timeout and names the path. Deleting it by hand is the whole remedy.
 
 ## Tests
 

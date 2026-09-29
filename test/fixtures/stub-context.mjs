@@ -59,13 +59,38 @@ export function createStubContext(options = {}) {
       registrations.effects = (registrations.effects ?? 0) + 1
       return dispose
     },
+    /**
+     * Load one injection-scoped plugin, as Cordis does.
+     *
+     * The returned fiber owns the registrations its callback makes, so disposing
+     * it removes them. Modelling that is the point: a stub that returned a bare
+     * disposer could not show whether a service remount resurrects registrations
+     * after a disable.
+     * @param deps - the services the callback requires.
+     * @param callback - the plugin body, called with the scoped context.
+     * @returns a fiber-like object with `dispose`.
+     */
     inject(deps, callback) {
       registrations.injections = registrations.injections ?? []
-      registrations.injections.push({ deps, callback })
+      const entry = { deps, callback, disposed: false, added: { contexts: [], tools: [] } }
+      registrations.injections.push(entry)
+      const fiber = {
+        deps,
+        dispose: async () => {
+          if (entry.disposed) return
+          entry.disposed = true
+          registrations.fiberDisposals = (registrations.fiberDisposals ?? 0) + 1
+          for (const contextEntry of entry.added.contexts) remove(registrations.contexts, contextEntry)
+          for (const toolEntry of entry.added.tools) remove(registrations.tools, toolEntry)
+        },
+      }
       const missing = deps.filter(name => (options.services ?? {})[name] === undefined && ctx[name] === undefined)
-      if (missing.length > 0) return () => {}
-      callback(ctx)
-      return counted(() => {})
+      if (missing.length > 0) {
+        entry.disposed = true
+        return fiber
+      }
+      runInjection(entry)
+      return fiber
     },
     systemPrompt: {
       context(entry) {
@@ -97,6 +122,35 @@ export function createStubContext(options = {}) {
   }
 
   /**
+   * Run one injection's callback and record what it registered.
+   * @param entry - the injection record.
+   */
+  const runInjection = (entry) => {
+    const beforeContexts = registrations.contexts.length
+    const beforeTools = registrations.tools.length
+    entry.callback(ctx)
+    entry.added = {
+      contexts: registrations.contexts.slice(beforeContexts),
+      tools: registrations.tools.slice(beforeTools),
+    }
+  }
+
+  /**
+   * Re-run every live injection, as Cordis does when an injected service
+   * remounts. A disposed fiber must not come back this way.
+   * @returns the number of injections re-run.
+   */
+  ctx.remountServices = () => {
+    let rerun = 0
+    for (const entry of registrations.injections ?? []) {
+      if (entry.disposed) continue
+      runInjection(entry)
+      rerun += 1
+    }
+    return rerun
+  }
+
+  /**
    * Deliver one event to the listeners registered for it.
    * @param name - the event name.
    * @param args - the listener arguments.
@@ -123,10 +177,21 @@ export function createStubContext(options = {}) {
 }
 
 /**
- * Run every disposer one plugin instance registered through `ctx.effect`.
+ * Run every disposer one plugin instance registered through `ctx.effect`, then
+ * settle the async ones.
  * @param ctx - the stub context.
- * @returns nothing.
+ * @returns fulfillment once every disposer has settled.
  */
-export function disposeEffects(ctx) {
-  for (const dispose of [...ctx.registrations.effectDisposers ?? []].reverse()) dispose()
+export async function disposeEffects(ctx) {
+  for (const dispose of [...ctx.registrations.effectDisposers ?? []].reverse()) await dispose()
+}
+
+/**
+ * Drop one entry from a registration list.
+ * @param list - the list to edit.
+ * @param entry - the entry to remove.
+ */
+function remove(list, entry) {
+  const index = list.indexOf(entry)
+  if (index >= 0) list.splice(index, 1)
 }

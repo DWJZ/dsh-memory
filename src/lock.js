@@ -71,7 +71,7 @@ export function reclaimIfStale(lockPath, options) {
   // the slower one deletes the lock the faster one has just created, and both go
   // on to believe they hold it.
   const mutexPath = `${lockPath}.reclaim`
-  if (!takeReclaimMutex(mutexPath, options)) return false
+  if (!takeReclaimMutex(mutexPath)) return false
   try {
     // Re-observe under the mutex: the lock may be gone, refreshed, or replaced.
     const current = observeLock(lockPath, options)
@@ -117,32 +117,22 @@ function observeLock(lockPath, options) {
 /**
  * Take the mutex that serializes stale-lock reclaim.
  *
- * A reaper holds it for microseconds, so an older one is abandoned rather than
- * waited for; the bound is the shorter of the lock timeout and the staleness
- * threshold, which keeps a crashed reaper from blocking reclaims for long.
+ * The mutex is deliberately never reclaimed. Reclaiming it would repeat the very
+ * race it exists to prevent one level down: two reapers could both judge it
+ * stale, and the slower one would delete the mutex the faster one has just
+ * created. A reaper holds it for microseconds, so the cost of refusing instead
+ * is one retry round, and the cost of a crash inside that window is a mutex a
+ * person removes — which the README states.
  * @param mutexPath - the mutex file path.
- * @param options - clock and thresholds.
  * @returns true when this call now holds the mutex.
  */
-function takeReclaimMutex(mutexPath, options) {
-  const abandonedMs = Math.min(options.staleLockMs, options.lockTimeoutMs ?? options.staleLockMs)
-  try {
-    const fd = openSync(mutexPath, 'wx', 0o600)
-    closeSync(fd)
-    return true
-  } catch (error) {
-    if (error?.code !== 'EEXIST') return false
-  }
-  try {
-    if (options.now() - statSync(mutexPath).mtimeMs <= abandonedMs) return false
-    unlinkSync(mutexPath)
-  } catch {
-    return false
-  }
+function takeReclaimMutex(mutexPath) {
   try {
     closeSync(openSync(mutexPath, 'wx', 0o600))
     return true
   } catch {
+    // Held by another reaper, or unwritable; either way this round does not
+    // reclaim, and the caller returns to its ordinary acquire loop.
     return false
   }
 }

@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const PLUGIN = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const store = await import(pathToFileURL(join(PLUGIN, 'src/jsonstore.js')).href)
-const { memoryRecord, memoryId } = await import('./fixtures/records.mjs')
+const { memoryRecord, memoryId, AT } = await import('./fixtures/records.mjs')
 
 let failures = 0
 const check = (name, condition, detail = '') => {
@@ -181,6 +181,30 @@ check('a mutation that would dangle is refused before the write',
   }))))
 check('the store on disk is unchanged after the refusal', store.readStore(STORE).records.length === 2)
 check('the lock is released after a validation refusal', !existsSync(LOCK))
+
+console.log('the evidence cap bounds writers, not a valid record')
+// A deployment that lowers `maxEvidencePerMemory` must still read what an
+// earlier, more generous deployment wrote: the cap decides what a writer may
+// append, not what a store may hold.
+const wellDocumented = memoryRecord({
+  evidence: Array.from({ length: 20 }, (_, index) => ({
+    kind: 'user',
+    session_id: 'session-long',
+    quote: '',
+    event_seqs: [index],
+    observed_at: AT,
+  })),
+})
+writeRaw([wellDocumented])
+check('a record with more evidence than the default cap still loads',
+  store.readStore(STORE).records.length === 1)
+check('its evidence is preserved rather than trimmed on read',
+  store.readStore(STORE).records[0].evidence.length === 20)
+check('a write that keeps it is accepted',
+  !await rejectsWrite(() => store.withStore(OPTIONS, current => ({
+    changed: true,
+    records: current.records,
+  }))))
 
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)

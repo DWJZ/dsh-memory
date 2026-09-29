@@ -190,9 +190,10 @@ async function clearCommand(deps, invocation, flags) {
     return ok(`This would delete ${String(count)} ${scope}-scope Memory record(s). Re-run with --yes to proceed.`)
   }
   const outcome = await clearScope(actionOptions(deps, invocation), { scope, projectId: project?.project_id })
-  return ok(outcome.action === 'cleared'
-    ? `Deleted ${String(outcome.count)} ${scope}-scope Memory record(s).`
-    : `Nothing to delete in the ${scope} scope.`)
+  if (outcome.action !== 'cleared') return ok(`Nothing to delete in the ${scope} scope.`)
+  return ok(`Deleted ${String(outcome.count)} ${scope}-scope Memory record(s). The content is gone from ${deps.config.memoryDir}.${outcome.tombstoneWritten === true
+    ? ' A summary tombstone without content remains.'
+    : ' The audit tombstone could not be written; the deletion itself succeeded.'}`)
 }
 
 /**
@@ -225,9 +226,9 @@ async function exportCommand(deps, invocation, flags) {
  * @param enabled - the requested state.
  * @returns the outcome.
  */
-function enableCommand(deps, enabled) {
+async function enableCommand(deps, enabled) {
   try {
-    deps.setEnabled(enabled)
+    await deps.setEnabled(enabled)
   } catch (failure) {
     return error(`dsh-memory: could not persist the switch: ${String(failure?.message ?? failure)}`)
   }
@@ -389,6 +390,64 @@ function resolvePath(cwd, path) {
 const VALUE_FLAGS = new Set(['status', 'category', 'top', 'format'])
 
 /**
+ * Split one raw command input into tokens, honouring quoting.
+ *
+ * A path with a space is one argument, not two, and the shell-like escapes a
+ * person already expects (`"..."`, `'...'`, and `\ `) work here too. Without
+ * this, `/memory project bind /Users/me/My Projects` would silently bind
+ * `/Users/me/My` and treat `Projects` as a second positional argument.
+ * @param rawInput - the text after the command name.
+ * @returns the tokens, in order.
+ */
+function tokenize(rawInput) {
+  const text = String(rawInput ?? '')
+  const tokens = []
+  let current = ''
+  let started = false
+  let quote = null
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    if (quote !== null) {
+      if (char === quote) {
+        quote = null
+        continue
+      }
+      if (char === '\\' && quote === '"' && index + 1 < text.length) {
+        index += 1
+        current += text[index]
+        continue
+      }
+      current += char
+      continue
+    }
+    if (char === '"' || char === '\'') {
+      quote = char
+      started = true
+      continue
+    }
+    if (char === '\\' && index + 1 < text.length) {
+      index += 1
+      current += text[index]
+      started = true
+      continue
+    }
+    if (/\s/u.test(char)) {
+      if (started) tokens.push(current)
+      current = ''
+      started = false
+      continue
+    }
+    current += char
+    started = true
+  }
+  // An unterminated quote is closed at the end rather than throwing: the command
+  // still has an argument, and refusing the whole line would be the less useful
+  // failure.
+  if (started) tokens.push(current)
+  return tokens
+}
+
+/**
  * Split one raw command input into positional arguments and flags.
  *
  * Both `--name value` and `--name=value` are accepted, for the flags that take a
@@ -397,7 +456,7 @@ const VALUE_FLAGS = new Set(['status', 'category', 'top', 'format'])
  * @returns positional arguments and flags, where a bare switch maps to `true`.
  */
 function parseArguments(rawInput) {
-  const tokens = String(rawInput ?? '').trim().split(/\s+/u).filter(Boolean)
+  const tokens = tokenize(rawInput)
   const positional = []
   const flags = new Map()
   for (let index = 0; index < tokens.length; index += 1) {

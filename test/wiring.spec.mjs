@@ -203,11 +203,47 @@ await runCommand(restarted, 'disable')
 const restartedAgain = start(CONFIG)
 check('a fresh start honours the stored switch', restartedAgain.registrations.tools.length === 0)
 check('a fresh start still registers the command', restartedAgain.registrations.commands.length === 1)
-check('a fresh start still reports the stored state', String((await runCommand(restartedAgain, '')).text).includes('disabled'))
+console.log('a fresh start still reports the stored state', String((await runCommand(restartedAgain, '')).text).includes('disabled'))
+
+console.log('disable_disposes_inject_fiber')
+const fiberCtx = start()
+// The stored switch is "disabled" from the section above, so enable first and
+// count from a known state.
+check('a disabled start registers no injection', fiberCtx.registrations.injections === undefined)
+await runCommand(fiberCtx, 'enable')
+const firstFiber = fiberCtx.registrations.injections[0]
+check('enabling creates one injection', fiberCtx.registrations.injections.length === 1)
+check('the injection is live', firstFiber.disposed === false)
+await runCommand(fiberCtx, 'disable')
+check('disabling disposes the injection fiber', firstFiber.disposed === true)
+check('the fiber disposal is counted', fiberCtx.registrations.fiberDisposals === 1)
+
+console.log('service_remount_does_not_restore_disabled_memory')
+// A remount re-runs live injections. A disposed one must stay dead, or the index
+// and tools would return while the switch still reads "disabled".
+check('no live injection is left to re-run', fiberCtx.remountServices() === 0)
+check('the index stays gone after a remount', fiberCtx.registrations.contexts.length === 0)
+check('the tools stay gone after a remount', fiberCtx.registrations.tools.length === 0)
+check('the switch still reads disabled',
+  JSON.parse(readFileSync(pluginConfigPath(MEMORY), 'utf8')).enabled === false)
+
+console.log('enable_disable_enable_has_single_runtime_fiber')
+const liveFibers = () => fiberCtx.registrations.injections.filter(entry => !entry.disposed).length
+await runCommand(fiberCtx, 'enable')
+check('enabling creates exactly one live injection', liveFibers() === 1)
+await runCommand(fiberCtx, 'disable')
+await runCommand(fiberCtx, 'enable')
+check('a second cycle still leaves exactly one live injection', liveFibers() === 1)
+check('the index is registered once', fiberCtx.registrations.contexts.length === 1)
+check('the tools are registered three times, once', fiberCtx.registrations.tools.length === 3)
+check('every injection ever created is accounted for',
+  fiberCtx.registrations.injections.length === 3 && liveFibers() === 1)
+await disposeEffects(fiberCtx)
+check('unloading a re-enabled instance disposes its fiber', liveFibers() === 0)
 
 console.log('registry_disposal')
 const disposal = start()
-disposeEffects(disposal)
+await disposeEffects(disposal)
 check('unloading removes the index', disposal.registrations.contexts.length === 0)
 check('unloading removes the tools', disposal.registrations.tools.length === 0)
 check('unloading removes the command', disposal.registrations.commands.length === 0)
@@ -229,7 +265,7 @@ check('the session already has a project when creation resolves', lateCommand.ki
 check('the late directory was registered',
   JSON.parse(readFileSync(join(MEMORY, 'registry.json'), 'utf8')).projects
     .some(entry => entry.canonical_root === resolve(lateDir) || entry.canonical_root === realpathSync(lateDir)))
-disposeEffects(lateCtx)
+await disposeEffects(lateCtx)
 
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)

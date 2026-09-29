@@ -242,16 +242,17 @@ export async function clearScope(options, input) {
       result: { action: 'cleared', count: store.records.length },
     }
   })
-  if (outcome.action === 'cleared') {
-    await recordTombstone(options, {
+  if (outcome.action !== 'cleared') return outcome
+  return {
+    ...outcome,
+    tombstoneWritten: await recordTombstone(options, {
       op: 'clear',
       scope: input.scope,
       project_id: input.scope === 'project' ? input.projectId : null,
       count: outcome.count,
       deleted_at: nowIso(options),
-    })
+    }),
   }
-  return outcome
 }
 
 /**

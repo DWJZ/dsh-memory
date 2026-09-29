@@ -75,7 +75,7 @@ function createController(ctx, settings) {
   // created must not decide which project the others write to.
   const projectsByCwd = new Map()
   let enabled = resolveEnabled(settings.memoryDir, settings.enabled)
-  let runtime = null
+  let runtimeFiber = null
 
   const deps = {
     config: settings,
@@ -91,45 +91,42 @@ function createController(ctx, settings) {
    * Register the index and the tools.
    *
    * Both contribute to services a profile may not mount, so they are taken as an
-   * optional injection rather than by declaring a hard dependency; the inner
-   * disposers are kept so disabling removes the registrations even though the
-   * injection scope itself may outlive them.
+   * optional injection rather than by declaring a hard dependency. The fiber
+   * that `inject` returns owns those registrations: disposing it removes them,
+   * and keeping it is what stops a service remount from resurrecting them after
+   * a disable, or a second enable from leaving two live fibers behind.
    * @returns nothing.
    */
   const mountRuntime = () => {
-    if (runtime !== null) return
-    ctx.inject(['systemPrompt', 'tools'], (scope) => {
-      const disposers = [
-        registerMemoryIndex(scope, agent => renderIndex(deps, agent)),
-        registerMemoryTools(scope, deps),
-      ]
-      runtime = () => {
-        for (const dispose of disposers.reverse()) dispose()
-      }
+    if (runtimeFiber !== null) return
+    runtimeFiber = ctx.inject(['systemPrompt', 'tools'], (scope) => {
+      registerMemoryIndex(scope, agent => renderIndex(deps, agent))
+      registerMemoryTools(scope, deps)
     })
   }
 
   /**
-   * Remove the index and the tools.
-   * @returns nothing.
+   * Remove the index and the tools by disposing their fiber.
+   * @returns fulfillment once the registrations are gone.
    */
-  const unmountRuntime = () => {
-    runtime?.()
-    runtime = null
+  const unmountRuntime = async () => {
+    const fiber = runtimeFiber
+    runtimeFiber = null
+    if (fiber !== null && typeof fiber?.dispose === 'function') await fiber.dispose()
   }
 
   /**
    * Apply the switch, persisting the choice first.
    * @param next - the requested state.
-   * @returns nothing.
+   * @returns fulfillment once the runtime matches the choice.
    * @throws when the choice cannot be persisted, leaving the runtime unchanged.
    */
-  const setEnabled = (next) => {
+  const setEnabled = async (next) => {
     if (next === enabled) return
     writeEnabled(settings.memoryDir, next)
     enabled = next
     if (next) mountRuntime()
-    else unmountRuntime()
+    else await unmountRuntime()
   }
 
   /**
@@ -187,10 +184,10 @@ function createController(ctx, settings) {
 
     /**
      * Release everything this plugin owns.
-     * @returns nothing.
+     * @returns fulfillment once the runtime fiber is disposed.
      */
-    dispose() {
-      unmountRuntime()
+    async dispose() {
+      await unmountRuntime()
       tracker.dispose()
       projectsByCwd.clear()
     },

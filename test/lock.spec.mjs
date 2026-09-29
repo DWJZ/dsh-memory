@@ -5,7 +5,7 @@
  * Usage: `node test/lock.spec.mjs`.
  */
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -30,10 +30,18 @@ const HOST = hostname()
 const errnoError = code => Object.assign(new Error(code), { code })
 
 /** Write a lock file and backdate it. */
+/**
+ * Write one lock file backdated by `ageMs`.
+ * @param path - the lock file path.
+ * @param record - the record to serialize, or raw text.
+ * @param ageMs - how far in the past its modification time should sit.
+ * @returns the modification time the file ended up with, in milliseconds.
+ */
 const writeLock = (path, record, ageMs) => {
   writeFileSync(path, typeof record === 'string' ? record : JSON.stringify(record))
   const seconds = (Date.now() - ageMs) / 1000
   utimesSync(path, seconds, seconds)
+  return statSync(path).mtimeMs
 }
 
 /** Decide reclaim for one file with fixed thresholds. */
@@ -93,6 +101,21 @@ check('with the mutex free the lock is reclaimed',
   reclaim(LOCK, { kill: () => { throw errnoError('ESRCH') } }) === true)
 check('the mutex is released after reclaiming', !existsSync(`${LOCK}.reclaim`))
 
+console.log('stale_lock_reclaimer_cannot_delete_new_reclaim_mutex')
+// A reclaim mutex is never reclaimed, however old it looks: reclaiming it would
+// repeat the stale-lock race one level down, so an abandoned one is reported
+// rather than stolen.
+rmSync(LOCK, { force: true })
+writeLock(LOCK, { pid: 4242, host: HOST, at: new Date().toISOString(), nonce: 'waiting' }, 5000)
+writeLock(`${LOCK}.reclaim`, 'a reaper that never came back', 600_000)
+check('an ancient reclaim mutex is not taken',
+  reclaim(LOCK, { kill: () => { throw errnoError('ESRCH') } }) === false)
+check('the ancient mutex survives untouched', existsSync(`${LOCK}.reclaim`))
+check('the lock it guards survives too',
+  JSON.parse(readFileSync(LOCK, 'utf8')).nonce === 'waiting')
+rmSync(`${LOCK}.reclaim`, { force: true })
+rmSync(LOCK, { force: true })
+
 // A lock created after the stale one was observed must survive: this is the
 // window in which the slower reclaimer used to delete the faster one's lock.
 writeLock(LOCK, { pid: 4242, host: HOST, at: new Date().toISOString(), nonce: 'fresh' }, 0)
@@ -103,19 +126,36 @@ console.log('stale_lock_two_reclaimers_only_one_owner')
 rmSync(LOCK, { force: true })
 writeLock(LOCK, { pid: 4242, host: HOST, at: new Date().toISOString(), nonce: 'contested' }, 5000)
 const contenders = await Promise.all([0, 0, 0].map(() => runReclaimer(LOCK, 1000, 60)))
-check('every contender runs', contenders.every(report => report !== undefined))
-check('exactly one contender reclaims the lock',
-  contenders.filter(report => report?.reclaimed === true).length === 1,
+check('every contender runs', contenders.every(report => report !== undefined), JSON.stringify(contenders))
+// `reclaimed` only means "retry acquisition", and several contenders may see the
+// lock already gone. Ownership is the invariant: the atomic create admits one.
+check('exactly one contender takes the lock',
+  contenders.filter(report => report?.owned === true).length === 1,
   JSON.stringify(contenders))
-check('the contested lock is gone', !existsSync(LOCK))
+// Whoever cleaned up the corpse need not be whoever acquired next, and the
+// return value cannot name the remover: a contender that takes the mutex and
+// then finds the lock already gone also reports "retry". So the count of
+// `reclaimed` is not the invariant — the stale lock's disappearance is.
+check('at least one contender reported the retry', contenders.some(report => report?.reclaimed === true),
+  JSON.stringify(contenders))
+check('the stale lock is gone', !existsSync(LOCK) || JSON.parse(readFileSync(LOCK, 'utf8')).nonce !== 'contested')
+check('the lock left behind belongs to the winner',
+  !existsSync(LOCK) || contenders.some(report => report?.owned === true
+    && report?.nonce === JSON.parse(readFileSync(LOCK, 'utf8')).nonce),
+  JSON.stringify(contenders))
 check('no reclaim mutex is left behind', !existsSync(`${LOCK}.reclaim`))
 
 writeLock(LOCK, '{ not json', 5000)
 check('a malformed lock older than the threshold is reclaimed', reclaim(LOCK) === true)
 
-writeLock(LOCK, { pid: 4242, host: HOST, at: new Date().toISOString(), nonce: 'n5' }, 1000)
+// The boundary is asserted with a clock pinned to the file's own mtime, so the
+// age is exactly the threshold rather than "the threshold plus however long the
+// test took to get here".
+const boundaryMtime = writeLock(LOCK, { pid: 4242, host: HOST, at: new Date().toISOString(), nonce: 'n5' }, 1000)
 check('a lock exactly at the threshold is not reclaimed',
-  reclaim(LOCK, { kill: () => { throw errnoError('ESRCH') } }) === false)
+  reclaim(LOCK, { kill: () => { throw errnoError('ESRCH') }, now: () => boundaryMtime + 1000 }) === false)
+check('one millisecond past the threshold is reclaimed',
+  reclaim(LOCK, { kill: () => { throw errnoError('ESRCH') }, now: () => boundaryMtime + 1001 }) === true)
 
 rmSync(LOCK, { force: true })
 check('a missing lock file is not reclaimed', reclaim(LOCK) === false)

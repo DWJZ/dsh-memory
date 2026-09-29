@@ -78,6 +78,7 @@ export function readRegistry(registryPath) {
 export function validateRegistry(registry) {
   const ids = new Set()
   const roots = new Map()
+  const identities = new Map()
   for (const entry of registry.projects) {
     if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
       throw new TypeError('dsh-memory: a registry entry must be an object')
@@ -106,6 +107,16 @@ export function validateRegistry(registry) {
         throw new TypeError(`dsh-memory: ${root} is claimed by both ${owner} and ${entry.project_id}`)
       }
       roots.set(root, entry.project_id)
+      // Two different spellings of one directory — a symlink, or a path that
+      // resolves through one — would give one project two ids and split its
+      // Memory. The lexical check above cannot see that; the real path can.
+      const identity = realIdentity(root)
+      if (identity === undefined) continue
+      const claimant = identities.get(identity)
+      if (claimant !== undefined && claimant.project_id !== entry.project_id) {
+        throw new TypeError(`dsh-memory: ${root} and ${claimant.root} are the same directory, claimed by both ${claimant.project_id} and ${entry.project_id}`)
+      }
+      identities.set(identity, { project_id: entry.project_id, root })
     }
     for (const field of ['created_at', 'updated_at']) {
       if (!isTimestamp(entry[field])) {

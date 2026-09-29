@@ -398,6 +398,18 @@ await actions.forgetMemory(clocked(129000), { id: userReplacement.id, projectId:
 check('a user-scope predecessor is archived when its successor goes',
   readStore(userLayout(MEMORY).storePath).records.find(record => record.id === userChain.id)?.status === 'archived')
 
+console.log('the evidence cap bounds the writer, not the record')
+const capOptions = { ...clocked(130000), maxEvidencePerMemory: 2 }
+const trimmed = await actions.addMemory(capOptions, {
+  content: 'evidence capped', scope: 'user', category: 'state', evidence: evidence({ quote: 'first' }),
+})
+await actions.updateMemory(capOptions, { id: trimmed.id, content: 'evidence capped', evidence: evidence({ quote: 'second' }) })
+await actions.updateMemory(capOptions, { id: trimmed.id, content: 'evidence capped', evidence: evidence({ quote: 'third' }) })
+const cappedRecord = readStore(userLayout(MEMORY).storePath).records.find(record => record.id === trimmed.id)
+check('the writer keeps only the newest entries', cappedRecord.evidence.length === 2)
+check('the newest entry is kept', cappedRecord.evidence.at(-1).quote === 'third')
+check('the oldest entry was evicted', !cappedRecord.evidence.some(entry => entry.quote === 'first'))
+
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)
 process.exit(failures === 0 ? 0 : 1)

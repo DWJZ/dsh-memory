@@ -715,6 +715,12 @@ memory_search / memory_get → 按 read tool 正常展示必要参数
 - [ ] `memory_get` 只把"不可见"当作 not-found；store 读失败照常抛出
 - [ ] `forget` 在 tombstone 写不进去时如实报告，不谎称留痕
 - [ ] `memory_search` 的 `top_k` 受 `retrievalTopK` 约束
+- [ ] runtime（index + tools）由 `ctx.inject()` 返回的 Fiber 持有；disable 即 dispose 该 Fiber，service remount 不会让已禁用的注册复活，反复 enable/disable 始终只有一个活跃 Fiber
+- [ ] `.reclaim` 互斥不做自动回收；两个 reclaimer 竞争只有一个成功，且都不会删掉对方新建的互斥
+- [ ] `maxEvidencePerMemory` 只是 writer policy：写入时保留最新 N 条，读入时不用它判定记录是否合法
+- [ ] registry 载入时按 realpath 判重：同一目录的两种拼写不能成为两个 Project
+- [ ] 命令解析支持引号与转义，带空格的路径是一个参数
+- [ ] `clear` 与 `forget` 一样，在 tombstone 写不进去时如实报告
 - [ ] `MEMORY.md` 自动生成且只含 active
 - [ ] view 生成失败不影响 canonical commit；view 重建不倒退
 - [ ] Memory index 能进入新 Session 的实际 request

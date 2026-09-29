@@ -208,9 +208,12 @@ export async function withStore(options, operation) {
       revision: store.revision + 1,
       records: outcome.records,
     }
-    validateStoreRecords(next.records, {
-      ...options.maxEvidencePerMemory === undefined ? {} : { maxEvidencePerMemory: options.maxEvidencePerMemory },
-    })
+    // The result of the mutation is what must hold: validating it below covers
+    // both what this call changed and whatever the file already held. The
+    // evidence cap is deliberately not applied here — it bounds what a writer
+    // may append, not what a valid record is, so a store written under a larger
+    // cap must still load after a deployment lowers it.
+    validateStoreRecords(next.records)
     writeAtomic(options.storePath, `${JSON.stringify(next, null, 2)}\n`)
     return { result: outcome.result, revision: next.revision, store: next }
   })

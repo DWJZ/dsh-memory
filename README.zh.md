@@ -98,7 +98,7 @@ project:
 | `projectRootMarkers` | `['.git']` | 标记 project root 的文件名 |
 | `lockTimeoutMs` | `10000` | 等 store 锁的上限，超时即报错 |
 | `staleLockMs` | `60000` | 超过该时长的锁可被回收 |
-| `maxEvidencePerMemory` | `8` | 每条记录保留的 provenance 条数 |
+| `maxEvidencePerMemory` | `8` | 写者每条记录保留的 provenance 条数；更早写入的更长列表仍可读 |
 | `exportInlineMaxBytes` | `24000` | `/memory export` 内联输出上限 |
 | `evidenceQuoteMaxChars` | `200` | 存储的 quote 上限，单位是 code point |
 
@@ -133,6 +133,7 @@ project:
 - **forget 不是崩溃事务。** 保证是"成功返回后 `$DSH_HOME/memory` 下不再有该正文"；删除与 tombstone 之间被中断不做恢复。journal 等真有需要再加。
 - **secret 保证只覆盖本插件自己的数据。** 凭据永远不会写进 Memory、其视图、tombstone 或日志。用户原始消息与 harness 自己记录的 `tool/call` 参数属于 Session log，append-only 的历史不会被改写。
 - **共享盘上的残留锁需要人工清理。** 另一台机器的进程无法探测，因此那里的废弃锁只会被报告，不会被抢。
+- **残留的 reclaim 互斥同样需要人工清理。** `<store>.lock.reclaim` 只在移除陈旧锁的瞬间被持有，而且**故意不做自动回收**：自动回收它等于把它要防的那种竞态往下复制一层。进程恰好死在这个窗口里就会留下该文件，下一个写者会等在超时后报错并指名路径 —— 手动删掉它就是全部补救措施。
 
 ## 测试
 

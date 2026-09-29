@@ -229,6 +229,24 @@ check('projectLayout refuses a bare name',
 check('projectLayout accepts a minted id',
   projectLayout(MEMORY, newProjectId()).dir.startsWith(join(MEMORY, 'projects')))
 
+console.log('one directory cannot become two projects')
+const claimDir = join(ROOT, 'real-project')
+const claimLink = join(ROOT, 'linked-project')
+mkdirSync(claimDir, { recursive: true })
+symlinkSync(claimDir, claimLink)
+writeRegistry([
+  entry({ canonical_root: claimDir }),
+  entry({ canonical_root: claimLink }),
+])
+check('two roots that are one directory are refused',
+  await rejects(() => registry.readRegistry(LAYOUT.registryPath), 'the same directory'))
+writeRegistry([entry({ canonical_root: claimDir, aliases: [claimLink] })])
+check('one entry listing its own directory twice is tolerated, since it resolves to one project',
+  registry.readRegistry(LAYOUT.registryPath).projects.length === 1)
+writeRegistry([entry({ canonical_root: claimDir })])
+check('a single project on the real directory is accepted',
+  registry.readRegistry(LAYOUT.registryPath).projects.length === 1)
+
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)
 process.exit(failures === 0 ? 0 : 1)
