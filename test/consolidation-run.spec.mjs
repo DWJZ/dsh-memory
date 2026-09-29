@@ -111,6 +111,8 @@ function harness(options = {}) {
     host: 'test-host',
     kill: () => { throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' }) },
     projectFor: () => (options.projectless === true ? null : { project_id: PROJECT }),
+    ...options.schedule === undefined ? {} : { schedule: options.schedule },
+    ...options.cancelSchedule === undefined ? {} : { cancelSchedule: options.cancelSchedule },
     callModel: async request => {
       calls.push(request)
       if (options.modelThrows === true) throw new Error('provider is down')
@@ -377,7 +379,42 @@ console.log('the trigger consults the same pipeline')
   check('disposing the orchestrator is safe', true)
 }
 
-console.log('consolidation runs inside the maintenance phase')
+console.log('the audit explains a run')
+{
+  const harnessed = harness({
+    sessionId: 'session_audit',
+    modelAnswer: '{"operations":[{"action":"noop","reason":"transient task state"},{"action":"noop","reason":"transient task state"},{"action":"noop","reason":"already represented"}]}',
+  })
+  observe(harnessed, [human(0, 'run the tests')])
+  await harnessed.consolidation.consolidate(harnessed.agent, { trigger: 'manual-command' })
+  const audit = harnessed.audit.at(-1).data
+  check('the audit names the trigger that ran it', audit.trigger === 'manual-command')
+  check('the audit counts the noop reasons', audit.noop_reasons['transient task state'] === 2
+    && audit.noop_reasons['already represented'] === 1, JSON.stringify(audit.noop_reasons))
+  check('the ops tally agrees with the reasons', audit.operations.noop === 3)
+}
+
+{
+  // The debounce path labels itself, and the timer is driven by the test clock.
+  const timers = []
+  const harnessed = harness({
+    sessionId: 'session_debounce',
+    modelAnswer: '{"operations":[]}',
+    schedule: (run) => { timers.push(run); return timers.length },
+    cancelSchedule: () => {},
+  })
+  observe(harnessed, [human(0, '这个项目用 pnpm')])
+  harnessed.consolidation.statusChanged(harnessed.agent, 'idle')
+  check('going idle schedules the debounce', timers.length === 1)
+  await timers[0]()
+  check('the timer runs consolidation inside maintenance', harnessed.agent.claims === 1)
+  check('and the audit says the debounce is what ran it',
+    harnessed.audit.at(-1)?.data?.trigger === 'idle-debounce', JSON.stringify(harnessed.audit.at(-1)?.data))
+  check('the run committed nothing, since the plan was empty',
+    harnessed.audit.at(-1)?.data?.operations.add === 0)
+}
+
+console.log('a run that did nothing writes no audit')
 {
   const harnessed = harness({ sessionId: 'session_phase', modelAnswer: addProjectFact([0]) })
   observe(harnessed, [human(0, '这个项目用 pnpm')])

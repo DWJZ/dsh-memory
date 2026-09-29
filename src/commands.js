@@ -194,7 +194,10 @@ async function consolidateCommand(deps, invocation, flags) {
     return error('dsh-memory: automatic consolidation is turned off in this profile (consolidation.enabled)')
   }
   try {
-    const outcome = await deps.consolidate(invocation.agent, { dryRun: flags.has('dry-run') === true })
+    const outcome = await deps.consolidate(invocation.agent, {
+      dryRun: flags.has('dry-run') === true,
+      trigger: 'manual-command',
+    })
     return ok(describeConsolidation(outcome))
   } catch (failure) {
     return error(`dsh-memory: consolidation failed: ${String(failure?.message ?? failure)}`)

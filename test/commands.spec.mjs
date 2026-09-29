@@ -36,6 +36,9 @@ const PROJECT = join(ROOT, 'project')
 mkdirSync(join(PROJECT, '.git'), { recursive: true })
 mkdirSync(MEMORY, { recursive: true })
 
+/** Session events these runs appended, as the runtime Session would. */
+const appends = []
+
 /** One record the store holds. */
 const record = (overrides = {}) => ({
   id: memoryId(),
@@ -57,7 +60,14 @@ async function start() {
   const ctx = createStubContext()
   plugin.apply(ctx, { dshHome: ROOT, memoryDir: MEMORY })
   if (ctx.registrations.injections.length === 0) throw new Error('the runtime did not mount')
-  const agent = { session: { id: 'session-1', header: { id: 'session-1', cwd: PROJECT } }, runMaintenance: task => task(new AbortController().signal) }
+  const agent = {
+  session: {
+    id: 'session-1',
+    header: { id: 'session-1', cwd: PROJECT },
+    append: (type, data, options) => { appends.push({ type, data, ignorable: options?.ignorable === true }) },
+  },
+  runMaintenance: task => task(new AbortController().signal),
+}
   ctx.emit('agent/created', { agent })
   await new Promise(resolveTick => { setTimeout(resolveTick, 30) })
   return { ctx, agent }
@@ -100,10 +110,24 @@ const consolidateNow = await run(ctx, 'consolidate', agent)
 check('consolidate succeeds', consolidateNow.kind === 'success', textOf(consolidateNow))
 check('it reports that nothing was observed',
   textOf(consolidateNow).includes('no events this process has observed'), textOf(consolidateNow))
+// Give the run a window to consume, so the audit has something to describe.
+ctx.emit('session/event', agent.session, {
+  seq: 0,
+  type: 'assistant/message',
+  data: { message: { content: [{ type: 'text', text: 'I ran the tests.' }] } },
+})
+const consumed = await run(ctx, 'consolidate', agent)
+check('the window is consumed without asking a model', textOf(consumed).includes('no human turn'))
+// The audit labels which path ran: a person's command, not the idle debounce.
+check('the manual command is recorded as its own trigger',
+  appends.some(entry => entry.data?.trigger === 'manual-command'),
+  JSON.stringify(appends.map(entry => entry.data?.trigger)))
+check('the audit is marked ignorable, so it cannot feed the next run',
+  appends.every(entry => entry.ignorable === true))
 const dryConsolidate = await run(ctx, 'consolidate --dry-run', agent)
 check('--dry-run is accepted', dryConsolidate.kind === 'success')
-check('a dry run over nothing is still a no-op report',
-  textOf(dryConsolidate).includes('no events this process has observed'))
+check('a dry run after the window was consumed reports nothing pending',
+  textOf(dryConsolidate).includes('Nothing new to consolidate'), textOf(dryConsolidate))
 
 console.log('list')
 const listed = await run(ctx, 'list', agent)
@@ -309,7 +333,14 @@ const plain = join(ROOT, 'plain-workspace')
 mkdirSync(plain, { recursive: true })
 const fresh = createStubContext()
 plugin.apply(fresh, { dshHome: ROOT, memoryDir: MEMORY })
-const plainAgent = { session: { id: 'session-plain', header: { id: 'session-plain', cwd: plain } }, runMaintenance: task => task(new AbortController().signal) }
+const plainAgent = {
+  session: {
+    id: 'session-plain',
+    header: { id: 'session-plain', cwd: plain },
+    append: (type, data, options) => { appends.push({ type, data, ignorable: options?.ignorable === true }) },
+  },
+  runMaintenance: task => task(new AbortController().signal),
+}
 await fresh.emitAsync('agent/created', { agent: plainAgent })
 const beforeBind = await run(fresh, 'clear --project --yes', plainAgent)
 check('a directory with no marker has no project scope yet', beforeBind.kind === 'error')

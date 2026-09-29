@@ -23,6 +23,7 @@
  */
 
 import { readStore } from '../jsonstore.js'
+import { findSecret } from '../redact.js'
 import { createTrigger } from './trigger.js'
 import { batchWindow } from './normalize.js'
 import { buildRequest } from './policy.js'
@@ -31,6 +32,9 @@ import { parsePlan } from './policy.js'
 import { reviewPlan } from './validate.js'
 import { commitOperations } from './commit.js'
 import { advanceHwm, lastProcessedSeq, NO_PROGRESS, progressFor, readState, recordGap, withState } from './state.js'
+
+/** Longest model-authored noop reason kept in an audit. */
+export const NOOP_REASON_MAX_CHARS = 60
 
 /** Session event type carrying this plugin's consolidation audit. */
 export const AUDIT_EVENT_TYPE = 'dsh-memory/consolidation'
@@ -170,6 +174,7 @@ export function createConsolidation(options) {
       to_seq: window.toSeq,
       relevant_events: window.counts.relevant,
       ignored_events: window.counts.ignored + window.counts.internal + window.counts.skipped,
+      trigger: runOptions.trigger ?? 'direct',
     }
 
     /**
@@ -240,6 +245,8 @@ export function createConsolidation(options) {
       }
     }
 
+    const noopReasons = countNoopReasons(reviewed.noopReasons)
+
     const outcome = config.autoCommit === false
       ? { committed: { add: 0, update: 0, supersede: 0 }, skipped: reviewed.accepted, failures: [], applied: [] }
       : await commitOperations(options.actionOptions, reviewed.accepted)
@@ -248,7 +255,12 @@ export function createConsolidation(options) {
       // Something a review accepted could not be written. The mark stays put, so
       // the window is retried and the plan is formed again against current state.
       logger?.warn?.(`dsh-memory: consolidation left ${String(outcome.failures.length)} operation(s) unwritten for ${sessionId}`)
-      recordAudit(session, { ...auditBase, status: 'partial', operations: { ...outcome.committed, noop: reviewed.noopReasons.length } })
+      recordAudit(session, {
+        ...auditBase,
+        status: 'partial',
+        operations: { ...outcome.committed, noop: reviewed.noopReasons.length },
+        ...noopReasons,
+      })
       return { ...auditBase, status: 'partial', committed: outcome.committed, failures: outcome.failures.length }
     }
 
@@ -258,7 +270,7 @@ export function createConsolidation(options) {
     }))
     collector.dropConsumed(sessionId, window.toSeq)
     const operations = { ...outcome.committed, noop: reviewed.noopReasons.length }
-    recordAudit(session, { ...auditBase, status: 'success', operations })
+    recordAudit(session, { ...auditBase, status: 'success', operations, ...noopReasons })
     const wrote = operations.add + operations.update + operations.supersede
     logger?.info?.(`dsh-memory: consolidation of ${sessionId} consumed ${String(auditBase.relevant_events)} event(s) and wrote ${String(wrote)}`)
     return { ...auditBase, status: 'success', operations, rejected: reviewed.rejected.length }
@@ -267,7 +279,9 @@ export function createConsolidation(options) {
   const trigger = createTrigger({
     debounceMs: config.debounceMs,
     logger,
-    task: agent => consolidate(agent, { signal: undefined }),
+    ...options.schedule === undefined ? {} : { schedule: options.schedule },
+    ...options.cancelSchedule === undefined ? {} : { cancelSchedule: options.cancelSchedule },
+    task: agent => consolidate(agent, { trigger: 'idle-debounce' }),
   })
 
   return {
@@ -316,6 +330,39 @@ export function createConsolidation(options) {
       trigger.dispose()
     },
   }
+}
+
+/**
+ * Count the reasons a model gave for proposing nothing.
+ *
+ * The count is what makes an audit answerable — "noop" alone cannot distinguish
+ * "the fact was already there" from "the model judged it transient". The reason
+ * text is the model's own words, so it is collapsed, truncated, and screened: an
+ * audit is a trace, not a place for the turn's text to reappear.
+ * @param reasons - the reasons recorded during review.
+ * @returns `{ noop_reasons }` when there were any, otherwise an empty object.
+ */
+function countNoopReasons(reasons) {
+  if (reasons.length === 0) return {}
+  const counts = {}
+  for (const reason of reasons) {
+    const key = sanitizeReason(reason)
+    counts[key] = (counts[key] ?? 0) + 1
+  }
+  return { noop_reasons: counts }
+}
+
+/**
+ * Make one model-authored reason safe to keep in an audit.
+ * @param reason - the reason as the model wrote it.
+ * @returns a short single-line reason, screened for secrets.
+ */
+function sanitizeReason(reason) {
+  const collapsed = String(reason ?? '').replace(/\s+/gu, ' ').trim()
+  if (collapsed === '') return 'no reason given'
+  if (findSecret(collapsed) !== undefined) return '[redacted]'
+  const points = Array.from(collapsed)
+  return points.length <= NOOP_REASON_MAX_CHARS ? collapsed : `${points.slice(0, NOOP_REASON_MAX_CHARS).join('')}…`
 }
 
 /**
