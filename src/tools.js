@@ -46,9 +46,11 @@ const GET_DESCRIPTION = [
 
 const REMEMBER_DESCRIPTION = [
   'Save a fact to long-term Memory.',
-  'Call this only when the user explicitly asks you to remember, update, or replace something.',
-  'Never call it for temporary task state, an unverified guess, something already written in AGENTS.md,',
-  'or a fact that can be read from the repository.',
+  'Call this when the user asks you to remember, update, or replace something.',
+  'Do not call it unasked: without such a request, skip temporary task state, an unverified guess,',
+  'and anything the repository already records.',
+  'That filter applies only to deciding what to save on your own; a fact the user asked you to remember is saved even when a file also states it,',
+  'because the request is the instruction and the file is not Memory.',
   'mode=add creates a Memory and carries scope and category.',
   'mode=update restates one Memory and requires target_id.',
   'mode=supersede replaces one Memory with a newer fact and requires target_id;',

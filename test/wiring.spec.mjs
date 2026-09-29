@@ -121,8 +121,15 @@ check('remember requires a mode and content',
 check('remember documents the modes',
   JSON.stringify(remember.parameters.properties.mode.enum) === '["add","update","supersede"]')
 check('remember tells the model when to call it',
-  remember.description.includes('only when the user explicitly asks'))
-check('remember names what not to store', remember.description.includes('AGENTS.md'))
+  remember.description.includes('when the user asks you to remember'))
+check('remember keeps unprompted saving out of scope',
+  remember.description.includes('Do not call it unasked') && remember.description.includes('the repository already records'))
+// A real run had the model refuse an explicit request because the description
+// read as a flat prohibition. The filter must be scoped to unprompted writes.
+check('remember states that the repository filter never overrides a request',
+  remember.description.includes('saved even when a file also states it'))
+check('remember says the request is the instruction',
+  remember.description.includes('the request is the instruction'))
 check('no tool exposes a delete', ctx.registrations.tools.every(definition => !definition.name.includes('delete')))
 
 console.log('memory_remember parameter enforcement')
