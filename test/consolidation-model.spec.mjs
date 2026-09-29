@@ -109,7 +109,7 @@ const seen = []
 const answer = await callConsolidator(fakeContext([
   { type: 'text-delta', index: 0, text: '{"operations":' },
   { type: 'text-delta', index: 0, text: '[{"action":"noop"}]}' },
-  { type: 'finish', reason: 'stop' },
+  { type: 'finish', reason: { kind: 'stop' } },
 ], seen), {
   session,
   sessionId: 'session_a',
@@ -135,6 +135,41 @@ check('no purpose is claimed',
   seen[0].purpose === undefined)
 check('the payload is the rendered request', seen[0].messages[0].content[0].text.includes('seq range: 1..9'))
 
+console.log('only a completed answer is accepted')
+/**
+ * Call the model with one terminal reason and report how it settled.
+ * @param reason - the terminal finish reason.
+ * @returns whether it resolved.
+ */
+const withFinish = async (reason) => {
+  try {
+    await callConsolidator(fakeContext([
+      { type: 'text-delta', index: 0, text: '{"operations":[]}' },
+      { type: 'finish', reason },
+    ], []), {
+      session, sessionId: 'session_a', fromSeq: 1, toSeq: 2, entries: [], existing: [], maxOutputTokens: 64,
+    })
+    return { ok: true }
+  } catch (failure) {
+    return { ok: false, message: String(failure.message) }
+  }
+}
+check('a stopped answer is accepted', (await withFinish({ kind: 'stop' })).ok === true)
+check('a provider error is refused',
+  (await withFinish({ kind: 'error', failure: { code: 'rate_limit', message: 'slow down' } })).message
+    .includes('rate_limit'))
+check('the error message keeps the provider reason',
+  (await withFinish({ kind: 'error', failure: { code: 'x', message: 'the provider said no' } })).message
+    .includes('the provider said no'))
+check('an aborted call is refused', (await withFinish({ kind: 'aborted', failure: { code: 'abort', message: 'cancelled' } })).ok === false)
+check('a truncated answer is refused', (await withFinish({ kind: 'max-tokens' })).ok === false)
+check('a tool-call answer is refused, since consolidation declares no tools',
+  (await withFinish({ kind: 'tool-calls' })).ok === false)
+check('an unrecognized reason is refused rather than assumed complete',
+  (await withFinish({ kind: 'something-new' })).ok === false)
+check('the refusal names the reason',
+  (await withFinish({ kind: 'something-new' })).message.includes('something-new'))
+
 console.log('a broken call fails the batch')
 const noRoute = await rejects(() => callConsolidator(fakeContext([], []), {
   session: { id: 's', requestHeader: () => undefined },
@@ -151,7 +186,7 @@ check('an unfinished stream is refused', await rejects(() => callConsolidator(fa
 }), 'without a finish reason'))
 check('an empty answer is refused', await rejects(() => callConsolidator(fakeContext([
   { type: 'text-delta', index: 0, text: '   ' },
-  { type: 'finish', reason: 'stop' },
+  { type: 'finish', reason: { kind: 'stop' } },
 ], []), {
   session, sessionId: 'session_a', fromSeq: 1, toSeq: 2, entries: [], existing: [], maxOutputTokens: 64,
 }), 'produced no text'))

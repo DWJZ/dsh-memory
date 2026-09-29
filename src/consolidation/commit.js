@@ -72,12 +72,19 @@ function apply(options, operation) {
         category: operation.category,
         projectId: operation.projectId,
         evidence: operation.evidence,
+        sourceTexts: operation.sourceTexts,
       })
     case 'update':
+      // The project comes from the reviewed target, never from the model, and it
+      // has to be passed on: `updateMemory` uses it to decide which scopes the
+      // target may be found in, so omitting it makes a project target invisible
+      // and turns a valid update into a failed operation.
       return updateMemory(options, {
         id: operation.target_id,
         content: operation.content,
+        projectId: operation.projectId,
         evidence: operation.evidence,
+        sourceTexts: operation.sourceTexts,
       })
     case 'supersede':
       return supersedeMemory(options, {
@@ -85,6 +92,7 @@ function apply(options, operation) {
         content: operation.content,
         projectId: operation.projectId,
         evidence: operation.evidence,
+        sourceTexts: operation.sourceTexts,
       })
     default:
       throw new Error(`dsh-memory: ${String(operation.action)} is not an automatic action`)

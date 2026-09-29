@@ -59,12 +59,27 @@ export async function callConsolidator(ctx, request) {
   }
 
   let text = ''
-  let finished = false
+  let reason
   for await (const chunk of ctx.llm.stream(options)) {
     if (chunk?.type === 'text-delta' && typeof chunk.text === 'string') text += chunk.text
-    if (chunk?.type === 'finish') finished = true
+    if (chunk?.type === 'finish') reason = chunk.reason
   }
-  if (!finished) throw new Error('dsh-memory: the consolidation call ended without a finish reason')
+  // A stream can end having already produced parseable JSON and still not have
+  // succeeded: a provider failure is normalized into a terminal `error` or
+  // `aborted` finish, and a truncated answer arrives as `max-tokens`. Reading the
+  // text without the reason would commit a plan the model never finished making,
+  // and then advance the mark over it.
+  if (reason === undefined) throw new Error('dsh-memory: the consolidation call ended without a finish reason')
+  if (reason.kind === 'error' || reason.kind === 'aborted') {
+    const failure = reason.failure
+    throw new Error(`dsh-memory: the consolidation call ended as ${reason.kind}: ${String(failure?.code ?? 'unknown')}: ${String(failure?.message ?? 'no message')}`)
+  }
+  // Consolidation declares no tools, so `tool-calls` is as unfinished as a
+  // truncation. The reason map is merge-extensible, so anything not named here
+  // fails the batch rather than being treated as success by default.
+  if (reason.kind !== 'stop') {
+    throw new Error(`dsh-memory: the consolidation call ended as ${String(reason.kind)}, which is not a completed answer`)
+  }
   if (text.trim() === '') throw new Error('dsh-memory: the consolidation model produced no text')
   return text
 }

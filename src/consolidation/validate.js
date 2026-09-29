@@ -141,6 +141,9 @@ export function reviewOperation(operation, context) {
       target_id: target?.id,
       projectId: scope === 'project' ? (target?.project_id ?? context.projectId) : undefined,
       evidence: evidence.entry,
+      // Internal only: never from the model, never persisted, never printed. It
+      // exists so the write itself can screen the untruncated text.
+      sourceTexts: evidence.sourceTexts,
     },
   }
 }
@@ -188,11 +191,17 @@ function buildEvidence(seqs, context) {
   if (cited.length !== unique.length) {
     return { kind: 'rejected', reason: 'an evidence seq has no event behind it' }
   }
-  const quote = quoteFrom(cited, context.quoteMaxChars)
+  // The quote is a truncation of the cited text, so screening the quote alone
+  // would miss a credential that straddles the cut: the fragment that survives
+  // can stop matching any detector while still carrying most of the secret.
+  // Both are scanned, and the untruncated text travels on so Phase 1 can screen
+  // it again at the write itself.
+  const sources = cited.flatMap(event => textBlocks(event))
+  const quote = quoteFrom(sources, context.quoteMaxChars)
   if (quote === undefined) {
     return { kind: 'rejected', reason: 'the cited events carry no text to quote' }
   }
-  const secret = findSecretIn([context.content, quote])
+  const secret = findSecretIn([context.content, ...sources, quote])
   if (secret !== undefined) {
     return { kind: 'rejected', reason: `secret-detected: ${secret.name}` }
   }
@@ -205,6 +214,7 @@ function buildEvidence(seqs, context) {
       quote,
       observed_at: new Date(context.now()).toISOString(),
     },
+    sourceTexts: sources,
   }
 }
 
@@ -224,13 +234,12 @@ function evidenceKind(cited) {
 }
 
 /**
- * Take the persisted quote from the cited events.
- * @param cited - the cited events, in seq order.
+ * Take the persisted quote from the cited text.
+ * @param texts - the cited text blocks, in seq order.
  * @param maxChars - largest quote, in code points.
- * @returns the quote, or undefined when none of the events carried text.
+ * @returns the quote, or undefined when there was no text.
  */
-function quoteFrom(cited, maxChars) {
-  const texts = cited.flatMap(event => textBlocks(event))
+function quoteFrom(texts, maxChars) {
   const joined = texts.join('\n').trim()
   if (joined === '') return undefined
   const points = Array.from(joined)

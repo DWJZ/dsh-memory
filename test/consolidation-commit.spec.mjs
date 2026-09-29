@@ -144,6 +144,54 @@ check('the replacement is active',
   projectRecords().find(record => record.id === superseded.applied[0].outcome.id).status === 'active')
 check('the retirement did not add evidence to the old record', retired.evidence.length === 1)
 
+console.log('the project path reaches the same actions')
+const targetProjectId = projectRecords().find(record => record.status === 'active').id
+const projectUpdate = await commitOperations(OPTIONS, [{
+  action: 'update',
+  scope: 'project',
+  category: 'state',
+  target_id: targetProjectId,
+  content: 'The project uses pnpm, pinned to 10.',
+  confidence: 0.88,
+  projectId: PROJECT,
+  evidence: provenance([400]),
+}])
+check('a project-scope update commits', projectUpdate.committed.update === 1, JSON.stringify(projectUpdate.failures))
+check('it did not fail as invisible', projectUpdate.failures.length === 0)
+const updatedProject = projectRecords().find(record => record.id === targetProjectId)
+check('the project record was refined', updatedProject?.content === 'The project uses pnpm, pinned to 10.')
+check('its id was preserved', updatedProject?.id === targetProjectId)
+check('its project is unchanged', updatedProject?.project_id === PROJECT)
+check('its evidence accumulated', updatedProject?.evidence.length >= 2)
+
+console.log('one project cannot reach another project\'s Memory')
+const OTHER_PROJECT = newProjectId()
+const seeded = await commitOperations(OPTIONS, [{
+  action: 'add',
+  scope: 'project',
+  category: 'state',
+  content: 'Another project\'s fact.',
+  confidence: 0.9,
+  projectId: OTHER_PROJECT,
+  evidence: provenance([401]),
+}])
+check('the other project has its own record', seeded.committed.add === 1)
+const otherRecords = () => readStore(projectLayout(MEMORY, OTHER_PROJECT).storePath).records
+const crossProject = await commitOperations(OPTIONS, [{
+  action: 'update',
+  scope: 'project',
+  category: 'state',
+  target_id: otherRecords()[0].id,
+  content: 'not mine to update',
+  confidence: 0.9,
+  projectId: PROJECT,
+  evidence: provenance([402]),
+}])
+check('a target in another project cannot be updated from this one', crossProject.committed.update === 0)
+check('it is reported as a failure rather than silently skipped', crossProject.failures.length === 1)
+check('the other project record was left exactly as it was',
+  otherRecords()[0].content === 'Another project\'s fact.')
+
 console.log('Phase 1 screening is still the last line of defence')
 const smuggled = await commitOperations(OPTIONS, [addition({
   content: 'the key is sk-abcdefghijklmnopqrstuvwxyz012345',
