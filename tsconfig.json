@@ -5,6 +5,13 @@
   // the suites load modules by absolute path under plain Node, which cannot
   // resolve a `.ts` file, so every suite fails the moment one module is renamed.
   // Run the suites through tsx BEFORE renaming anything.
+  //
+  // Second constraint, measured too: `checkJs: false` only silences
+  // JavaScript, so the moment a file is `.ts` the compiler checks it, and one
+  // type error in it makes `tsc` exit non-zero even though it emitted. While the
+  // migration is in progress the build gate therefore cannot stay green unless
+  // the runtime output comes from a transpiler, the way the harness itself
+  // builds (tsc for declarations, a bundler for the runtime).
   "compilerOptions": {
     "target": "ES2023",
     "lib": [
