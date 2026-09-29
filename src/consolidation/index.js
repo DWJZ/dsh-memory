@@ -172,6 +172,11 @@ export function createConsolidation(options) {
    * @returns nothing.
    */
   const recordAudit = (session, audit) => {
+    // Off by default, like every other plugin writing rows into someone else's
+    // trajectory: a reader honours the `ignorable` marker only from a build that
+    // knows it, so a deployment asks for these rows rather than receiving them
+    // unasked.
+    if (config.auditSessionEvents !== true) return
     // The commit is the guarantee; the audit is a trace of it. A failed append
     // must not hold the mark back, because the next run would commit the same
     // operations again.

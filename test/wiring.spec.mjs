@@ -154,6 +154,33 @@ check('a missing user store still leaves the project scope readable',
 writeFileSync(userStorePath, savedUserStore)
 check('the restored store renders again', settleIndex(agentStub()).text.includes('用户偏好中文解释'))
 
+console.log('the project attribution is recorded once per Session')
+{
+  const attrCtx = start({ ...CONFIG, enabled: true })
+  await runCommand(attrCtx, 'enable')
+  const written = []
+  const attrAgent = {
+    session: {
+      id: 'session-attributed',
+      header: { id: 'session-attributed', cwd: PROJECT_DIR },
+      append: (type, data, options) => { written.push({ type, data, ignorable: options?.ignorable === true }) },
+    },
+    runMaintenance: task => task(new AbortController().signal),
+  }
+  attrCtx.emit('agent/created', { agent: attrAgent })
+  await new Promise(resolve => { setImmediate(resolve) })
+  const attribution = written.filter(entry => entry.type === 'dsh-memory/project')
+  check('the attribution is recorded', attribution.length === 1, JSON.stringify(written.map(entry => entry.type)))
+  check('it names the project and the root',
+    typeof attribution[0]?.data?.project_id === 'string'
+    && attribution[0]?.data?.canonical_root === PROJECT_DIR, JSON.stringify(attribution[0]?.data))
+  check('it says which lookup decided', attribution[0]?.data?.matched_by === 'registry' || attribution[0]?.data?.matched_by === 'marker',
+    String(attribution[0]?.data?.matched_by))
+  check('it carries no Memory content', !('content' in (attribution[0]?.data ?? {})))
+  check('and it is ignorable', attribution[0]?.ignorable === true)
+  await disposeEffects(attrCtx)
+}
+
 console.log('the two paths into Memory are separated in the prompt')
 const policy = ctx.registrations.sections[0]
 check('a Memory policy section is registered', policy !== undefined)

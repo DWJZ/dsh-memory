@@ -22,6 +22,10 @@ export const DEFAULTS = Object.freeze({
   indexBudgetBytes: 6000,
   indexBudgetSplit: { user: 0.4, project: 0.6 },
   retrievalTopK: 8,
+  // The same list `@deepseek-ai/dsh-agent-instructions` resolves a project root
+  // with. A local plugin cannot read that resolved config, so the two are kept in
+  // step by naming the same field and changing it in the same place: if they
+  // disagree, the harness and Memory disagree about what a project is.
   projectRootMarkers: ['.git'],
   lockTimeoutMs: 10000,
   staleLockMs: 60000,
@@ -36,6 +40,7 @@ export const DEFAULTS = Object.freeze({
     maxRelevantEventsPerBatch: 200,
     maxTrajectoryBytesPerBatch: 65536,
     maxOutputTokens: 2048,
+    auditSessionEvents: false,
   }),
 })
 
@@ -96,6 +101,7 @@ function consolidationSetting(value) {
     maxRelevantEventsPerBatch: integerSetting(value.maxRelevantEventsPerBatch, fallback.maxRelevantEventsPerBatch, 'consolidation.maxRelevantEventsPerBatch', 1),
     maxTrajectoryBytesPerBatch: integerSetting(value.maxTrajectoryBytesPerBatch, fallback.maxTrajectoryBytesPerBatch, 'consolidation.maxTrajectoryBytesPerBatch', MIN_TRAJECTORY_BYTES_PER_BATCH),
     maxOutputTokens: integerSetting(value.maxOutputTokens, fallback.maxOutputTokens, 'consolidation.maxOutputTokens', 1),
+    auditSessionEvents: booleanSetting(value.auditSessionEvents, fallback.auditSessionEvents, 'consolidation.auditSessionEvents'),
   }
 }
 

@@ -298,17 +298,17 @@ export async function resolveProject(options, request) {
   const cwd = resolve(request.cwd)
   const registry = readRegistry(options.registryPath)
   const known = matchProject(registry.projects, cwd, options)
-  if (known !== undefined) return describeProject(known, options)
+  if (known !== undefined) return { ...describeProject(known, options), matched_by: 'registry' }
 
   if (request.workspaceRoot !== undefined) {
     const workspace = await resolveOrRegisterProject(options, request.workspaceRoot, request.workspaceId)
-    return workspace.project
+    return { ...workspace.project, matched_by: 'workspace' }
   }
 
   const markerRoot = findProjectRoot(cwd, options.projectRootMarkers ?? ['.git'], options)
   if (markerRoot === undefined) return null
   const discovered = await resolveOrRegisterProject(options, markerRoot, request.workspaceId)
-  return discovered.project
+  return { ...discovered.project, matched_by: 'marker' }
 }
 
 /**

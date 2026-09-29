@@ -77,7 +77,12 @@ function createController(ctx, settings) {
   // Keyed by working directory, not by session: several agents can share one
   // session — the auxiliary agent that names it runs elsewhere — and the last one
   // created must not decide which project the others write to.
+/** Session event type carrying which project a Session was attributed to. */
+const PROJECT_EVENT_TYPE = 'dsh-memory/project'
+
   const projectsByCwd = new Map()
+  /** Sessions whose attribution was already recorded, so it is written once. */
+  const announcedProjects = new Set()
   let enabled = resolveEnabled(settings.memoryDir, settings.enabled)
   let runtimeFiber = null
   let llmScope = null
@@ -159,9 +164,40 @@ function createController(ctx, settings) {
         { ...registry, projectRootMarkers: settings.projectRootMarkers },
         { cwd, workspaceRoot: workspace?.root, workspaceId: workspace?.id },
       )
-      if (project !== null) projectsByCwd.set(cwd, project)
+      if (project !== null) {
+        projectsByCwd.set(cwd, project)
+        announceProject(agent, project, workspace)
+      }
     } catch (failure) {
       logger.warn(`dsh-memory: could not resolve the project for ${cwd}: ${String(failure?.message ?? failure)}`)
+    }
+  }
+
+  /**
+   * Record which project a Session was attributed to.
+   *
+   * Written once per Session: the point is to make "why did this Memory land in
+   * that project" answerable from the log, and an attribution repeated on every
+   * request would bury it. The payload is our own ids and a path, never Memory
+   * content.
+   * @param agent - the agent whose Session is being attributed.
+   * @param project - the resolved project.
+   * @param workspace - the harness workspace that contains the directory, if any.
+   */
+  const announceProject = (agent, project, workspace) => {
+    const session = agent?.session
+    if (session === undefined || typeof session.append !== 'function') return
+    if (announcedProjects.has(session.id)) return
+    announcedProjects.add(session.id)
+    try {
+      session.append(PROJECT_EVENT_TYPE, {
+        project_id: project.project_id,
+        canonical_root: project.canonical_root,
+        workspace_id: workspace?.id ?? null,
+        matched_by: project.matched_by,
+      }, { ignorable: true })
+    } catch (failure) {
+      logger.warn(`dsh-memory: could not record the project attribution: ${String(failure?.message ?? failure)}`)
     }
   }
 

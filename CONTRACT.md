@@ -90,7 +90,7 @@ Memory 的物理位置不可配置：内部恒为 `path.join(resolvedDshHome, 'm
 | `indexBudgetBytes` | number | `6000` | `>= 0` |
 | `indexBudgetSplit` | `{user, project}` | `{user:0.4, project:0.6}` | 两项各 `>= 0`，`abs(user + project - 1) < 1e-9` |
 | `retrievalTopK` | number | `8` | `>= 1` |
-| `projectRootMarkers` | string[] | `['.git']` | 非空字符串项 |
+| `projectRootMarkers` | string[] | `['.git']` | 非空字符串项。**必须与 `@deepseek-ai/dsh-agent-instructions` 的 `projectRootMarkers` 一致** —— harness 用它决定项目根（指令文件的范围），Memory 用它决定项目身份。本地插件无法读取对方的已解析配置，所以两者靠"同名字段 + 同默认值 + 一起改"保持同步 |
 | `lockTimeoutMs` | number | `10000` | `> 0` |
 | `staleLockMs` | number | `60000` | `> 0` |
 | `maxEvidencePerMemory` | number | `8` | `>= 1` |
@@ -109,6 +109,7 @@ Memory 的物理位置不可配置：内部恒为 `path.join(resolvedDshHome, 'm
 | `maxRelevantEventsPerBatch` | integer | `200` | `>= 1` |
 | `maxTrajectoryBytesPerBatch` | integer | `65536` | `>= 128`（UTF-8 字节，作用于整条序列化 entry） |
 | `maxOutputTokens` | integer | `2048` | `>= 1` |
+| `auditSessionEvents` | boolean | `false` | — （写 Session 审计行的开关，默认关） |
 
 **`autoCommit: false` 表示"不要自己学"**：自动路径**根本不运行** —— debounce 不排期、不构造窗口、不调用模型，因此也不花任何 token。
 

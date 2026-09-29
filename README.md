@@ -125,6 +125,7 @@ Set fields on the plugin row in the profile's `cordis.patch.yml`:
 | `maxRelevantEventsPerBatch` | `200` | largest window offered to the model |
 | `maxTrajectoryBytesPerBatch` | `65536` | UTF-8 ceiling for the rendered trajectory, minimum 128 |
 | `maxOutputTokens` | `2048` | cap on the plan the model may return |
+| `auditSessionEvents` | `false` | write `dsh-memory/consolidation` rows into the Session log. Off by default, like every plugin writing into someone else's trajectory |
 
 There is no `memoryDir`: Memory must belong to the harness, so a deployment cannot point it at a project.
 

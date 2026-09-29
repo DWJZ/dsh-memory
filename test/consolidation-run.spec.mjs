@@ -101,6 +101,7 @@ function harness(options = {}) {
       maxRelevantEventsPerBatch: 200,
       maxTrajectoryBytesPerBatch: 65536,
       maxOutputTokens: 512,
+      auditSessionEvents: options.auditSessionEvents ?? true,
       maxEvidencePerMemory: 8,
       quoteMaxChars: 200,
       lockTimeoutMs: 3000,
@@ -422,6 +423,15 @@ console.log('the trigger consults the same pipeline')
     harnessed.consolidation.progressFor('session_trigger').last_processed_seq === 110)
   harnessed.consolidation.dispose()
   check('disposing the orchestrator is safe', true)
+}
+
+console.log('writing rows into the trajectory is opt-in')
+{
+  const harnessed = harness({ sessionId: 'session_quiet', modelAnswer: addProjectFact([0]), auditSessionEvents: false })
+  observe(harnessed, [human(0, '这个项目用 pnpm')])
+  const outcome = await harnessed.consolidation.consolidate(harnessed.agent)
+  check('the run still commits', outcome.status === 'success', JSON.stringify(outcome))
+  check('but nothing was appended to the Session', harnessed.audit.length === 0, JSON.stringify(harnessed.audit))
 }
 
 console.log('the audit explains a run without repeating the model')

@@ -58,7 +58,7 @@ const record = (overrides = {}) => ({
 /** Start the plugin and settle its project lookup. */
 async function start() {
   const ctx = createStubContext()
-  plugin.apply(ctx, { dshHome: ROOT, memoryDir: MEMORY })
+  plugin.apply(ctx, { dshHome: ROOT, memoryDir: MEMORY, consolidation: { auditSessionEvents: true } })
   if (ctx.registrations.injections.length === 0) throw new Error('the runtime did not mount')
   const agent = {
   session: {

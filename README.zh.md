@@ -125,6 +125,7 @@ project:
 | `maxRelevantEventsPerBatch` | `200` | 交给模型的最大窗口 |
 | `maxTrajectoryBytesPerBatch` | `65536` | 渲染后轨迹的 UTF-8 上限，最小 128 |
 | `maxOutputTokens` | `2048` | 模型可返回计划的上限 |
+| `auditSessionEvents` | `false` | 是否把 `dsh-memory/consolidation` 行写进 Session 日志。默认关，与其它往别人轨迹里写行的插件一致 |
 
 没有 `memoryDir`：Memory 必须属于 harness，部署不能把它指到项目里。
 
