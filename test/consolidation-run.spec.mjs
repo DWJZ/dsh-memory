@@ -307,6 +307,9 @@ console.log('a buffer that evicted events records the gap')
   check('the gap covers exactly the evicted events', progress.gaps[0].from_seq === 0 && progress.gaps[0].to_seq === 6)
   check('the mark is the last consumed event, not the gap end', progress.last_processed_seq === 9)
   check('the remaining window started after the gap', outcome.from_seq === 7)
+  check('the audit carries the gap it recorded',
+    harnessed.audit.at(-1)?.data?.gap?.from_seq === 0 && harnessed.audit.at(-1)?.data?.gap?.to_seq === 6,
+    JSON.stringify(harnessed.audit.at(-1)?.data?.gap))
 }
 
 console.log('scope decides where a fact lands')
@@ -490,6 +493,28 @@ console.log('a run that did nothing writes no audit')
     refused = String(error.message).includes('already driving')
   }
   check('an agent that cannot grant the phase refuses rather than running beside the turn', refused === true)
+}
+
+console.log('observation mode leaves the window alone')
+{
+  const harnessed = harness({ sessionId: 'session_observe', modelAnswer: addProjectFact([1]), autoCommit: false })
+  observe(harnessed, [human(1, '这个项目以后用 pnpm'), assistant(2, '好的'), toolResult(3, 'pnpm@10')])
+  const observed = await harnessed.consolidation.consolidate(harnessed.agent)
+  check('the run reports that it only observed', observed.status === 'observed', JSON.stringify(observed))
+  check('it says how much it saw', observed.operations.add === 0 && observed.operations.skipped === 1)
+  check('nothing was written', !projectStoreHas('该项目使用 pnpm'))
+  // The fixture starts at seq 1, so seq 0 is a real gap and moves the mark to 0.
+  // What matters is that nothing inside the window was consumed.
+  check('the window was not consumed', markOf('session_observe') < 1, String(markOf('session_observe')))
+  check('the window is still in the buffer', harnessed.collector.eventsFor('session_observe').length === 3)
+  check('the audit says so too', harnessed.audit.at(-1)?.data?.status === 'observed')
+
+  // The same window has to still be learnable once committing is switched on.
+  const committing = harness({ sessionId: 'session_observe', modelAnswer: addProjectFact([1]) })
+  observe(committing, [human(1, '这个项目以后用 pnpm'), assistant(2, '好的'), toolResult(3, 'pnpm@10')])
+  const committed = await committing.consolidation.consolidate(committing.agent)
+  check('the same window still commits afterwards', committed.status === 'success', JSON.stringify(committed))
+  check('and the mark advances then', markOf('session_observe') === 3)
 }
 
 console.log('teardown waits for every run, not the newest one')
