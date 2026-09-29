@@ -1,4 +1,10 @@
 {
+  // Sources are being migrated from JavaScript to TypeScript one module at a
+  // time. Ordering constraint, measured rather than assumed: the compiler already
+  // resolves a `./x.js` specifier to `x.ts`, so no import needs rewriting — but
+  // the suites load modules by absolute path under plain Node, which cannot
+  // resolve a `.ts` file, so every suite fails the moment one module is renamed.
+  // Run the suites through tsx BEFORE renaming anything.
   "compilerOptions": {
     "target": "ES2023",
     "lib": [
