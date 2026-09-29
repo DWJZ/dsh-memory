@@ -15,7 +15,10 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": false,
     "resolveJsonModule": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "types": [
+      "node"
+    ]
   },
   "include": [
     "src/**/*.js",
