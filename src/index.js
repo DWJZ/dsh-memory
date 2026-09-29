@@ -78,6 +78,7 @@ function createController(ctx, settings) {
   const projectsByCwd = new Map()
   let enabled = resolveEnabled(settings.memoryDir, settings.enabled)
   let runtimeFiber = null
+  let llmScope = null
 
   const deps = {
     config: settings,
@@ -175,7 +176,7 @@ function createController(ctx, settings) {
         // process ever works in, so it is left to outlive individual agents.
       })
       const consolidation = createConsolidation({
-        ctx,
+        llmScope: () => llmScope,
         collector: createCollector(),
         scopes,
         state: consolidationLayout(settings.memoryDir),
@@ -201,6 +202,11 @@ function createController(ctx, settings) {
       })
       deps.consolidate = (agent, runOptions) => consolidation.consolidate(agent, runOptions)
       deps.consolidationEnabled = () => settings.consolidation.enabled
+      // The model call needs the `llm` service, which a profile may not mount.
+      // Taking it as an injection rather than a hard dependency keeps Memory
+      // itself usable without one: explicit writes and the command surface keep
+      // working, and only consolidation reports that it has no model to ask.
+      const llmFiber = ctx.inject(['llm'], (scope) => { llmScope = scope })
       // Every committed event is offered to the collector; it keeps what it saw
       // and drops what a settled batch has consumed.
       const disposeEvents = ctx.on('session/event', (session, event) => {
@@ -210,6 +216,8 @@ function createController(ctx, settings) {
         if (settings.consolidation.enabled) consolidation.statusChanged(agent, status)
       })
       ctx.effect(() => () => {
+        llmScope = null
+        void llmFiber?.dispose()
         consolidation.dispose()
         disposeStatus()
         disposeEvents()

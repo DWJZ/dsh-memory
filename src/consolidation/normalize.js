@@ -41,6 +41,7 @@ export const RELEVANT_EVENT_TYPES = Object.freeze(new Set([
  */
 export const SKIPPED_EVENT_TYPES = Object.freeze(new Set([
   'agent-preset/selected',
+  'agent/inbox/spliced',
   'approval/asked',
   'approval/decided',
   'approval/policy',

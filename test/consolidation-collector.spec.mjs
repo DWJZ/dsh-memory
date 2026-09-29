@@ -4,6 +4,7 @@
  *
  * Usage: `node test/consolidation-collector.spec.mjs`.
  */
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -165,6 +166,25 @@ check('forgetting one Session leaves the other', kept.forget('session_a') === un
 check('retaining a name drops the rest', kept.retain(new Set(['session_a'])) === 1)
 check('the dropped Session is gone', kept.sessions().length === 0)
 check('the retention cap has a documented default', DEFAULT_MAX_BUFFERED_EVENTS >= 1000)
+
+console.log('the vocabulary this build knows covers the one the harness declares')
+// Reading the harness source is what keeps this honest: a type added there must
+// be classified here, or consolidation would discover it only by refusing a real
+// Session. The plugin itself carries no harness dependency; this is a test that
+// lives in the harness checkout.
+const HARNESS_TYPES = resolve(PLUGIN, '../../packages/core/session/src/known-event-types.ts')
+if (existsSync(HARNESS_TYPES)) {
+  const declared = [...readFileSync(HARNESS_TYPES, 'utf8').matchAll(/^ {2}'([a-zA-Z/_-]+)',$/gmu)]
+    .map(match => match[1])
+  check('the harness vocabulary was read', declared.length > 40, String(declared.length))
+  const unclassified = declared.filter(type => normalize.classify({ type }).kind === 'unsupported')
+  check('every declared event type is classified', unclassified.length === 0, unclassified.join(','))
+  check('the declared types are split between read and skipped',
+    declared.some(type => normalize.classify({ type }).kind === 'relevant')
+    && declared.some(type => normalize.classify({ type }).kind === 'skipped'))
+} else {
+  console.log('  note  the harness source is absent, so the vocabulary check did not run')
+}
 
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)
 process.exit(failures === 0 ? 0 : 1)

@@ -54,6 +54,10 @@ const start = (config = CONFIG, stubOptions = {}) => {
   return ctx
 }
 
+/** The injections that register the Memory runtime, selected by their services. */
+const runtimeInjections = ctx => (ctx.registrations.injections ?? [])
+  .filter(entry => entry.deps.includes('systemPrompt'))
+
 /** The tool with one name. */
 const toolNamed = (ctx, name) => ctx.registrations.tools.find(definition => definition.name === name)
 
@@ -304,10 +308,10 @@ console.log('disable_disposes_inject_fiber')
 const fiberCtx = start()
 // The stored switch is "disabled" from the section above, so enable first and
 // count from a known state.
-check('a disabled start registers no injection', fiberCtx.registrations.injections === undefined)
+check('a disabled start registers no runtime injection', runtimeInjections(fiberCtx).length === 0)
 await runCommand(fiberCtx, 'enable')
-const firstFiber = fiberCtx.registrations.injections[0]
-check('enabling creates one injection', fiberCtx.registrations.injections.length === 1)
+const firstFiber = runtimeInjections(fiberCtx)[0]
+check('enabling creates one runtime injection', runtimeInjections(fiberCtx).length === 1)
 check('the injection is active', firstFiber.state === 'active')
 await runCommand(fiberCtx, 'disable')
 check('disabling disposes the injection fiber', firstFiber.state === 'disposed')
@@ -323,7 +327,7 @@ check('the switch still reads disabled',
   JSON.parse(readFileSync(pluginConfigPath(MEMORY), 'utf8')).enabled === false)
 
 console.log('enable_disable_enable_has_single_runtime_fiber')
-const liveFibers = () => fiberCtx.registrations.injections.filter(entry => entry.state === 'active').length
+const liveFibers = () => runtimeInjections(fiberCtx).filter(entry => entry.state === 'active').length
 await runCommand(fiberCtx, 'enable')
 check('enabling creates exactly one live injection', liveFibers() === 1)
 await runCommand(fiberCtx, 'disable')
@@ -332,7 +336,7 @@ check('a second cycle still leaves exactly one live injection', liveFibers() ===
 check('the index is registered once', fiberCtx.registrations.contexts.length === 1)
 check('the tools are registered three times, once', fiberCtx.registrations.tools.length === 3)
 check('every injection ever created is accounted for',
-  fiberCtx.registrations.injections.length === 3 && liveFibers() === 1)
+  runtimeInjections(fiberCtx).length === 3 && liveFibers() === 1)
 await disposeEffects(fiberCtx)
 check('unloading a re-enabled instance disposes its fiber', liveFibers() === 0)
 
@@ -343,7 +347,7 @@ console.log('disable_before_injected_services_ready_prevents_late_mount')
 // registering tools and an index while the switch reads "disabled".
 const pendingOnly = { without: ['systemPrompt', 'tools'] }
 const pendingCtx = start(CONFIG, pendingOnly)
-const pendingFiber = pendingCtx.registrations.injections[0]
+const pendingFiber = runtimeInjections(pendingCtx)[0]
 check('the injection is created but pending', pendingFiber.state === 'pending')
 check('a pending injection registers nothing', pendingCtx.registrations.contexts.length === 0)
 await runCommand(pendingCtx, 'disable')
@@ -357,9 +361,9 @@ check('the switch still reads disabled',
 // The mirror case, so the assertion above is not passing for free: with the
 // switch left on, the same late mount does start the fiber.
 const lateMountCtx = start(CONFIG, pendingOnly)
-check('a disabled start has no injection at all', lateMountCtx.registrations.injections === undefined)
+check('a disabled start has no runtime injection at all', runtimeInjections(lateMountCtx).length === 0)
 await runCommand(lateMountCtx, 'enable')
-const lateFiber = lateMountCtx.registrations.injections[0]
+const lateFiber = runtimeInjections(lateMountCtx)[0]
 check('enabling with the services absent leaves the fiber pending', lateFiber.state === 'pending')
 check('mounting the services starts it', lateMountCtx.provideServices('systemPrompt', 'tools') === 1)
 check('the index registered once the services arrived', lateMountCtx.registrations.contexts.length === 1)

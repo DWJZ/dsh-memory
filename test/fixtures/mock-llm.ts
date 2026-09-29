@@ -48,6 +48,12 @@ const SUPERSEDE = process.env.DSH_MEMORY_MOCK_SUPERSEDE === '1'
 /** Query used by the search step of a supersede run. */
 const SEARCH_QUERY = process.env.DSH_MEMORY_MOCK_QUERY ?? 'package manager'
 
+/** Marker that identifies the consolidation call's system prompt. */
+const CONSOLIDATION_MARKER = 'You maintain long-term Memory'
+
+/** What a scripted consolidation run should learn, when it should learn anything. */
+const LEARNED = process.env.DSH_MEMORY_MOCK_LEARNED
+
 /** Record one request exactly as the model received it. */
 function record(options: GenerateOptions): void {
   if (LOG === undefined) return
@@ -112,6 +118,29 @@ class MemoryMockAdapter extends LlmAdapter {
     // it with a tool call would fail the very turn it exists to name.
     if (transcript.includes(TITLE_AGENT_SOURCE)) {
       yield * answer('session title')
+      return
+    }
+    // Automatic consolidation is a different kind of call: it carries the memory
+    // policy as its system prompt and asks for a plan rather than a turn. The
+    // plan cites a sequence number the payload actually contains, as a real
+    // consolidator would.
+    if ((options.system ?? '').includes(CONSOLIDATION_MARKER)) {
+      if (LEARNED === undefined) {
+        yield * answer('{"operations":[]}')
+        return
+      }
+      const text = String(options.messages?.[0]?.content?.[0]?.text ?? '')
+      const seq = Number(/"seq":(\d+)/u.exec(text)?.[1] ?? -1)
+      yield * answer(JSON.stringify({
+        operations: [{
+          action: 'add',
+          scope: 'project',
+          category: 'state',
+          content: LEARNED,
+          confidence: 0.95,
+          evidence_event_seqs: [seq],
+        }],
+      }))
       return
     }
     // One call per transcript: a write that the plugin refused must not be

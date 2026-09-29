@@ -39,6 +39,7 @@ export const AUDIT_EVENT_TYPE = 'dsh-memory/consolidation'
  * Build the consolidation orchestrator.
  *
  * @param options - wiring.
+ * @param options.llmScope - the injection scope carrying `llm`, or a getter for it.
  * @param options.collector - the observed-event buffer.
  * @param options.scopes - Phase 1 scope layouts.
  * @param options.state - consolidation state location and lock.
@@ -52,7 +53,13 @@ export const AUDIT_EVENT_TYPE = 'dsh-memory/consolidation'
 export function createConsolidation(options) {
   const { collector, scopes, logger, config } = options
   const now = options.now ?? Date.now
-  const callModel = options.callModel ?? ((request) => callConsolidator(options.ctx, request))
+  const callModel = options.callModel ?? ((request) => {
+    const scope = typeof options.llmScope === 'function' ? options.llmScope() : options.llmScope
+    if (scope === undefined || scope === null) {
+      throw new Error('dsh-memory: no model service is mounted, so consolidation has nothing to ask')
+    }
+    return callConsolidator(scope, request)
+  })
   const stateOptions = { ...options.state, lockTimeoutMs: config.lockTimeoutMs, staleLockMs: config.staleLockMs, logger, now, host: options.host, kill: options.kill }
 
   /**

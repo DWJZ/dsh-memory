@@ -62,7 +62,7 @@ const PROJECT_C = projectDir('project-c')
  * @param project - the working directory the session runs in.
  * @returns the patch path.
  */
-function writePatch(project) {
+function writePatch(project, options = {}) {
   const path = join(ROOT, `overlay-${String(Math.abs(hash(project)))}-${String(Date.now())}.yml`)
   writeFileSync(path, [
     '- id: llm-deepseek',
@@ -84,6 +84,11 @@ function writePatch(project) {
     '    - id: dsh-memory',
     `      name: ${JSON.stringify(join(PLUGIN, 'src/index.js'))}`,
     '',
+    ...options.drive !== true ? [] : [
+      '    - id: dsh-memory-consolidate-on-idle',
+      `      name: ${JSON.stringify(join(PLUGIN, 'test/fixtures/consolidate-on-idle.ts'))}`,
+      '',
+    ],
   ].join('\n'))
   return path
 }
@@ -98,7 +103,7 @@ function writePatch(project) {
  * @returns the exit code, output, and where the requests were recorded.
  */
 async function runSession(options) {
-  const patch = writePatch(options.project)
+  const patch = writePatch(options.project, options)
   const log = join(ROOT, `requests-${String(Date.now())}-${String(Math.abs(hash(options.task)))}.jsonl`)
   const env = {
     ...process.env,
@@ -107,6 +112,8 @@ async function runSession(options) {
     ...options.remember === undefined ? {} : { DSH_MEMORY_MOCK_REMEMBER: JSON.stringify(options.remember) },
     ...options.supersede === true ? { DSH_MEMORY_MOCK_SUPERSEDE: '1' } : {},
     ...options.query === undefined ? {} : { DSH_MEMORY_MOCK_QUERY: options.query },
+    ...options.learned === undefined ? {} : { DSH_MEMORY_MOCK_LEARNED: options.learned },
+    ...options.drive !== true ? {} : { DSH_MEMORY_DRIVER_LOG: `${log}.driver` },
   }
   const outcome = await new Promise((settle) => {
     const child = spawn(process.execPath, [
@@ -141,6 +148,29 @@ async function runSession(options) {
  * @param log - the recorded request log.
  * @returns the parsed requests.
  */
+/**
+ * Every request recorded in one log, including calls that carry no tools.
+ *
+ * The consolidation call is one of those: it asks for a plan in text, so the
+ * Memory tool catalogue is not part of it and {@link mainRequests} skips it.
+ * @param log - the recorded request log.
+ * @returns the parsed requests.
+ */
+function allRequests(log) {
+  if (!existsSync(log)) return []
+  return readFileSync(log, 'utf8').split('\n').filter(Boolean)
+    .flatMap(line => { try { return [JSON.parse(line)] } catch { return [] } })
+}
+
+/**
+ * Whether one recorded request is a consolidation call.
+ * @param request - a parsed request.
+ * @returns true when it carries the consolidation policy.
+ */
+function isConsolidationCall(request) {
+  return String(request?.system ?? '').includes('You maintain long-term Memory')
+}
+
 function mainRequests(log) {
   if (!existsSync(log)) return []
   return readFileSync(log, 'utf8').trim().split('\n').filter(Boolean)
@@ -220,6 +250,55 @@ const projectARequest = requestText(secondSession.log)
 check('the model request carries the Memory index', projectARequest.includes('<memory-index>'))
 check('the model request names the remembered fact', projectARequest.includes('[state] 该项目使用 pnpm'))
 check('the index is not an empty envelope', projectARequest.includes('project:'))
+
+console.log('27.5 automatic consolidation learns from a finished turn')
+const CONSOLIDATION_PROJECT = join(ROOT, 'consolidation-project')
+mkdirSync(CONSOLIDATION_PROJECT, { recursive: true })
+writeFileSync(join(CONSOLIDATION_PROJECT, '.git'), '')
+const learnedRun = await runSession({
+  project: CONSOLIDATION_PROJECT,
+  task: '我们决定统一用 pnpm 管理依赖',
+  learned: '该项目使用 pnpm 管理依赖',
+  drive: true,
+})
+check('the session with automatic consolidation finishes', learnedRun.code === 0, learnedRun.stderr.slice(0, 600))
+const driverLog = `${learnedRun.log}.driver`
+const driverSteps = existsSync(driverLog) ? readFileSync(driverLog, 'utf8') : ''
+check('the consolidation ran to a successful commit',
+  driverSteps.includes('handled:success'), driverSteps.replace(/\n/gu, ' | '))
+const consolidationRequests = allRequests(learnedRun.log).filter(isConsolidationCall)
+check('the consolidation model was called once', consolidationRequests.length === 1,
+  String(consolidationRequests.length))
+check('it was given the turn, not the whole log',
+  JSON.stringify(consolidationRequests[0]?.messages ?? []).includes('我们决定统一用 pnpm'))
+const learnedProjectId = projectIdFor(CONSOLIDATION_PROJECT)
+check('the learned fact reached the store', learnedProjectId !== undefined
+  && recordsOf(learnedProjectId).some(record => record.content === '该项目使用 pnpm 管理依赖'))
+const learnedRecord = learnedProjectId === undefined
+  ? undefined
+  : recordsOf(learnedProjectId).find(record => record.content === '该项目使用 pnpm 管理依赖')
+check('the learned record carries plugin-built provenance',
+  learnedRecord?.evidence?.[0]?.kind === 'user'
+  && String(learnedRecord?.evidence?.[0]?.quote).includes('pnpm'))
+check('its evidence cites a sequence number from the window',
+  Number.isInteger(learnedRecord?.evidence?.[0]?.event_seqs?.[0])
+  && learnedRecord.evidence[0].event_seqs[0] >= 0)
+const consolidationState = join(HOME, 'memory', 'consolidation-state.json')
+check('the progress mark was recorded', existsSync(consolidationState))
+check('the mark advanced over the window it consumed',
+  Object.values(JSON.parse(readFileSync(consolidationState, 'utf8')).sessions)
+    .some(progress => progress.last_processed_seq >= 0))
+
+console.log('27.6 a later Session sees the automatically learned Memory')
+const afterLearning = await runSession({ project: CONSOLIDATION_PROJECT, task: '装个依赖' })
+check('the later Session runs', afterLearning.code === 0, afterLearning.stderr.slice(0, 400))
+check('the index carries the automatically learned fact',
+  requestText(afterLearning.log).includes('该项目使用 pnpm 管理依赖'),
+  requestText(afterLearning.log).slice(0, 400))
+check('a Session that learned nothing new calls no consolidation model',
+  allRequests(afterLearning.log).filter(isConsolidationCall).length === 0)
+check('the driver did not run in the second Session',
+  !existsSync(`${afterLearning.log}.driver`))
 
 console.log('27.3 user Memory reaches another project')
 const userWrite = await runSession({
