@@ -130,7 +130,7 @@ export function writeAtomic(targetPath, text) {
  * mean "abandoned", because another process may be writing that very file right
  * now, and deleting it would make that writer's rename fail.
  * @param dir - the Memory root to sweep.
- * @param options - sweep inputs.
+ * @param {object} options - sweep inputs.
  * @param options.staleTempMs - age at which a temporary file is abandoned.
  * @param options.now - clock, injectable for tests.
  * @returns the number of files removed.
@@ -183,7 +183,7 @@ function findTemps(dir) {
  *
  * The operation receives the latest stored revision, so a target it judges
  * against cannot be replaced between the check and the write.
- * @param options - store location and lock thresholds.
+ * @param {object} options - store location and lock thresholds.
  * @param options.storePath - absolute path of `memories.json`.
  * @param options.lockPath - absolute path of the store lock file.
  * @param options.lockTimeoutMs - how long to wait for the lock.

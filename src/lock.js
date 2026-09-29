@@ -49,7 +49,7 @@ export function isProcessAlive(pid, kill = process.kill) {
 /**
  * Decide whether one observed lock file may be reclaimed.
  * @param lockPath - the lock file path.
- * @param options - thresholds and identity of the current writer.
+ * @param {object} options - thresholds and identity of the current writer.
  * @param options.staleLockMs - age at which a lock becomes reclaimable.
  * @param options.host - current host name.
  * @param options.kill - signal sender, injectable for tests.
@@ -155,7 +155,7 @@ function releaseReclaimMutex(mutexPath) {
  * The lock is released in `finally`, so a validation failure, an unreadable
  * store, a failed write, or a throwing operation never leaves a lock file
  * behind.
- * @param options - lock location, thresholds, and optional logger.
+ * @param {object} options - lock location, thresholds, and optional logger.
  * @param options.lockPath - absolute path of the lock file.
  * @param options.lockTimeoutMs - how long to keep trying before failing.
  * @param options.staleLockMs - age at which a lock becomes reclaimable.

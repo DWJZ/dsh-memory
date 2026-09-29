@@ -157,7 +157,7 @@ export function advanceHwm(state, sessionId, seq, at) {
  * jumping and the reason being unknowable later.
  * @param state - the current state document.
  * @param sessionId - the Session to update.
- * @param range - the unobserved range.
+ * @param {object} range - the unobserved range.
  * @param range.from_seq - first unobserved seq.
  * @param range.to_seq - last unobserved seq.
  * @param at - ISO-8601 timestamp of the update.
@@ -193,7 +193,7 @@ function withSession(state, sessionId, progress) {
  * Progress is shared by every Session in one harness home and by every process
  * using it, so a read-modify-write takes the same exclusive lock every other
  * writer takes, and commits through the same atomic write.
- * @param options - state location and lock thresholds.
+ * @param {object} options - state location and lock thresholds.
  * @param options.statePath - absolute path of `consolidation-state.json`.
  * @param options.lockPath - absolute path of its lock file.
  * @param options.lockTimeoutMs - how long to wait for the lock.

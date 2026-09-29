@@ -24,7 +24,7 @@ export const DEFAULT_DEBOUNCE_MS = 10_000
  *
  * `schedule` and `cancelSchedule` are injectable so the debounce can be tested
  * without waiting on a real clock.
- * @param options - debounce policy and seams.
+ * @param {object} options - debounce policy and seams.
  * @param options.task - receives the agent once the debounce expires and the
  *   agent is still idle; its fulfillment ends the run.
  * @param options.debounceMs - how long to wait after the agent goes idle.

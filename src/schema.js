@@ -117,7 +117,7 @@ export function isTimestamp(value) {
  * holds — is a property of the whole store, so {@link validateStoreRecords}
  * enforces it.
  * @param record - the candidate record.
- * @param options - validation inputs that are not part of the record.
+ * @param {object} options - validation inputs that are not part of the record.
  * @param options.maxEvidencePerMemory - largest accepted evidence list; reading a
  *   stored document omits it, because the cap is a writer's choice rather than a
  *   property of a valid record.
@@ -191,7 +191,7 @@ export function validateMemory(record, options = {}) {
  * claiming to be superseded by a record that is not there is an inconsistency a
  * reader would silently believe.
  * @param records - every record the store holds.
- * @param options - validation inputs that are not part of a record.
+ * @param {object} options - validation inputs that are not part of a record.
  * @param options.maxEvidencePerMemory - largest accepted evidence list.
  * @throws {TypeError} when any record is invalid, ids repeat, or a supersession
  *   reference dangles.

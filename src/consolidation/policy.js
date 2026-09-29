@@ -58,7 +58,7 @@ export const CONSOLIDATION_SYSTEM_PROMPT = [
  * The trajectory is passed as JSON lines rather than prose so a remembered
  * sentence inside it stays data: an entry cannot be read as an instruction to
  * the consolidator any more than it can to the agent.
- * @param request - what the call is about.
+ * @param {object} request - what the call is about.
  * @param request.sessionId - the Session being consolidated.
  * @param request.fromSeq - first seq in the window.
  * @param request.toSeq - last seq in the window.

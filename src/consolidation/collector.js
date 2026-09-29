@@ -24,7 +24,7 @@ export const DEFAULT_MAX_BUFFERED_EVENTS = 5000
 
 /**
  * Build one collector.
- * @param options - buffer limits.
+ * @param {object} options - buffer limits.
  * @param options.maxBufferedEvents - per-Session retention cap.
  * @returns the collector.
  */

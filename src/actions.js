@@ -60,7 +60,7 @@ function requireConfidence(value, fallback) {
 /**
  * Add one Memory, unless an active record already says the same thing.
  * @param options - scopes, thresholds, and logger.
- * @param input - the new Memory.
+ * @param {object} input - the new Memory.
  * @param input.content - the fact to remember.
  * @param input.scope - `user` or `project`.
  * @param input.category - the chosen category.
@@ -108,7 +108,7 @@ export async function addMemory(options, input) {
 /**
  * Restate one Memory, keeping its identity and accumulating provenance.
  * @param options - scopes, thresholds, and logger.
- * @param input - the update.
+ * @param {object} input - the update.
  * @param input.id - the record to update.
  * @param input.content - the restated fact.
  * @param input.projectId - the current project, used to decide visibility.
@@ -144,7 +144,7 @@ export async function updateMemory(options, input) {
 /**
  * Replace one Memory with a newer fact, retiring the old record in the same write.
  * @param options - scopes, thresholds, and logger.
- * @param input - the replacement.
+ * @param {object} input - the replacement.
  * @param input.id - the record being superseded.
  * @param input.content - the newer fact.
  * @param input.projectId - the current project, used to decide visibility.
@@ -193,7 +193,7 @@ export async function supersedeMemory(options, input) {
  * Retire one Memory without deleting it. Archived records leave the index and
  * ordinary retrieval but stay in the canonical store.
  * @param options - scopes, thresholds, and logger.
- * @param input - the archive request.
+ * @param {object} input - the archive request.
  * @param input.id - the record to archive.
  * @param input.projectId - the current project, used to decide visibility.
  * @returns the applied action and the record id.
@@ -216,7 +216,7 @@ export async function archiveMemory(options, input) {
 /**
  * Delete one Memory outright, leaving only a tombstone that carries no content.
  * @param options - scopes, thresholds, tombstones, and logger.
- * @param input - the forget request.
+ * @param {object} input - the forget request.
  * @param input.id - the record to delete.
  * @param input.projectId - the current project, used to decide visibility.
  * @returns the applied action and the deleted id.
@@ -265,7 +265,7 @@ export async function forgetMemory(options, input) {
 /**
  * Delete every Memory in one scope, leaving one summary tombstone.
  * @param options - scopes, thresholds, tombstones, and logger.
- * @param input - the clear request.
+ * @param {object} input - the clear request.
  * @param input.scope - `user` or `project`.
  * @param input.projectId - the project, required for project scope.
  * @returns the applied action and how many records were deleted.

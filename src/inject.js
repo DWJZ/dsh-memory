@@ -166,7 +166,7 @@ export function createTurnTracker(ctx) {
  * longer match any pattern while still carrying most of the secret.
  * @param agent - the agent performing the write.
  * @param tracker - the turn observer.
- * @param options - evidence inputs.
+ * @param {object} options - evidence inputs.
  * @param options.evidenceQuoteMaxChars - largest retained quote, in code points.
  * @param options.now - clock source.
  * @returns the evidence entry and the complete texts to screen.

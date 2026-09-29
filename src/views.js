@@ -24,7 +24,7 @@ const REVISION_MARKER = 'dsh-memory: revision'
 /**
  * Render one scope's active Memory as Markdown.
  * @param records - every record in the scope, including inactive ones.
- * @param options - render inputs.
+ * @param {object} options - render inputs.
  * @param options.revision - canonical revision the render reflects.
  * @returns the complete file content.
  */
@@ -55,7 +55,7 @@ export function renderMemoryView(records, options = {}) {
 
 /**
  * Regenerate one scope's view from the latest canonical state.
- * @param options - layout, lock thresholds, and optional logger.
+ * @param {object} options - layout, lock thresholds, and optional logger.
  * @param options.storePath - absolute path of `memories.json`.
  * @param options.lockPath - absolute path of the store lock file.
  * @param options.viewPath - absolute path of `MEMORY.md`.

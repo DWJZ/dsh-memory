@@ -284,7 +284,7 @@ window.__ModuleLoader__.load({
 		 * summary, the emphasis and the payload, and the shared details panel shows
 		 * the payload. Definitions are keyed by kind across every target, so each
 		 * row carries its own kind.
-		 * @param options - the row's own vocabulary.
+		 * @param {object} options - the row's own vocabulary.
 		 * @param options.kind - definition kind, unique across every target.
 		 * @param options.eventType - the Session event type this row folds.
 		 * @param options.idPrefix - stable prefix for the row's business identity.

@@ -98,10 +98,10 @@ function escapeContent(content) {
  *
  * When nothing fits, the index is empty rather than an empty shell: an envelope
  * with no content costs bytes every turn and tells the model nothing.
- * @param scopes - the active records of each scope.
+ * @param {object} scopes - the active records of each scope.
  * @param scopes.user - user-scope records.
  * @param scopes.project - the current project's records.
- * @param options - budget inputs.
+ * @param {object} options - budget inputs.
  * @param options.budgetBytes - the largest injected size, in UTF-8 bytes.
  * @param options.split - how the budget is divided when both scopes contend.
  * @returns the index text, or an empty string when nothing fits.

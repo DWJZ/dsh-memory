@@ -39,7 +39,7 @@ export const DEFAULT_MIN_CONFIDENCE = 0.8
  * Review one plan against the window it came from.
  *
  * @param plan - the parsed plan.
- * @param context - what the plan is judged against.
+ * @param {object} context - what the plan is judged against.
  * @param context.fromSeq - first seq in the consolidation window.
  * @param context.toSeq - last seq in the window.
  * @param context.visibleSeqs - seqs the model was actually shown.

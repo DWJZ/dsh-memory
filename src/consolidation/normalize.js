@@ -196,7 +196,7 @@ export function normalizeEvent(event) {
  * A batch may stop short of the newest event. When it does, `toSeq` is the last
  * event it actually took, so the mark never moves past events nobody read.
  * @param events - the observed events for one Session, in seq order.
- * @param options - window selection.
+ * @param {object} options - window selection.
  * @param options.afterSeq - last consumed seq; events at or below it are ignored.
  * @param options.maxEvents - largest number of relevant entries in one batch.
  * @param options.maxBytes - largest byte size of the rendered trajectory.

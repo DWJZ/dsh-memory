@@ -95,7 +95,7 @@ export function scoreRecord(record, query) {
  * A project record from another project is dropped even when the caller merged
  * it in, so isolation is a property of retrieval rather than of the caller.
  * @param records - candidate records, possibly from more than one scope.
- * @param request - the query and its filters.
+ * @param {object} request - the query and its filters.
  * @param request.query - what to look for.
  * @param request.scope - `user`, `project`, or `all`; defaults to `all`.
  * @param request.projectId - the caller's project, used to drop foreign records.

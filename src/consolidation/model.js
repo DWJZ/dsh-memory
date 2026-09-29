@@ -22,7 +22,7 @@ import { CONSOLIDATION_SYSTEM_PROMPT, buildRequest } from './policy.js'
  * carries no harness dependency at runtime, so it reads the chunk sequence the
  * adapter produces and keeps the text.
  * @param ctx - Cordis context of this plugin's fiber.
- * @param request - the consolidation request.
+ * @param {object} request - the consolidation request.
  * @param request.session - the Session being consolidated.
  * @param request.sessionId - its id.
  * @param request.fromSeq - first seq in the window.

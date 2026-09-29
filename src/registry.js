@@ -241,7 +241,7 @@ export function findProjectRoot(cwd, markers, deps = {}) {
  * The existence check happens after the ownership check on purpose: a path that
  * a relink turned into a stale alias still belongs to its project even though it
  * is no longer on disk.
- * @param options - registry location, lock thresholds, and logger.
+ * @param {object} options - registry location, lock thresholds, and logger.
  * @param options.registryPath - absolute path of `registry.json`.
  * @param options.lockPath - absolute path of the registry lock file.
  * @param options.lockTimeoutMs - how long to wait for the registry lock.
@@ -282,13 +282,13 @@ export async function resolveOrRegisterProject(options, root, workspaceId) {
 
 /**
  * Resolve the project one session works in, following the contract's order.
- * @param options - registry location, lock thresholds, marker names, and logger.
+ * @param {object} options - registry location, lock thresholds, marker names, and logger.
  * @param options.registryPath - absolute path of `registry.json`.
  * @param options.lockPath - absolute path of the registry lock file.
  * @param options.lockTimeoutMs - how long to wait for the registry lock.
  * @param options.staleLockMs - age at which a lock becomes reclaimable.
  * @param options.projectRootMarkers - names that identify a project root.
- * @param request - the session's location and the workspace it belongs to.
+ * @param {object} request - the session's location and the workspace it belongs to.
  * @param request.cwd - the session working directory.
  * @param request.workspaceRoot - a known workspace root, when the runtime has one.
  * @param request.workspaceId - that workspace's id, when known.

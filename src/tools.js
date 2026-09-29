@@ -60,7 +60,7 @@ const REMEMBER_DESCRIPTION = [
 /**
  * Register the Memory tools.
  * @param ctx - Cordis context of this plugin's fiber.
- * @param deps - what the tools read and write.
+ * @param {object} deps - what the tools read and write.
  * @param deps.config - resolved plugin settings.
  * @param deps.scopes - the user layout and a project layout lookup.
  * @param deps.projectFor - the current project of one agent, or null.

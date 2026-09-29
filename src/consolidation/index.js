@@ -38,7 +38,7 @@ export const AUDIT_EVENT_TYPE = 'dsh-memory/consolidation'
 /**
  * Build the consolidation orchestrator.
  *
- * @param options - wiring.
+ * @param {object} options - wiring.
  * @param options.llmScope - the injection scope carrying `llm`, or a getter for it.
  * @param options.collector - the observed-event buffer.
  * @param options.scopes - Phase 1 scope layouts.
@@ -199,7 +199,7 @@ export function createConsolidation(options) {
    * agent. That is not a failure: the caller retries on the next idle period,
    * with the mark untouched.
    * @param agent - the agent to consolidate.
-   * @param runOptions - run options.
+   * @param {object} runOptions - run options.
    * @param runOptions.dryRun - review the plan without committing or advancing.
    * @returns a compact outcome.
    */
