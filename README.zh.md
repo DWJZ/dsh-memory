@@ -116,6 +116,16 @@ project:
 | `evidenceQuoteMaxChars` | `200` | 存储的 quote 上限，单位是 code point |
 | `consolidation` | 见下 | 自动学习；`{ enabled, autoCommit, debounceMs, minConfidence, maxRelevantEventsPerBatch, maxTrajectoryBytesPerBatch, maxOutputTokens }` |
 
+| 子字段 | 默认 | 含义 |
+|---|---|---|
+| `enabled` | `true` | 自动学习开关；显式写入不受影响 |
+| `autoCommit` | `true` | `false` 时只评估窗口、什么都不写：不写 Memory、不推进 mark、不丢弃窗口 |
+| `debounceMs` | `10000` | agent 空闲多久后开始整理这一轮 |
+| `minConfidence` | `0.8` | 低于此值的提案被丢弃，不落库 |
+| `maxRelevantEventsPerBatch` | `200` | 交给模型的最大窗口 |
+| `maxTrajectoryBytesPerBatch` | `65536` | 渲染后轨迹的 UTF-8 上限，最小 128 |
+| `maxOutputTokens` | `2048` | 模型可返回计划的上限 |
+
 没有 `memoryDir`：Memory 必须属于 harness，部署不能把它指到项目里。
 
 ### Project identity
@@ -144,6 +154,7 @@ project:
 
 - **自动学习只读它"在场时"看到的东西。** 在别处 resume 的 Session、插件挂载时已经在跑的 Session，以及被缓冲上限淘汰掉的事件，都会留下本进程从未见过的一段。它们无法回读，因此该区间被记为 gap 并跳过；那几轮不会被学习。
 - **自动学习需要长驻实例。** 它的 debounce 按设计等在 agent 的 maintenance 之外，所以一次性 `headless` 运行会在定时器到期前就退出并 dispose。这是**已接受的范围**而不是缺陷：一次性运行请用 `/memory consolidate`，桌面应用里定时器才会真的触发。
+- **观察模式不消费窗口，因此无法评估每一个新窗口。** `autoCommit: false` 时同一批最旧事件会一直被送去评估，直到打开提交 —— 因为 mark 有意不动。超过配置上限的窗口按有界前缀评估，而且每次观察都会真的调用模型。要持续评估新窗口需要独立的 observation cursor，要在重新打开提交后补学全部旧窗口需要 durable backlog，两者都还没有（见 CONTRACT P2-6c）。
 - **关闭 Memory 同时停止自动学习，并等待它收束。** `/memory disable` 返回后不会再发生新采集、模型调用、写入或 mark 推进，已在进行的运行也已结束。关闭期间产生的事件之后不会被补采。
 - **进度文件随 Session 数量增长。** 每个产生过事件的 Session 会永久保留一条小记录，因为唯一站得住的清理方式是按年龄，而本版本没有这个策略。按每 Session 几百字节估算，几千个 Session 后大约 1 MB。
 - **没有语义去重与冲突检测。** 唯一识别的重叠是精确重复，且比较时不做大小写折叠，因为 `Model-X` 与 `model-x` 可以是不同的东西。`pnpm` 是否与 `npm` 矛盾由模型判断，通过带 `target_id` 的 `supersede` 表达。
@@ -152,6 +163,16 @@ project:
 - **secret 保证只覆盖本插件自己的数据。** 凭据永远不会写进 Memory、其视图、tombstone 或日志。用户原始消息与 harness 自己记录的 `tool/call` 参数属于 Session log，append-only 的历史不会被改写。
 - **共享盘上的残留锁需要人工清理。** 另一台机器的进程无法探测，因此那里的废弃锁只会被报告，不会被抢。
 - **残留的 reclaim 互斥同样需要人工清理。** `<store>.lock.reclaim` 只在移除陈旧锁的瞬间被持有，而且**故意不做自动回收**：自动回收它等于把它要防的那种竞态往下复制一层。进程恰好死在这个窗口里就会留下该文件，下一个写者会等在超时后报错并指名路径 —— 手动删掉它就是全部补救措施。
+
+## 测试
+
+```sh
+npm run test:unit        # 26 个套件，不走网络、不需要 API key
+npm run test:integration # 通过真实 Loader 启动 shipped headless profile
+npm run test:all         # 两者都跑
+```
+
+集成套件用绝对路径直接从本 checkout 挂载插件与 scripted model adapter，因此不需要往任何 profile 里装东西。它的四个 scenario 分别在：一个 Session 写入、下一个 Session 读到；一个项目看不到另一个项目的 Memory；user Memory 跨项目可见；以及通过显式 supersede 让一条记录退役。
 
 ### 手工验证自动路径
 
@@ -165,14 +186,3 @@ dsh --profile <装有 dsh-memory 的 web 类 profile> --patch <overlay> --no-ope
 
 - Session 日志里有一条审计事件带 `"trigger": "idle-debounce"` 且操作非零，而整段轨迹里没有任何命令；
 - 第二轮之后只有一条审计、mark 没有越过第一次运行、也没有新记录 —— 开关关闭期间产生的事件不会被采集，它们会在下一次真正观测到的运行里成为 gap。
-
-
-## 测试
-
-```sh
-npm run test:unit        # 26 个套件，不走网络、不需要 API key
-npm run test:integration # 通过真实 Loader 启动 shipped headless profile
-npm run test:all         # 两者都跑
-```
-
-集成套件用绝对路径直接从本 checkout 挂载插件与 scripted model adapter，因此不需要往任何 profile 里装东西。它的四个 scenario 分别在：一个 Session 写入、下一个 Session 读到；一个项目看不到另一个项目的 Memory；user Memory 跨项目可见；以及通过显式 supersede 让一条记录退役。

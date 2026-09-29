@@ -107,10 +107,10 @@ Memory 的物理位置不可配置：内部恒为 `path.join(resolvedDshHome, 'm
 | `debounceMs` | integer | `10000` | `>= 0` |
 | `minConfidence` | number | `0.8` | `[0, 1]` |
 | `maxRelevantEventsPerBatch` | integer | `200` | `>= 1` |
-| `maxTrajectoryBytesPerBatch` | integer | `65536` | `>= 1`（UTF-8 字节，作用于整条序列化 entry） |
+| `maxTrajectoryBytesPerBatch` | integer | `65536` | `>= 128`（UTF-8 字节，作用于整条序列化 entry） |
 | `maxOutputTokens` | integer | `2048` | `>= 1` |
 
-`autoCommit = false` 时仍然读取窗口、调用模型、复核计划，但**不写入任何 Memory、不推进 mark、不从缓冲区丢弃窗口**，audit 状态为 `observed`（用于评测与观察）。这三条缺一不可：只要推进 mark，那些事件就被永久消费，之后重新打开自动提交也再学不到它们。`consolidation.enabled = false` 时不做自动学习，显式写入与命令面不受影响。
+`autoCommit = false` 时仍然读取窗口、调用模型、复核计划，但**不写入任何 Memory、不从缓冲区丢弃窗口，也不让 mark 越过任何已观察且未提交的事件**（唯一例外是 gap：未被观测到的前缀会按 §P2-1 记为 gap 并把 mark 推到该前缀之后；这是进度语义，不是提交），audit 状态为 `observed`（用于评测与观察）。这三条缺一不可：只要推进 mark，那些事件就被永久消费，之后重新打开自动提交也再学不到它们。`consolidation.enabled = false` 时不做自动学习，显式写入与命令面不受影响。
 
 `maxTrajectoryBytesPerBatch` 有下限（128 字节）：字节上限要能容纳一条描述事件的序列化 entry（含事件类型名与 seq）。低于下限的配置在加载时抛错，而不是给出一个守不住的承诺。
 
@@ -930,6 +930,8 @@ failed（写入没发生）                  → mark 不动，窗口重试
 
 成功、仅 NOOP、仅 ignorable、无人类轮次 → **都算成功并前进 mark**（否则同一段无关轨迹会被永远重新检查）。任何失败、以及**部分提交**，mark 都不前进；重试时**重读最新 Memory 状态重新决策**，不重放旧计划。
 
+collector 保留**所有** seq（包括本插件自己写的 audit）：audit 会通过 `session.append()` 同步发布回 `session/event`，所以它确实进入缓冲区。区别在分类与收尾：`dsh-memory/*` 归为 internal，既不进模型输入、也不作为 evidence；**只含 internal/skipped 事件（即 `relevant_events === 0`）的窗口被消费但不写审计** —— 否则一条 audit 会成为下一个窗口的内容，再写出下一条，命令永远到不了 `nothing pending`。
+
 有界输入：超过 `maxRelevantEventsPerBatch` / `maxTrajectoryBytesPerBatch` 时只消费最旧的有界前缀，mark 只前进到该前缀末尾。单个超大事件仍必须被消费（截断其文本），否则该窗口永远无法前进。
 
 **字节预算按 UTF-8 字节计，且作用于整条序列化后的 entry**（含 envelope 字段的开销），不是按字段、也不是按 JS 字符数 —— 后者会把中文低估约三倍。截断按 code point 推进，绝不切开代理对。
@@ -956,6 +958,21 @@ headless 一次性运行          → 任务轮次 idle 后进程随即退出并
 - 自动学习只在长驻实例上发生；
 - 一次性运行里，`/memory consolidate` 是受支持的入口（同一套流水线，可 `--dry-run`）；
 - 该约束必须写在 README 的已知限制里，不得让读者以为 headless 也会自动学习。
+
+## P2-6c. 观察模式当前的边界（已知限制）
+
+`autoCommit = false` 不消费窗口，因此同一批最旧事件会被反复送去评估，直到提交模式打开。这有三个后果，必须如实认知：
+
+```text
+1. 新事件可能长期轮不到：输入有界（maxRelevantEventsPerBatch / byte ceiling），
+   窗口按最旧前缀构造，观察模式不推进 mark，所以最旧前缀会一直被选中。
+2. 内存缓冲有上限（5000 条）。缓冲一旦淘汰原始事件，下一次 reconcile 会把淘汰
+   区间记为 gap —— 那已经是一次进度推进，与"不推进"的直觉不同。
+3. 反复观察不会产生新的 audit（只含 internal 的窗口静默消费），但每次观察都会
+   真的调用模型。
+```
+
+要让"持续评估新窗口"成立，需要一个**独立的 observation cursor**（提交 HWM 不动，评估位置单独前进）；要让"重新打开提交后补学全部旧窗口"成立，需要一份**可恢复的 durable backlog**，而不是 5000 条内存缓冲。两者都是尚未实现的产品决策，本版本不假装具备。
 
 ## P2-7. 不修改的部分
 
