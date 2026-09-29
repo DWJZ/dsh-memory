@@ -61,7 +61,25 @@ function harness(options = {}) {
       audit.push({ type, data, ignorable: appendOptions?.ignorable === true })
     },
   }
-  const agent = { session, status: 'idle' }
+  const phases = []
+  const agent = {
+    session,
+    status: 'idle',
+    // The runtime's own claim on the maintenance phase, recorded so a test can
+    // assert the work happens inside it rather than beside it.
+    async runMaintenance(task) {
+      if (phases.includes('busy')) throw new Error('agent is already driving a turn or a maintenance task')
+      agent.claims += 1
+      phases.push('busy')
+      try {
+        return await task(new AbortController().signal)
+      } finally {
+        phases.splice(phases.indexOf('busy'), 1)
+      }
+    },
+    phases,
+    claims: 0,
+  }
   const calls = []
   const consolidation = createConsolidation({
     collector,
@@ -357,6 +375,45 @@ console.log('the trigger consults the same pipeline')
     harnessed.consolidation.progressFor('session_trigger').last_processed_seq === 110)
   harnessed.consolidation.dispose()
   check('disposing the orchestrator is safe', true)
+}
+
+console.log('consolidation runs inside the maintenance phase')
+{
+  const harnessed = harness({ sessionId: 'session_phase', modelAnswer: addProjectFact([0]) })
+  observe(harnessed, [human(0, '这个项目用 pnpm')])
+  const outcome = await harnessed.consolidation.consolidate(harnessed.agent)
+  check('the run succeeded', outcome.status === 'success')
+  check('the agent claimed its maintenance phase exactly once', harnessed.agent.claims === 1)
+  check('the phase was released when the run settled', harnessed.agent.phases.length === 0)
+}
+
+{
+  // The phase is held across the whole run, not only across the write.
+  let heldDuringModelCall = false
+  let harnessed
+  harnessed = harness({
+    sessionId: 'session_phase_held',
+    modelAnswer: () => {
+      heldDuringModelCall = harnessed.agent.phases.includes('busy')
+      return addProjectFact([0])
+    },
+  })
+  observe(harnessed, [human(0, '这个项目用 pnpm')])
+  await harnessed.consolidation.consolidate(harnessed.agent)
+  check('the phase is held while the model is asked', heldDuringModelCall === true)
+  check('and released once the run settled', harnessed.agent.phases.length === 0)
+
+  const busyAgent = {
+    ...harnessed.agent,
+    async runMaintenance() { throw new Error('agent is already driving a turn or a maintenance task') },
+  }
+  let refused = false
+  try {
+    await harnessed.consolidation.consolidate(busyAgent)
+  } catch (error) {
+    refused = String(error.message).includes('already driving')
+  }
+  check('an agent that cannot grant the phase refuses rather than running beside the turn', refused === true)
 }
 
 console.log('a Session that produced nothing is not an error')

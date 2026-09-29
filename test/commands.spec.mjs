@@ -57,7 +57,7 @@ async function start() {
   const ctx = createStubContext()
   plugin.apply(ctx, { dshHome: ROOT, memoryDir: MEMORY })
   if (ctx.registrations.injections.length === 0) throw new Error('the runtime did not mount')
-  const agent = { session: { id: 'session-1', header: { id: 'session-1', cwd: PROJECT } } }
+  const agent = { session: { id: 'session-1', header: { id: 'session-1', cwd: PROJECT } }, runMaintenance: task => task(new AbortController().signal) }
   ctx.emit('agent/created', { agent })
   await new Promise(resolveTick => { setTimeout(resolveTick, 30) })
   return { ctx, agent }
@@ -309,7 +309,7 @@ const plain = join(ROOT, 'plain-workspace')
 mkdirSync(plain, { recursive: true })
 const fresh = createStubContext()
 plugin.apply(fresh, { dshHome: ROOT, memoryDir: MEMORY })
-const plainAgent = { session: { id: 'session-plain', header: { id: 'session-plain', cwd: plain } } }
+const plainAgent = { session: { id: 'session-plain', header: { id: 'session-plain', cwd: plain } }, runMaintenance: task => task(new AbortController().signal) }
 await fresh.emitAsync('agent/created', { agent: plainAgent })
 const beforeBind = await run(fresh, 'clear --project --yes', plainAgent)
 check('a directory with no marker has no project scope yet', beforeBind.kind === 'error')

@@ -122,13 +122,34 @@ export function createConsolidation(options) {
   }
 
   /**
-   * Run one consolidation for one agent.
+   * Run one consolidation inside the agent's maintenance phase.
+   *
+   * The phase claim is what keeps a new user turn from starting in the middle of
+   * a run, and it is what makes `whenIdle()` — and therefore the owner's flush
+   * and dispose — wait for the run to settle. Working outside it would let a turn
+   * interleave, and would let the Session be flushed or torn down while the
+   * result was still being written.
+   *
+   * The claim throws when a turn or another maintenance task already owns the
+   * agent. That is not a failure: the caller retries on the next idle period,
+   * with the mark untouched.
    * @param agent - the agent to consolidate.
    * @param runOptions - run options.
    * @param runOptions.dryRun - review the plan without committing or advancing.
    * @returns a compact outcome.
    */
   const consolidate = async (agent, runOptions = {}) => {
+    if (typeof agent?.session?.id !== 'string') return { status: 'no-session' }
+    return agent.runMaintenance(signal => runOnce(agent, { ...runOptions, signal }))
+  }
+
+  /**
+   * Do the work for one consolidation run.
+   * @param agent - the agent being consolidated.
+   * @param runOptions - run options, including the maintenance signal.
+   * @returns a compact outcome.
+   */
+  const runOnce = async (agent, runOptions) => {
     const session = agent?.session
     const sessionId = session?.id
     if (typeof sessionId !== 'string') return { status: 'no-session' }

@@ -39,6 +39,7 @@ const CONFIG = { dshHome: ROOT, memoryDir: MEMORY, enabled: true }
 /** One agent stub bound to a session and working directory. */
 const agentStub = (sessionId = 'session-1', cwd = PROJECT_DIR) => ({
   session: { id: sessionId, header: { id: sessionId, cwd } },
+  runMaintenance: task => task(new AbortController().signal),
 })
 
 /** One human user message as the event feed would carry it. */
