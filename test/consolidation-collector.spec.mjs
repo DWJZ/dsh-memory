@@ -128,6 +128,26 @@ check('its text is truncated to the budget',
   Buffer.byteLength(oversized.entries[0].content, 'utf8') < 5000
   && oversized.entries[0].content.endsWith('[truncated]'))
 
+console.log('the byte budget holds in bytes, not characters')
+{
+  const cjk = normalize.batchWindow([human(700, '中'.repeat(400))], { afterSeq: 699, maxBytes: 300 })
+  const cjkBytes = Buffer.byteLength(JSON.stringify(cjk.entries[0]), 'utf8')
+  check('a Chinese entry is capped by bytes, not code units', cjkBytes <= 300, String(cjkBytes))
+  check('and it was shortened', cjk.entries[0].content.endsWith('[truncated]'))
+  const emoji = normalize.batchWindow([human(701, '🙂'.repeat(200))], { afterSeq: 700, maxBytes: 200 })
+  check('a cut never splits a surrogate pair',
+    !/[\uD800-\uDBFF]$/u.test(emoji.entries[0].content.replace('[truncated]', '')))
+  const ascii = normalize.batchWindow([human(702, 'x'.repeat(1000))], { afterSeq: 701, maxBytes: 120 })
+  check('an ASCII entry is capped too',
+    Buffer.byteLength(JSON.stringify(ascii.entries[0]), 'utf8') <= 120)
+  // The whole batch budget, not just one entry: two entries cannot together
+  // exceed it.
+  const pair = normalize.batchWindow([human(703, '中'.repeat(200)), human(704, '中'.repeat(200))], { afterSeq: 702, maxBytes: 400 })
+  check('the batch budget bounds the entries together',
+    Buffer.byteLength(JSON.stringify(pair.entries), 'utf8') <= 400,
+    String(Buffer.byteLength(JSON.stringify(pair.entries), 'utf8')))
+}
+
 console.log('collector')
 const collector = createCollector()
 const session = { id: 'session_a' }

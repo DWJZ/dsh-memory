@@ -8,7 +8,7 @@
  *
  * Usage: `node test/wiring.spec.mjs`.
  */
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -307,6 +307,31 @@ check('the mark advanced, so nothing is left to consolidate',
 const dryOnly = await runCommand(consolidationCtx, 'consolidate --dry-run', consolidateAgent)
 check('a dry run over a consumed window reports the same',
   String(dryOnly.text).includes('Nothing new to consolidate'), String(dryOnly.text))
+
+console.log('disabling Memory stops automatic learning')
+{
+  const offCtx = start({ ...CONFIG, enabled: true, consolidation: { debounceMs: 20 } })
+  await runCommand(offCtx, 'enable')
+  const offAgent = agentStub('session-disabled', null)
+  await runCommand(offCtx, 'disable')
+  offCtx.emit('session/event', offAgent.session, {
+    seq: 0,
+    type: 'assistant/message',
+    data: { message: { content: [{ type: 'text', text: 'collected while disabled' }] } },
+  })
+  offCtx.emit('agent/status', { agent: offAgent, status: 'idle' })
+  await new Promise(resolve => setTimeout(resolve, 60))
+  await runCommand(offCtx, 'enable')
+  const afterReenable = await runCommand(offCtx, 'consolidate', offAgent)
+  check('nothing was collected while Memory was off',
+    String(afterReenable.text).includes('no events this process has observed'), String(afterReenable.text))
+  check('no automatic run happened while it was off',
+    !existsSync(join(MEMORY, 'consolidation-state.json'))
+    || Object.keys(JSON.parse(readFileSync(join(MEMORY, 'consolidation-state.json'), 'utf8')).sessions)
+      .every(id => id !== 'session-disabled'))
+  await runCommand(offCtx, 'disable')
+  await disposeEffects(offCtx)
+}
 
 console.log('consolidation respects its own switch')
 const offCtx = start({ ...CONFIG, enabled: true, consolidation: { enabled: false } })

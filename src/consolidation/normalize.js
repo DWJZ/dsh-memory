@@ -255,13 +255,39 @@ export function batchWindow(events, options) {
  */
 function capEntry(entry, maxBytes) {
   if (!Number.isFinite(maxBytes)) return entry
-  const truncated = {}
-  for (const [key, value] of Object.entries(entry)) {
-    truncated[key] = typeof value === 'string' && Buffer.byteLength(value, 'utf8') > maxBytes
-      ? `${value.slice(0, maxBytes)}…[truncated]`
-      : value
+  if (Buffer.byteLength(JSON.stringify(entry), 'utf8') <= maxBytes) return entry
+  // The budget applies to the entry as the model will read it, so the overhead
+  // of the envelope counts. Only `content` is unbounded, so it is the field that
+  // yields.
+  const overhead = Buffer.byteLength(JSON.stringify({ ...entry, content: '' }), 'utf8')
+  const room = Math.max(0, maxBytes - overhead)
+  return { ...entry, content: truncateToBytes(String(entry.content ?? ''), room) }
+}
+
+/**
+ * Shorten one string to a UTF-8 byte budget.
+ *
+ * Slicing by `String.length` would count UTF-16 code units, so a Chinese entry
+ * capped at N "characters" would arrive as roughly 3N bytes and the batch budget
+ * would not hold. Counting is done in code points as well, so a cut never splits
+ * a surrogate pair.
+ * @param text - the text to shorten.
+ * @param maxBytes - the largest accepted UTF-8 size.
+ * @returns the text, marked when it had to be shortened.
+ */
+function truncateToBytes(text, maxBytes) {
+  if (Buffer.byteLength(text, 'utf8') <= maxBytes) return text
+  const marker = '…[truncated]'
+  const room = Math.max(0, maxBytes - Buffer.byteLength(marker, 'utf8'))
+  let used = 0
+  let kept = ''
+  for (const character of text) {
+    const size = Buffer.byteLength(character, 'utf8')
+    if (used + size > room) break
+    used += size
+    kept += character
   }
-  return truncated
+  return `${kept}${marker}`
 }
 
 /**

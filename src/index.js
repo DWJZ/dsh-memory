@@ -79,6 +79,8 @@ function createController(ctx, settings) {
   let enabled = resolveEnabled(settings.memoryDir, settings.enabled)
   let runtimeFiber = null
   let llmScope = null
+  /** Built in `start()`, but referenced by the switch, which outlives mounting. */
+  let consolidation = null
 
   const deps = {
     config: settings,
@@ -129,8 +131,16 @@ function createController(ctx, settings) {
     if (next === enabled) return
     writeEnabled(settings.memoryDir, next)
     enabled = next
-    if (next) mountRuntime()
-    else await unmountRuntime()
+    if (next) {
+      mountRuntime()
+      return
+    }
+    // Stop the automatic path before removing the runtime it would write
+    // through, then wait: a run already past cancellation would otherwise still
+    // reach a model and a Memory write after this returned.
+    consolidation?.cancelPending()
+    await unmountRuntime()
+    await consolidation?.whenSettled()
   }
 
   /**
@@ -176,7 +186,7 @@ function createController(ctx, settings) {
         // The cache is keyed by directory and bounded by how many directories one
         // process ever works in, so it is left to outlive individual agents.
       })
-      const consolidation = createConsolidation({
+      consolidation = createConsolidation({
         llmScope: () => llmScope,
         collector: createCollector(),
         scopes,
@@ -210,11 +220,15 @@ function createController(ctx, settings) {
       const llmFiber = ctx.inject(['llm'], (scope) => { llmScope = scope })
       // Every committed event is offered to the collector; it keeps what it saw
       // and drops what a settled batch has consumed.
+      // Both seams follow the runtime switch as well as the deployment config:
+      // switching Memory off has to stop collection and the debounce, or a
+      // disabled plugin would keep asking a model and writing Memory.
+      const automaticLearning = () => enabled && settings.consolidation.enabled
       const disposeEvents = ctx.on('session/event', (session, event) => {
-        if (settings.consolidation.enabled) consolidation.observe(session, event)
+        if (automaticLearning()) consolidation.observe(session, event)
       })
       const disposeStatus = ctx.on('agent/status', ({ agent, status }) => {
-        if (settings.consolidation.enabled) consolidation.statusChanged(agent, status)
+        if (automaticLearning()) consolidation.statusChanged(agent, status)
       })
       ctx.effect(() => () => {
         llmScope = null
@@ -236,6 +250,11 @@ function createController(ctx, settings) {
      * @returns fulfillment once the runtime fiber is disposed.
      */
     async dispose() {
+      // Cancellation first, then the wait, then the runtime: a run that is
+      // already past cancellation would otherwise reach the model and the store
+      // while the plugin is being taken down.
+      consolidation?.cancelPending()
+      await consolidation?.whenSettled()
       await unmountRuntime()
       tracker.dispose()
       projectsByCwd.clear()

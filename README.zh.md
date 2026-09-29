@@ -34,6 +34,7 @@ dsh plugin --profile <name> add link:<本目录路径>
 ```text
 $DSH_HOME/memory/
 ├── config.json          # 本插件自己的开关键
+├── consolidation-state.json  # 自动学习：每个 Session 的 mark 与 gap
 ├── registry.json        # project identity：id ↔ 路径
 ├── user/
 │   ├── memories.json    # canonical
@@ -141,7 +142,9 @@ project:
 
 ## Known Limitations and Deferred Work
 
-- **自动学习只读它"在场时"看到的东西。** 在别处 resume 的 Session，或插件挂载时已经在跑的 Session，会有一段本进程从未见过的事件。它们无法回读，因此该区间被记为 gap 并跳过；那几轮不会被学习。
+- **自动学习只读它"在场时"看到的东西。** 在别处 resume 的 Session、插件挂载时已经在跑的 Session，以及被缓冲上限淘汰掉的事件，都会留下本进程从未见过的一段。它们无法回读，因此该区间被记为 gap 并跳过；那几轮不会被学习。
+- **自动学习需要长驻实例。** 它的 debounce 按设计等在 agent 的 maintenance 之外，所以一次性 `headless` 运行会在定时器到期前就退出并 dispose。这是**已接受的范围**而不是缺陷：一次性运行请用 `/memory consolidate`，桌面应用里定时器才会真的触发。
+- **关闭 Memory 同时停止自动学习，并等待它收束。** `/memory disable` 返回后不会再发生新采集、模型调用、写入或 mark 推进，已在进行的运行也已结束。关闭期间产生的事件之后不会被补采。
 - **进度文件随 Session 数量增长。** 每个产生过事件的 Session 会永久保留一条小记录，因为唯一站得住的清理方式是按年龄，而本版本没有这个策略。按每 Session 几百字节估算，几千个 Session 后大约 1 MB。
 - **没有语义去重与冲突检测。** 唯一识别的重叠是精确重复，且比较时不做大小写折叠，因为 `Model-X` 与 `model-x` 可以是不同的东西。`pnpm` 是否与 `npm` 矛盾由模型判断，通过带 `target_id` 的 `supersede` 表达。
 - **只有关键词检索。** 整串命中、拉丁词重叠、CJK 字符 bigram，以 `updated_at` 兜底。用英文查询找不到意思相同的中文事实。
@@ -153,7 +156,7 @@ project:
 ## 测试
 
 ```sh
-npm run test:unit        # 17 个套件，不走网络、不需要 API key
+npm run test:unit        # 26 个套件，不走网络、不需要 API key
 npm run test:integration # 通过真实 Loader 启动 shipped headless profile
 npm run test:all         # 两者都跑
 ```

@@ -56,6 +56,8 @@ export const AUDIT_EVENT_TYPE = 'dsh-memory/consolidation'
  */
 export function createConsolidation(options) {
   const { collector, scopes, logger, config } = options
+  /** The automatic run currently in flight, so teardown can wait for it. */
+  let inFlight
   const now = options.now ?? Date.now
   const callModel = options.callModel ?? ((request) => {
     const scope = typeof options.llmScope === 'function' ? options.llmScope() : options.llmScope
@@ -95,15 +97,20 @@ export function createConsolidation(options) {
     // A Session this process has consumed and dropped everything for still has a
     // mark, which is a different thing from a Session it has never seen.
     if (first === undefined) return mark === NO_PROGRESS ? undefined : mark
+    // Everything between the mark and the first event this process can still
+    // offer was unavailable, whatever the reason: a mount that came late, a
+    // Session resumed elsewhere, or events the buffer had to evict under its
+    // cap. The gap is the same range in all three cases; what differs is only
+    // why, which is worth saying in the log.
+    if (first <= mark + 1) return mark
     const droppedThrough = collector.droppedThrough(sessionId)
-    const unobservedStart = Math.max(mark, droppedThrough)
-    if (first <= unobservedStart + 1) return mark
+    const reason = droppedThrough >= mark ? 'the buffer evicted them' : 'this process was not observing yet'
     const at = new Date(now()).toISOString()
     const written = await withState(stateOptions, current => ({
       changed: true,
-      state: recordGap(current, sessionId, { from_seq: unobservedStart + 1, to_seq: first - 1 }, at),
+      state: recordGap(current, sessionId, { from_seq: mark + 1, to_seq: first - 1 }, at),
     }))
-    logger?.info?.(`dsh-memory: consolidation skipped unobserved seqs ${String(unobservedStart + 1)}..${String(first - 1)} of ${sessionId}`)
+    logger?.info?.(`dsh-memory: consolidation skipped seqs ${String(mark + 1)}..${String(first - 1)} of ${sessionId} (${reason})`)
     return lastProcessedSeq(written.state, sessionId)
   }
 
@@ -281,7 +288,12 @@ export function createConsolidation(options) {
     logger,
     ...options.schedule === undefined ? {} : { schedule: options.schedule },
     ...options.cancelSchedule === undefined ? {} : { cancelSchedule: options.cancelSchedule },
-    task: agent => consolidate(agent, { trigger: 'idle-debounce' }),
+    task: (agent) => {
+      const run = consolidate(agent, { trigger: 'idle-debounce' })
+      inFlight = run.finally(() => { if (inFlight === settled) inFlight = undefined })
+      const settled = inFlight
+      return inFlight
+    },
   })
 
   return {
@@ -320,6 +332,29 @@ export function createConsolidation(options) {
      */
     progressFor(sessionId) {
       return progressFor(readState(options.state.statePath), sessionId)
+    },
+
+    /**
+     * Cancel debounces that have not fired yet.
+     *
+     * Called when Memory is switched off: nothing new may be collected, asked,
+     * written, or marked after that returns, and a timer already waiting would
+     * do all four.
+     * @returns nothing.
+     */
+    cancelPending() {
+      trigger.dispose()
+    },
+
+    /**
+     * Wait for the automatic run in flight, if there is one.
+     *
+     * A run already past the point of being cancelled still has to settle before
+     * the caller can claim that switching off stopped it.
+     * @returns fulfillment once no automatic run is executing.
+     */
+    async whenSettled() {
+      await inFlight
     },
 
     /**

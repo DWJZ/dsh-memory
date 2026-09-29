@@ -287,6 +287,28 @@ console.log('an unobserved range is recorded as a gap')
   check('the gap is announced', harnessed.warnings.length >= 0 && progress.gaps[0].at.length > 0)
 }
 
+console.log('a buffer that evicted events records the gap')
+{
+  // The buffer keeps only the newest few events, so the older ones were never
+  // available to read. That is a different reason for a gap than a late mount,
+  // and it must be recorded rather than silently folded into the mark.
+  const harnessed = harness({ sessionId: 'session_evicted', collector: createCollector({ maxBufferedEvents: 3 }) })
+  observe(harnessed, [
+    human(0, 'first'), assistant(1, 'a'), assistant(2, 'b'), assistant(3, 'c'),
+    assistant(4, 'd'), assistant(5, 'e'), assistant(6, 'f'), assistant(7, 'g'),
+    assistant(8, 'h'), assistant(9, 'i'),
+  ])
+  check('the buffer kept only its cap', harnessed.collector.eventsFor('session_evicted').length === 3)
+  check('the collector knows what it dropped', harnessed.collector.droppedThrough('session_evicted') === 6)
+  const outcome = await harnessed.consolidation.consolidate(harnessed.agent)
+  check('the run consumes what is left', outcome.status === 'no-human-turn', JSON.stringify(outcome))
+  const progress = state.readState(STATE.statePath).sessions.session_evicted
+  check('one gap is recorded', progress.gaps.length === 1, JSON.stringify(progress.gaps))
+  check('the gap covers exactly the evicted events', progress.gaps[0].from_seq === 0 && progress.gaps[0].to_seq === 6)
+  check('the mark is the last consumed event, not the gap end', progress.last_processed_seq === 9)
+  check('the remaining window started after the gap', outcome.from_seq === 7)
+}
+
 console.log('scope decides where a fact lands')
 {
   const harnessed = harness({

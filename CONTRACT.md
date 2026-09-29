@@ -56,6 +56,8 @@ Memory 是 learned / remembered hint，不是事实权威。冲突时优先级�
 
 ```text
 $DSH_HOME/memory/
+├── config.json                  # 本插件的开关键（§17）
+├── consolidation-state.json     # Phase 2 进度：每个 Session 的 mark 与 gap（P2-2）
 ├── registry.json
 ├── user/
 │   ├── memories.json
@@ -93,6 +95,21 @@ Memory 的物理位置不可配置：内部恒为 `path.join(resolvedDshHome, 'm
 | `maxEvidencePerMemory` | number | `8` | `>= 1` |
 | `exportInlineMaxBytes` | number | `24000` | `> 0` |
 | `evidenceQuoteMaxChars` | number | `200` | `>= 0` |
+| `consolidation` | object | 见下 | 见下 |
+
+`consolidation` 的子字段（Phase 2，全部 fail loud）：
+
+| 子字段 | 类型 | 默认 | 校验 |
+|---|---|---|---|
+| `enabled` | boolean | `true` | — |
+| `autoCommit` | boolean | `true` | — |
+| `debounceMs` | integer | `10000` | `>= 0` |
+| `minConfidence` | number | `0.8` | `[0, 1]` |
+| `maxRelevantEventsPerBatch` | integer | `200` | `>= 1` |
+| `maxTrajectoryBytesPerBatch` | integer | `65536` | `>= 1`（UTF-8 字节，作用于整条序列化 entry） |
+| `maxOutputTokens` | integer | `2048` | `>= 1` |
+
+`autoCommit = false` 时仍然读取窗口、调用模型、复核计划，但**不写入任何 Memory、不推进 mark**（用于评测与观察）；`consolidation.enabled = false` 时不做自动学习，显式写入与命令面不受影响。
 
 `dshHome` 解析顺序：`config.dshHome` > `process.env.DSH_HOME` > `~/.dsh`。非法值在加载时抛 `TypeError`，并在消息里指明出错字段。
 
@@ -152,7 +169,8 @@ ID 用 `crypto.randomUUID()` 加前缀：`mem_<uuid>`、`proj_<uuid>`。不自�
 
 Storage schema 允许 `confidence ∈ [0, 1]`。Phase 1 writer **永远写 1.0**：
 
-- `memory_remember` 不接受 `confidence` 参数；
+- `memory_remember` 不接受 `confidence` 参数，显式写入的记录一律 `1.0`（用户直接要求的事实不是概率判断）；
+- **Phase 2 的自动写入持久化 reviewed 置信度**：ADD / SUPERSEDE 用模型给的值，UPDATE 把它写进被改写的记录。低于 `consolidation.minConfidence` 的提案不会到达这一步；
 - Phase 1 ranking 不使用 confidence；
 - canonical 中 `[0, 1]` 都是合法 schema（不是只有 1.0）；
 - Phase 2 的 automatic consolidation 可直接写 `< 1.0`，不需要升级 schema。
@@ -716,6 +734,8 @@ memory_search / memory_get → 按 read tool 正常展示必要参数
 - `enabled = false` 时 **dispose** Memory index 注入与三个工具的注册（注册即 effect，不能靠回调空转）；
 - `/memory` 命令**永远注册**，因此 `/memory enable` 永远可用；
 - 写该文件失败时向用户报错，不静默吞掉；
+- **`enabled = false` 也停止 Phase 2 的自动学习，并收束正在进行的运行。** 具体顺序：设置开关 → 取消尚未触发的 debounce → dispose runtime → **等待在飞的自动运行结束**（`whenSettled`）。因此 `/memory disable` **成功返回后**，不会再发生：事件采集、模型调用、Memory 写入、mark 推进。`enabled = false` 期间新提交的事件不会被采集，重新 enable 后不会补做（那段时间在进度上表现为 gap）；
+- `consolidation.enabled = false` 只关自动学习，不影响显式 `memory_remember` 与命令面；两者都关时 `/memory consolidate` 会被拒绝；
 - 该文件不存在时视为"未设置"，使用 cordis config 的值。
 
 ---
@@ -909,6 +929,8 @@ failed（写入没发生）                  → mark 不动，窗口重试
 
 有界输入：超过 `maxRelevantEventsPerBatch` / `maxTrajectoryBytesPerBatch` 时只消费最旧的有界前缀，mark 只前进到该前缀末尾。单个超大事件仍必须被消费（截断其文本），否则该窗口永远无法前进。
 
+**字节预算按 UTF-8 字节计，且作用于整条序列化后的 entry**（含 envelope 字段的开销），不是按字段、也不是按 JS 字符数 —— 后者会把中文低估约三倍。截断按 code point 推进，绝不切开代理对。
+
 ## P2-6. 审计
 
 每次运行写一条 `dsh-memory/consolidation` Session 事件，**标记 `ignorable: true`**，内容为计数：`from_seq` / `to_seq` / `relevant_events` / `ignored_events` / `operations` / `status`。
@@ -916,6 +938,21 @@ failed（写入没发生）                  → mark 不动，窗口重试
 不得写入：secret、完整轨迹、完整 Memory 内容。审计用于调试与评估，不是第二份 Memory。
 
 审计写入失败**不得**让 mark 回退（提交才是保证，留痕只是留痕），但要 warn。审计事件不可能喂回下一轮：collector 按命名空间排除自己的事件。
+
+## P2-6b. 支持范围：自动学习需要长驻实例
+
+自动 debounce 的定时器**按设计位于 maintenance 之外**（否则等待期间会占住 agent）。因此它只在一个仍然存活的进程里才会到期：
+
+```text
+长驻 profile（desktop / web）→ 自动学习按设计工作
+headless 一次性运行          → 任务轮次 idle 后进程随即退出并 dispose，debounce 不会到期
+```
+
+这是**已确定的范围，不是待修缺陷**：让一次性运行也自动 consolidation，需要 harness 的运行器在退出前等待 deferred work，属于 harness 侧改动，不是本插件能拥有的行为。因此：
+
+- 自动学习只在长驻实例上发生；
+- 一次性运行里，`/memory consolidate` 是受支持的入口（同一套流水线，可 `--dry-run`）；
+- 该约束必须写在 README 的已知限制里，不得让读者以为 headless 也会自动学习。
 
 ## P2-7. 不修改的部分
 

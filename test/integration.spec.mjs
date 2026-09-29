@@ -262,7 +262,7 @@ check('the model request carries the Memory index', projectARequest.includes('<m
 check('the model request names the remembered fact', projectARequest.includes('[state] 该项目使用 pnpm'))
 check('the index is not an empty envelope', projectARequest.includes('project:'))
 
-console.log('27.5 automatic consolidation learns from a finished turn')
+console.log('27.5 a driven consolidation learns from a finished turn')
 const CONSOLIDATION_PROJECT = join(ROOT, 'consolidation-project')
 mkdirSync(CONSOLIDATION_PROJECT, { recursive: true })
 writeFileSync(join(CONSOLIDATION_PROJECT, '.git'), '')
@@ -300,10 +300,10 @@ check('the mark advanced over the window it consumed',
   Object.values(JSON.parse(readFileSync(consolidationState, 'utf8')).sessions)
     .some(progress => progress.last_processed_seq >= 0))
 
-console.log('27.6 a later Session sees the automatically learned Memory')
+console.log('27.6 a later Session sees the learned Memory')
 const afterLearning = await runSession({ project: CONSOLIDATION_PROJECT, task: '装个依赖' })
 check('the later Session runs', afterLearning.code === 0, afterLearning.stderr.slice(0, 400))
-check('the index carries the automatically learned fact',
+check('the index carries the learned fact',
   requestText(afterLearning.log).includes('该项目使用 pnpm 管理依赖'),
   requestText(afterLearning.log).slice(0, 400))
 check('a Session that learned nothing new calls no consolidation model',

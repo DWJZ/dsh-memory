@@ -164,6 +164,46 @@ check('its id was preserved', updatedProject?.id === targetProjectId)
 check('its project is unchanged', updatedProject?.project_id === PROJECT)
 check('its evidence accumulated', updatedProject?.evidence.length >= 2)
 
+console.log('the reviewed confidence is what gets stored')
+const scored = await commitOperations(OPTIONS, [addition({
+  content: 'A fact the consolidator was only fairly sure about.',
+  confidence: 0.83,
+})])
+check('the addition is counted', scored.committed.add === 1)
+check('the stored confidence is the reviewed one',
+  projectRecords().find(record => record.content === 'A fact the consolidator was only fairly sure about.')
+    ?.confidence === 0.83)
+const refinedScored = await commitOperations(OPTIONS, [{
+  action: 'update',
+  scope: 'project',
+  category: 'state',
+  target_id: projectRecords().find(record => record.confidence === 0.83).id,
+  content: 'A fact the consolidator is now sure about.',
+  confidence: 0.97,
+  projectId: PROJECT,
+  evidence: provenance([403]),
+}])
+check('an update moves the confidence to the reviewed value',
+  refinedScored.committed.update === 1
+  && projectRecords().find(record => record.content === 'A fact the consolidator is now sure about.')
+    ?.confidence === 0.97)
+const explicit = await commitOperations(OPTIONS, [{
+  action: 'add',
+  scope: 'user',
+  category: 'state',
+  content: 'A fact the user asked for.',
+  projectId: undefined,
+  evidence: provenance([404]),
+}])
+check('a write with no stated confidence is certain',
+  explicit.committed.add === 1
+  && userRecords().find(record => record.content === 'A fact the user asked for.')?.confidence === 1)
+const badScore = await commitOperations(OPTIONS, [{ ...addition({ content: 'bad score' }), confidence: 2 }])
+check('an unusable confidence is reported as a failure',
+  badScore.failures.length === 1 && String(badScore.failures[0].message).includes('confidence'),
+  JSON.stringify(badScore.failures))
+check('and nothing was written for it', !projectRecords().some(record => record.content === 'bad score'))
+
 console.log('one project cannot reach another project\'s Memory')
 const OTHER_PROJECT = newProjectId()
 const seeded = await commitOperations(OPTIONS, [{

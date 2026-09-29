@@ -73,6 +73,7 @@ function apply(options, operation) {
         projectId: operation.projectId,
         evidence: operation.evidence,
         sourceTexts: operation.sourceTexts,
+        confidence: operation.confidence,
       })
     case 'update':
       // The project comes from the reviewed target, never from the model, and it
@@ -85,6 +86,7 @@ function apply(options, operation) {
         projectId: operation.projectId,
         evidence: operation.evidence,
         sourceTexts: operation.sourceTexts,
+        confidence: operation.confidence,
       })
     case 'supersede':
       return supersedeMemory(options, {
@@ -93,6 +95,7 @@ function apply(options, operation) {
         projectId: operation.projectId,
         evidence: operation.evidence,
         sourceTexts: operation.sourceTexts,
+        confidence: operation.confidence,
       })
     default:
       throw new Error(`dsh-memory: ${String(operation.action)} is not an automatic action`)

@@ -23,8 +23,29 @@ import { mutateAndRefreshView } from './views.js'
 import { findSecretIn } from './redact.js'
 import { MAX_CONTENT_CHARS, charLength, newMemoryId, normalizeContent, validateMemory } from './schema.js'
 
-/** Writer confidence for Phase 1: every record comes from an explicit request. */
+/**
+ * Confidence of a record the user asked for directly.
+ *
+ * An explicit request is not a judgement about how likely a fact is; the user
+ * said it, so it is certain. Automatic consolidation supplies its own value,
+ * which is the model's estimate of how well the trajectory grounds the fact.
+ */
 export const PHASE1_CONFIDENCE = 1.0
+
+/**
+ * Read the confidence a writer supplied, or fall back.
+ * @param value - the supplied confidence, when there is one.
+ * @param fallback - the value to use when there is not.
+ * @returns the validated confidence.
+ * @throws {TypeError} when a supplied value is not a number in [0, 1].
+ */
+function requireConfidence(value, fallback) {
+  if (value === undefined) return fallback
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+    throw new TypeError(`dsh-memory: confidence must be a number in [0, 1], got ${JSON.stringify(value)}`)
+  }
+  return value
+}
 
 /**
  * Add one Memory, unless an active record already says the same thing.
@@ -62,7 +83,7 @@ export async function addMemory(options, input) {
       project_id: input.scope === 'project' ? input.projectId : null,
       category: input.category,
       content,
-      confidence: PHASE1_CONFIDENCE,
+      confidence: requireConfidence(input.confidence, PHASE1_CONFIDENCE),
       evidence: input.evidence === undefined ? [] : [input.evidence],
       created_at: at,
       updated_at: at,
@@ -94,7 +115,13 @@ export async function updateMemory(options, input) {
   return apply(options, located.layout, (store) => {
     const current = requireActive(store, input.id)
     const evidence = accumulate(current.evidence, input.evidence, options.maxEvidencePerMemory)
-    const record = { ...current, content, evidence, updated_at: nowIso(options) }
+    const record = {
+      ...current,
+      content,
+      evidence,
+      confidence: requireConfidence(input.confidence, current.confidence),
+      updated_at: nowIso(options),
+    }
     validateMemory(record, { maxEvidencePerMemory: options.maxEvidencePerMemory })
     return {
       changed: true,
@@ -130,7 +157,7 @@ export async function supersedeMemory(options, input) {
       project_id: current.project_id,
       category: current.category,
       content,
-      confidence: PHASE1_CONFIDENCE,
+      confidence: requireConfidence(input.confidence, PHASE1_CONFIDENCE),
       evidence: input.evidence === undefined ? [] : [input.evidence],
       created_at: at,
       updated_at: at,

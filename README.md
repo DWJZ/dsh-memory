@@ -34,6 +34,7 @@ Everything is under the harness home, never inside a project:
 ```text
 $DSH_HOME/memory/
 ├── config.json          # this plugin's own enable/disable switch
+├── consolidation-state.json  # automatic learning: mark and gaps per Session
 ├── registry.json        # project identity: id ↔ paths
 ├── user/
 │   ├── memories.json    # canonical
@@ -141,7 +142,9 @@ Three properties shape the code:
 
 ## Known Limitations and Deferred Work
 
-- **Automatic learning reads only what it was present for.** A Session resumed elsewhere, or one already running when the plugin mounts, has events this process never saw. They cannot be read back, so the range is recorded as a gap and skipped; those turns are not learned from.
+- **Automatic learning reads only what it was present for.** A Session resumed elsewhere, one already running when the plugin mounts, or events the buffer had to evict under its cap all leave a range this process never saw. They cannot be read back, so the range is recorded as a gap and skipped; those turns are not learned from.
+- **Automatic learning needs a long-lived instance.** Its debounce waits outside the agent's maintenance phase, by design, so a one-shot `headless` run exits and disposes before the timer can expire. That is the accepted scope rather than a defect: run `/memory consolidate` in a one-shot run, or use the desktop app, where the timer does fire.
+- **Disabling Memory stops automatic learning too, and waits for it.** Once `/memory disable` returns, nothing new is collected, asked, written, or marked, and a run already under way has settled. Events produced while it was off are not collected later.
 - **The progress file grows with the number of Sessions.** One small record per Session that has produced events is kept forever, because the only sound way to drop one is an age policy this version does not have. At a few hundred bytes per Session that is a megabyte after a few thousand Sessions.
 - **No semantic dedupe or conflict detection.** The only overlap recognised is an exact duplicate, compared without folding case, because `Model-X` and `model-x` can differ. Whether `pnpm` contradicts `npm` is the model's judgement, expressed by calling `supersede` with a target id.
 - **Keyword retrieval only.** Whole-query matches, Latin word overlap, and CJK character bigrams, with `updated_at` as the tie-break. A query in English does not find a Chinese fact that means the same thing.
@@ -153,7 +156,7 @@ Three properties shape the code:
 ## Tests
 
 ```sh
-npm run test:unit        # 17 suites, no network, no API key
+npm run test:unit        # 26 suites, no network, no API key
 npm run test:integration # boots the shipped headless profile through the real Loader
 npm run test:all         # both
 ```
