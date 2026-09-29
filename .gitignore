@@ -1,4 +1,8 @@
 node_modules/
+
+# Build output: `npm run prepare` produces it on install, and the profile loads
+# it from this directory through a `link:` dependency.
+lib/
 .DS_Store
 *.log
 
