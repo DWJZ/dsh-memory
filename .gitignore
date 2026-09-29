@@ -2,8 +2,11 @@ node_modules/
 .DS_Store
 *.log
 
-# Local working documents: the build plans and the superseded contract draft.
-# CONTRACT.md is the published authority; these stay on the maintainer's machine.
+# Local working documents: build plans, review records, and the superseded
+# contract draft. CONTRACT.md is the published authority; these stay on the
+# maintainer's machine, because a review of code that has since changed reads as
+# a current problem list once it is published.
 PLAN.md
 PLAN-PHASE2.md
+PHASE2-STATIC-REVIEW.md
 CONTRACT.v0-draft.md
