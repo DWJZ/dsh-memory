@@ -131,6 +131,7 @@ project:
 - **读进来的东西要校验。** `memories.json` 与 `registry.json` 在写入前和读入时都会校验 —— id、时间戳、唯一性，以及每一条 supersession 引用。手改过的文档会直接报错，而不是流进 index、view 或模型请求；project id 在变成目录名之前也要先通过检查。canonical store 读不出来时会**中断本轮请求并指名出问题的文件**：降级成空索引等于把"store 坏了"呈现为"agent 单纯忘了"，后者更难诊断。文件不存在不算损坏 —— 那正是首次使用时的形态。
 - **生成的视图是一次性的。** 即使 `MEMORY.md` 写不出来，已提交的 mutation 依然成功；结果会带上 `viewStale` 与一条 warning。重建会重新取锁并读最新状态，因此慢的 writer 无法用旧视图覆盖新视图。
 - **Provenance 是构造出来的，不是接受的。** 模型只给出事实；插件自己附上 Session、本轮的人类消息及其序号。无法确定时留空，而不是猜一个。
+- **自动学习自己记账。** harness 已不再提供受支持的会话历史读取方式，所以 collector 记住的是它**看见过**的，而不是回头去读。因此进度标记的含义是"已消费到这个 seq"，而不是指向存储的光标；进程不在场的那一段会被写成一次 **gap**。正是这个区分，让"从未观测到"不会被悄悄报告成"看了但没有内容"。
 
 ## Model Experience
 
@@ -140,7 +141,8 @@ project:
 
 ## Known Limitations and Deferred Work
 
-- **没有自动提炼。** 不会从 trajectory 学到任何东西；Phase 2 才做提炼，并配自己的 benchmark。
+- **自动学习只读它"在场时"看到的东西。** 在别处 resume 的 Session，或插件挂载时已经在跑的 Session，会有一段本进程从未见过的事件。它们无法回读，因此该区间被记为 gap 并跳过；那几轮不会被学习。
+- **进度文件随 Session 数量增长。** 每个产生过事件的 Session 会永久保留一条小记录，因为唯一站得住的清理方式是按年龄，而本版本没有这个策略。按每 Session 几百字节估算，几千个 Session 后大约 1 MB。
 - **没有语义去重与冲突检测。** 唯一识别的重叠是精确重复，且比较时不做大小写折叠，因为 `Model-X` 与 `model-x` 可以是不同的东西。`pnpm` 是否与 `npm` 矛盾由模型判断，通过带 `target_id` 的 `supersede` 表达。
 - **只有关键词检索。** 整串命中、拉丁词重叠、CJK 字符 bigram，以 `updated_at` 兜底。用英文查询找不到意思相同的中文事实。
 - **forget 不是崩溃事务。** 保证是"成功返回后 `$DSH_HOME/memory` 下不再有该正文"；删除与 tombstone 之间被中断不做恢复。journal 等真有需要再加。

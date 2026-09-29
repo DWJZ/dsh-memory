@@ -131,6 +131,7 @@ Three properties shape the code:
 - **What is read is checked.** `memories.json` and `registry.json` are validated on the way in as well as on the way out — ids, timestamps, uniqueness, and every supersession reference. A document someone edited by hand fails loudly instead of feeding an index, a view, or a model request, and a project id is checked before it becomes a directory name. A canonical store that cannot be read stops the turn, naming the file: degrading to an empty index would present a broken store as an agent that has simply forgotten, which is the harder failure to diagnose. An absent store is not corruption — that is what a first run looks like.
 - **The generated view is disposable.** A committed mutation succeeds even if `MEMORY.md` cannot be written; the result reports `viewStale` and a warning. The rebuild takes the lock again and re-reads the newest state, so a slow writer cannot overwrite a newer view with an older one.
 - **Provenance is built, not accepted.** The model supplies a fact; the plugin attaches the Session, the turn's human message, and its sequence number. When a turn cannot be identified, the reference stays empty rather than guessed.
+- **Automatic learning keeps its own progress.** The harness no longer offers a supported way to read history out of a Session, so the collector remembers what it saw rather than looking back. The progress mark is therefore "consumed through this sequence number", not a cursor into storage, and a range the process was not present for is written down as a *gap*. That distinction is what stops "never observed" from being silently reported as "read and held nothing".
 
 ## Model Experience
 
@@ -140,7 +141,8 @@ Three properties shape the code:
 
 ## Known Limitations and Deferred Work
 
-- **No automatic consolidation.** Nothing is learned from a trajectory; Phase 2 adds extraction with its own benchmark.
+- **Automatic learning reads only what it was present for.** A Session resumed elsewhere, or one already running when the plugin mounts, has events this process never saw. They cannot be read back, so the range is recorded as a gap and skipped; those turns are not learned from.
+- **The progress file grows with the number of Sessions.** One small record per Session that has produced events is kept forever, because the only sound way to drop one is an age policy this version does not have. At a few hundred bytes per Session that is a megabyte after a few thousand Sessions.
 - **No semantic dedupe or conflict detection.** The only overlap recognised is an exact duplicate, compared without folding case, because `Model-X` and `model-x` can differ. Whether `pnpm` contradicts `npm` is the model's judgement, expressed by calling `supersede` with a target id.
 - **Keyword retrieval only.** Whole-query matches, Latin word overlap, and CJK character bigrams, with `updated_at` as the tie-break. A query in English does not find a Chinese fact that means the same thing.
 - **Forget is not crash-transactional.** The guarantee is that nothing under `$DSH_HOME/memory` holds the content after a successful return; an interruption between the delete and the tombstone is not recovered. A journal is deferred until something needs it.

@@ -112,21 +112,6 @@ check('a gap without a timestamp is refused',
     schema_version: 1, sessions: { s: { last_processed_seq: 1, gaps: [{ from_seq: 1, to_seq: 2 }], updated_at: AT } },
   })), 'timestamp'))
 
-console.log('prune')
-const many = {
-  schema_version: 1,
-  sessions: {
-    keep_a: { last_processed_seq: 5, gaps: [], updated_at: AT },
-    keep_b: { last_processed_seq: 9, gaps: [], updated_at: AT },
-    drop: { last_processed_seq: 1, gaps: [], updated_at: AT },
-  },
-}
-const pruned = state.pruneSessions(many, new Set(['keep_a', 'keep_b']))
-check('only the named Sessions survive', Object.keys(pruned.sessions).join(',') === 'keep_a,keep_b')
-check('a pruned mark is untouched', state.lastProcessedSeq(pruned, 'keep_b') === 9)
-check('pruning nothing returns the same document',
-  state.pruneSessions(pruned, new Set(['keep_a', 'keep_b'])) === pruned)
-
 console.log('persistence')
 const written = await state.withState(OPTIONS, current => ({
   changed: true,

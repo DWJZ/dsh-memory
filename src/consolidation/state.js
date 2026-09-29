@@ -188,25 +188,6 @@ function withSession(state, sessionId, progress) {
 }
 
 /**
- * Drop progress for Sessions that no longer exist.
- *
- * Called with the Session ids a caller knows about, so a home that has seen
- * thousands of Sessions does not accumulate a record per Session forever. A
- * Session that reappears after being dropped is treated as newly observed,
- * which records a gap rather than silently claiming its history was consumed.
- * @param state - the current state document.
- * @param keep - Session ids to retain.
- * @returns the pruned state, or the same document when nothing was dropped.
- */
-export function pruneSessions(state, keep) {
-  const retained = Object.keys(state.sessions).filter(sessionId => keep.has(sessionId))
-  if (retained.length === Object.keys(state.sessions).length) return state
-  const sessions = {}
-  for (const sessionId of retained) sessions[sessionId] = state.sessions[sessionId]
-  return { schema_version: CONSOLIDATION_SCHEMA_VERSION, sessions }
-}
-
-/**
  * Run one state mutation while holding the state lock.
  *
  * Progress is shared by every Session in one harness home and by every process
