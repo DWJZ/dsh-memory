@@ -308,6 +308,41 @@ const dryOnly = await runCommand(consolidationCtx, 'consolidate --dry-run', cons
 check('a dry run over a consumed window reports the same',
   String(dryOnly.text).includes('Nothing new to consolidate'), String(dryOnly.text))
 
+console.log('an audit does not seed the next window')
+{
+  const loopCtx = start({ ...CONFIG, enabled: true })
+  await runCommand(loopCtx, 'enable')
+  /** Session events this block appended, as a real Session would report them. */
+  const appends = []
+  let nextSeq = 1
+  const session = {
+    id: 'session-audit-loop',
+    header: { id: 'session-audit-loop', cwd: PROJECT_DIR },
+    // A real `Session.append()` publishes the event, and this plugin's collector
+    // is one of its subscribers, so the audit comes back to the next window.
+    append: (type, data, options) => {
+      const event = { seq: nextSeq, type, data, ignorable: options?.ignorable === true }
+      nextSeq += 1
+      appends.push(event)
+      loopCtx.emit('session/event', session, event)
+    },
+  }
+  const loopAgent = { session, runMaintenance: task => task(new AbortController().signal) }
+  loopCtx.emit('session/event', session, {
+    seq: 0,
+    type: 'dsh-memory/consolidation',
+    data: { from_seq: 0, to_seq: 0, status: 'success' },
+    ignorable: true,
+  })
+  const first = await runCommand(loopCtx, 'consolidate', loopAgent)
+  check('the audit-only window is consumed', first.kind === 'success' && String(first.text).includes('no human turn'), String(first.text))
+  check('and it is not replaced by an audit of its own', appends.length === 0, JSON.stringify(appends))
+  const second = await runCommand(loopCtx, 'consolidate', loopAgent)
+  check('so the next command finds nothing new rather than another window',
+    String(second.text).includes('Nothing new to consolidate'), String(second.text))
+  await disposeEffects(loopCtx)
+}
+
 console.log('disabling Memory stops automatic learning')
 {
   const offCtx = start({ ...CONFIG, enabled: true })

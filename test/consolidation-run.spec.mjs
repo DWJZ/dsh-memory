@@ -517,6 +517,47 @@ console.log('observation mode leaves the window alone')
   check('and the mark advances then', markOf('session_observe') === 3)
 }
 
+console.log('two agents sharing a Session cannot process the same window twice')
+{
+  // `runMaintenance()` serializes one agent. Two agents can share a Session, so
+  // without a per-Session queue both would read the same mark, ask the model and
+  // commit — the state lock only protects the individual writes.
+  let calls = 0
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  const harnessed = harness({
+    sessionId: 'session_shared',
+    modelAnswer: async (request) => {
+      calls += 1
+      if (calls === 1) await gate
+      return addProjectFact([0])
+    },
+  })
+  const otherAgent = {
+    session: { id: 'session_shared', header: { id: 'session_shared', cwd: PROJECT } },
+    status: 'idle',
+    async runMaintenance(task) { return await task(new AbortController().signal) },
+  }
+  observe(harnessed, [human(0, '这个项目用 pnpm')])
+
+  const first = harnessed.consolidation.consolidate(harnessed.agent)
+  for (let turns = 0; calls < 1; turns += 1) {
+    if (turns > 10000) throw new Error('the first run never reached the model')
+    await new Promise(resolve => { setImmediate(resolve) })
+  }
+  const second = harnessed.consolidation.consolidate(otherAgent)
+  // The second run cannot have started while the first is inside its model call.
+  await new Promise(resolve => { setImmediate(resolve) })
+  check('the second run waits for the first to finish', calls === 1, String(calls))
+  release()
+  await first
+  const secondOutcome = await second
+  check('the first run commits', (await first).status === 'success')
+  check('and the second finds the window already consumed',
+    secondOutcome.status === 'nothing-pending', JSON.stringify(secondOutcome))
+  check('the model was asked once for that window', calls === 1, String(calls))
+}
+
 console.log('teardown waits for every run, not the newest one')
 {
   // Two Sessions consolidate concurrently. The one that starts second can finish

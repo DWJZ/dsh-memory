@@ -63,6 +63,33 @@ export function createConsolidation(options) {
   const runs = new Set()
 
   /**
+   * One queue per Session, so two entry points cannot process the same window.
+   *
+   * `runMaintenance()` serializes one agent, but several agents can share a
+   * Session, and the command path does not go through the trigger's `running`
+   * set at all. Two runs that both read the same mark would each build the same
+   * window, ask the model, and commit — the state lock only protects the
+   * individual writes, not the read-decide-commit sequence.
+   */
+  const queues = new Map()
+
+  /**
+   * Run one piece of work after everything already queued for a Session.
+   * @param sessionId - the Session whose window the work will read.
+   * @param work - the work to run.
+   * @returns the work's own outcome.
+   */
+  const inSessionOrder = (sessionId, work) => {
+    const previous = queues.get(sessionId) ?? Promise.resolve()
+    const next = previous.then(work, work)
+    let tail
+    const done = () => { if (queues.get(sessionId) === tail) queues.delete(sessionId) }
+    tail = next.then(done, done)
+    queues.set(sessionId, tail)
+    return next
+  }
+
+  /**
    * Remember a run until it settles.
    * @param run - the promise for one run.
    * @returns the same promise, so callers keep the outcome.
@@ -173,8 +200,12 @@ export function createConsolidation(options) {
    * @returns a compact outcome.
    */
   const consolidate = async (agent, runOptions = {}) => {
-    if (typeof agent?.session?.id !== 'string') return { status: 'no-session' }
-    return track(agent.runMaintenance(signal => runOnce(agent, { ...runOptions, signal })))
+    const sessionId = agent?.session?.id
+    if (typeof sessionId !== 'string') return { status: 'no-session' }
+    // The maintenance claim is taken when the run actually starts, not while it
+    // waits its turn, so a queued run does not hold an agent's phase open.
+    return track(inSessionOrder(sessionId, () =>
+      agent.runMaintenance(signal => runOnce(agent, { ...runOptions, signal }))))
   }
 
   /**
@@ -219,6 +250,15 @@ export function createConsolidation(options) {
         state: advanceHwm(current, sessionId, window.toSeq, new Date(now()).toISOString()),
       }))
       collector.dropConsumed(sessionId, window.toSeq)
+      // A window with nothing relevant in it taught nothing, and writing an audit
+      // for it would be self-defeating: an audit is appended to the Session, which
+      // publishes it back to this collector, so auditing an empty window puts the
+      // audit itself in the next window. Repeating the command would then trade one
+      // audit for the next and never reach "nothing new".
+      if (window.counts.relevant === 0) {
+        logger?.debug?.(`dsh-memory: consolidation of ${sessionId} consumed seqs ${String(auditBase.from_seq)}..${String(auditBase.to_seq)} without asking anything (${status})`)
+        return { ...auditBase, status }
+      }
       recordAudit(session, { ...auditBase, status, operations: { add: 0, update: 0, supersede: 0, noop: 0 } })
       return { ...auditBase, status }
     }
