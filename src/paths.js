@@ -79,11 +79,22 @@ export function registryLayout(memoryDir) {
 }
 
 /**
- * Resolve one scope's layout below the Memory root.
+ * Resolve the consolidation progress file and its lock.
+ *
+ * Progress lives beside the Memory it tracks so one harness home has one
+ * answer to "how far has this Session been consolidated".
  * @param memoryDir - the Memory root.
- * @param projectId - the project whose Memory this is.
- * @returns the store, lock, and view paths for that project.
+ * @returns the state path and its lock path.
  */
+export function consolidationLayout(memoryDir) {
+  const dir = resolve(expandHome(memoryDir))
+  return {
+    dir,
+    statePath: join(dir, 'consolidation-state.json'),
+    lockPath: join(dir, 'consolidation-state.json.lock'),
+  }
+}
+
 /**
  * Resolve one project's layout below the Memory root.
  *
