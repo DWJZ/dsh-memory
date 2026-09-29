@@ -1,7 +1,7 @@
 {
   "name": "dsh-memory",
   "version": "0.1.0",
-  "description": "DeepSeek Harness 持久记忆插件：把用户与项目的长期记忆存在 $DSH_HOME/memory，并在每个新会话注入紧凑索引。 / Persistent user and project memory for DeepSeek Harness, stored under $DSH_HOME/memory and injected as a compact index.",
+  "description": "DeepSeek Harness \u6301\u4e45\u8bb0\u5fc6\u63d2\u4ef6\uff1a\u628a\u7528\u6237\u4e0e\u9879\u76ee\u7684\u957f\u671f\u8bb0\u5fc6\u5b58\u5728 $DSH_HOME/memory\uff0c\u5e76\u5728\u6bcf\u4e2a\u65b0\u4f1a\u8bdd\u6ce8\u5165\u7d27\u51d1\u7d22\u5f15\u3002 / Persistent user and project memory for DeepSeek Harness, stored under $DSH_HOME/memory and injected as a compact index.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -9,7 +9,7 @@
     "url": "git+https://github.com/DWJZ/dsh-memory.git"
   },
   "homepage": "https://github.com/DWJZ/dsh-memory#readme",
-  "main": "src/index.js",
+  "main": "lib/index.js",
   "scripts": {
     "test": "npm run test:unit && node test/client.smoke.mjs",
     "test:unit": "node test/paths.spec.mjs && node test/config.spec.mjs && node test/schema.spec.mjs && node test/module.spec.mjs && node test/redact.spec.mjs && node test/lock.spec.mjs && node test/jsonstore.spec.mjs && node test/views.spec.mjs && node test/registry.spec.mjs && node test/actions.spec.mjs && node test/tombstones.spec.mjs && node test/search.spec.mjs && node test/index.spec.mjs && node test/concurrent.spec.mjs && node test/registry-concurrent.spec.mjs && node test/wiring.spec.mjs && node test/commands.spec.mjs && node test/consolidation-state.spec.mjs && node test/consolidation-collector.spec.mjs && node test/consolidation-trigger.spec.mjs && node test/consolidation-model.spec.mjs && node test/consolidation-validate.spec.mjs && node test/consolidation-commit.spec.mjs && node test/consolidation-run.spec.mjs",
@@ -20,7 +20,7 @@
     "prepare": "npm run build"
   },
   "exports": {
-    ".": "./src/index.js",
+    ".": "./lib/index.js",
     "./client": "./client/client.js",
     "./package.json": "./package.json"
   },
