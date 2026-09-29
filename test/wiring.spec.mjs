@@ -154,9 +154,34 @@ check('a missing user store still leaves the project scope readable',
 writeFileSync(userStorePath, savedUserStore)
 check('the restored store renders again', settleIndex(agentStub()).text.includes('用户偏好中文解释'))
 
+console.log('writing rows into the Session log is off unless asked for')
+{
+  const quietCtx = start({ ...CONFIG, enabled: true })
+  await runCommand(quietCtx, 'enable')
+  const written = []
+  const quietAgent = {
+    session: {
+      id: 'session-quiet',
+      header: { id: 'session-quiet', cwd: PROJECT_DIR },
+      append: (type, data, options) => { written.push({ type, data, ignorable: options?.ignorable === true }) },
+    },
+    runMaintenance: task => task(new AbortController().signal),
+  }
+  quietCtx.emit('agent/created', { agent: quietAgent })
+  await new Promise(resolve => { setImmediate(resolve) })
+  quietCtx.emit('session/event', quietAgent.session, {
+    seq: 0,
+    type: 'assistant/message',
+    data: { message: { content: [{ type: 'text', text: 'I ran the tests.' }] } },
+  })
+  await runCommand(quietCtx, 'consolidate', quietAgent)
+  check('nothing reached the Session log', written.length === 0, JSON.stringify(written))
+  await disposeEffects(quietCtx)
+}
+
 console.log('the project attribution is recorded once per Session')
 {
-  const attrCtx = start({ ...CONFIG, enabled: true })
+  const attrCtx = start({ ...CONFIG, enabled: true, sessionEvents: true })
   await runCommand(attrCtx, 'enable')
   const written = []
   const attrAgent = {

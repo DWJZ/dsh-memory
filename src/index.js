@@ -185,6 +185,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
    * @param workspace - the harness workspace that contains the directory, if any.
    */
   const announceProject = (agent, project, workspace) => {
+    if (settings.sessionEvents !== true) return
     const session = agent?.session
     if (session === undefined || typeof session.append !== 'function') return
     if (announcedProjects.has(session.id)) return
@@ -225,6 +226,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
         // process ever works in, so it is left to outlive individual agents.
       })
       consolidation = createConsolidation({
+        sessionEvents: settings.sessionEvents,
         llmScope: () => llmScope,
         collector: createCollector(),
         scopes,

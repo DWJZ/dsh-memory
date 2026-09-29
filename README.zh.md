@@ -105,6 +105,7 @@ project:
 |---|---|---|
 | `enabled` | `true` | 初始状态；被 `config.json` 覆盖 |
 | `dshHome` | `$DSH_HOME`，否则 `~/.dsh` | harness home；Memory 永远在其下 |
+| `sessionEvents` | `false` | 本插件写进 Session 日志的**唯一**开关。harness 没有给插件提供 append Session event 的受支持接口，这里用的是「未知类型 + `ignorable` 标记」这条侧门，所以默认关，由部署主动开启 |
 | `indexBudgetBytes` | `6000` | 注入索引的 UTF-8 字节上限 |
 | `indexBudgetSplit` | `{user: 0.4, project: 0.6}` | 两个 scope 都超预算时谁先让位 |
 | `retrievalTopK` | `8` | `memory_search` 默认返回条数 |
@@ -125,7 +126,7 @@ project:
 | `maxRelevantEventsPerBatch` | `200` | 交给模型的最大窗口 |
 | `maxTrajectoryBytesPerBatch` | `65536` | 渲染后轨迹的 UTF-8 上限，最小 128 |
 | `maxOutputTokens` | `2048` | 模型可返回计划的上限 |
-| `auditSessionEvents` | `false` | 是否把 `dsh-memory/consolidation` 行写进 Session 日志。默认关，与其它往别人轨迹里写行的插件一致 |
+
 
 没有 `memoryDir`：Memory 必须属于 harness，部署不能把它指到项目里。
 

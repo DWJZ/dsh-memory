@@ -95,13 +95,14 @@ function harness(options = {}) {
       host: 'test-host',
       kill: () => { throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' }) },
     },
+    sessionEvents: options.sessionEvents ?? true,
     config: {
       debounceMs: 10,
       minConfidence: 0.8,
       maxRelevantEventsPerBatch: 200,
       maxTrajectoryBytesPerBatch: 65536,
       maxOutputTokens: 512,
-      auditSessionEvents: options.auditSessionEvents ?? true,
+
       maxEvidencePerMemory: 8,
       quoteMaxChars: 200,
       lockTimeoutMs: 3000,
@@ -427,7 +428,7 @@ console.log('the trigger consults the same pipeline')
 
 console.log('writing rows into the trajectory is opt-in')
 {
-  const harnessed = harness({ sessionId: 'session_quiet', modelAnswer: addProjectFact([0]), auditSessionEvents: false })
+  const harnessed = harness({ sessionId: 'session_quiet', modelAnswer: addProjectFact([0]), sessionEvents: false })
   observe(harnessed, [human(0, '这个项目用 pnpm')])
   const outcome = await harnessed.consolidation.consolidate(harnessed.agent)
   check('the run still commits', outcome.status === 'success', JSON.stringify(outcome))

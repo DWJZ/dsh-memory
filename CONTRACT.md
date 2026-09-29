@@ -86,6 +86,7 @@ Memory 的物理位置不可配置：内部恒为 `path.join(resolvedDshHome, 'm
 | 字段 | 类型 | 默认 | 校验（fail loud） |
 |---|---|---|---|
 | `enabled` | boolean | `true` | — （当前值由 §17 的 `config.json` 覆盖） |
+| `sessionEvents` | boolean | `false` | — （本插件写 Session 轨迹行的**唯一**开关） |
 | `dshHome` | string | `$DSH_HOME` / `~/.dsh` | 非空 |
 | `indexBudgetBytes` | number | `6000` | `>= 0` |
 | `indexBudgetSplit` | `{user, project}` | `{user:0.4, project:0.6}` | 两项各 `>= 0`，`abs(user + project - 1) < 1e-9` |
@@ -109,7 +110,6 @@ Memory 的物理位置不可配置：内部恒为 `path.join(resolvedDshHome, 'm
 | `maxRelevantEventsPerBatch` | integer | `200` | `>= 1` |
 | `maxTrajectoryBytesPerBatch` | integer | `65536` | `>= 128`（UTF-8 字节，作用于整条序列化 entry） |
 | `maxOutputTokens` | integer | `2048` | `>= 1` |
-| `auditSessionEvents` | boolean | `false` | — （写 Session 审计行的开关，默认关） |
 
 **`autoCommit: false` 表示"不要自己学"**：自动路径**根本不运行** —— debounce 不排期、不构造窗口、不调用模型，因此也不花任何 token。
 

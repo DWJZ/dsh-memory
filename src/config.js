@@ -26,6 +26,16 @@ export const DEFAULTS = Object.freeze({
   // with. A local plugin cannot read that resolved config, so the two are kept in
   // step by naming the same field and changing it in the same place: if they
   // disagree, the harness and Memory disagree about what a project is.
+  /**
+   * Whether this plugin may write rows into the Session log at all.
+   *
+   * Off by default. The harness does not offer third-party plugins a supported
+   * way to append Session events: this uses an unknown type carrying the
+   * envelope's `ignorable` marker, which a reader accepts only when it does not
+   * know the type. That is a side door rather than an interface, so a deployment
+   * opts in rather than discovering rows it never asked for.
+   */
+  sessionEvents: false,
   projectRootMarkers: ['.git'],
   lockTimeoutMs: 10000,
   staleLockMs: 60000,
@@ -40,7 +50,6 @@ export const DEFAULTS = Object.freeze({
     maxRelevantEventsPerBatch: 200,
     maxTrajectoryBytesPerBatch: 65536,
     maxOutputTokens: 2048,
-    auditSessionEvents: false,
   }),
 })
 
@@ -58,6 +67,7 @@ export function resolveConfig(config, env = process.env) {
   const dshHome = resolveDshHome(raw.dshHome, env)
   return {
     enabled: booleanSetting(raw.enabled, DEFAULTS.enabled, 'enabled'),
+    sessionEvents: booleanSetting(raw.sessionEvents, DEFAULTS.sessionEvents, 'sessionEvents'),
     dshHome,
     memoryDir: resolveMemoryDir(dshHome),
     indexBudgetBytes: integerSetting(raw.indexBudgetBytes, DEFAULTS.indexBudgetBytes, 'indexBudgetBytes', 0),
@@ -101,7 +111,6 @@ function consolidationSetting(value) {
     maxRelevantEventsPerBatch: integerSetting(value.maxRelevantEventsPerBatch, fallback.maxRelevantEventsPerBatch, 'consolidation.maxRelevantEventsPerBatch', 1),
     maxTrajectoryBytesPerBatch: integerSetting(value.maxTrajectoryBytesPerBatch, fallback.maxTrajectoryBytesPerBatch, 'consolidation.maxTrajectoryBytesPerBatch', MIN_TRAJECTORY_BYTES_PER_BATCH),
     maxOutputTokens: integerSetting(value.maxOutputTokens, fallback.maxOutputTokens, 'consolidation.maxOutputTokens', 1),
-    auditSessionEvents: booleanSetting(value.auditSessionEvents, fallback.auditSessionEvents, 'consolidation.auditSessionEvents'),
   }
 }
 

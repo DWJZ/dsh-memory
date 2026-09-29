@@ -105,6 +105,7 @@ Set fields on the plugin row in the profile's `cordis.patch.yml`:
 |---|---|---|
 | `enabled` | `true` | Initial state; overridden by `config.json` |
 | `dshHome` | `$DSH_HOME`, else `~/.dsh` | Harness home; Memory always sits below it |
+| `sessionEvents` | `false` | the only switch for the rows this plugin writes into the Session log. The harness offers a plugin no supported way to append Session events, so this uses an unknown type with the `ignorable` marker — a side door, not an interface — and stays off until a deployment asks |
 | `indexBudgetBytes` | `6000` | Injected index size, in UTF-8 bytes |
 | `indexBudgetSplit` | `{user: 0.4, project: 0.6}` | Which scope yields first when both are over budget |
 | `retrievalTopK` | `8` | Default result count for `memory_search` |
@@ -125,7 +126,7 @@ Set fields on the plugin row in the profile's `cordis.patch.yml`:
 | `maxRelevantEventsPerBatch` | `200` | largest window offered to the model |
 | `maxTrajectoryBytesPerBatch` | `65536` | UTF-8 ceiling for the rendered trajectory, minimum 128 |
 | `maxOutputTokens` | `2048` | cap on the plan the model may return |
-| `auditSessionEvents` | `false` | write `dsh-memory/consolidation` rows into the Session log. Off by default, like every plugin writing into someone else's trajectory |
+
 
 There is no `memoryDir`: Memory must belong to the harness, so a deployment cannot point it at a project.
 
