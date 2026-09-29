@@ -23,7 +23,6 @@
  */
 
 import { readStore } from '../jsonstore.js'
-import { findSecret } from '../redact.js'
 import { createTrigger } from './trigger.js'
 import { batchWindow } from './normalize.js'
 import { buildRequest } from './policy.js'
@@ -32,9 +31,6 @@ import { parsePlan } from './policy.js'
 import { reviewPlan } from './validate.js'
 import { commitOperations } from './commit.js'
 import { advanceHwm, lastProcessedSeq, NO_PROGRESS, progressFor, readState, recordGap, withState } from './state.js'
-
-/** Longest model-authored noop reason kept in an audit. */
-export const NOOP_REASON_MAX_CHARS = 60
 
 /** Session event type carrying this plugin's consolidation audit. */
 export const AUDIT_EVENT_TYPE = 'dsh-memory/consolidation'
@@ -56,8 +52,27 @@ export const AUDIT_EVENT_TYPE = 'dsh-memory/consolidation'
  */
 export function createConsolidation(options) {
   const { collector, scopes, logger, config } = options
-  /** The automatic run currently in flight, so teardown can wait for it. */
-  let inFlight
+  /**
+   * Every consolidation run still executing, automatic or driven by a command.
+   *
+   * A single slot would only know about the most recent one: two Sessions run
+   * concurrently, and the one that started last can finish first, leaving the
+   * earlier run writing Memory, an audit and a mark after teardown had already
+   * decided that nothing was in flight.
+   */
+  const runs = new Set()
+
+  /**
+   * Remember a run until it settles.
+   * @param run - the promise for one run.
+   * @returns the same promise, so callers keep the outcome.
+   */
+  const track = (run) => {
+    let tracked
+    tracked = run.finally(() => { runs.delete(tracked) })
+    runs.add(tracked)
+    return tracked
+  }
   const now = options.now ?? Date.now
   const callModel = options.callModel ?? ((request) => {
     const scope = typeof options.llmScope === 'function' ? options.llmScope() : options.llmScope
@@ -151,7 +166,7 @@ export function createConsolidation(options) {
    */
   const consolidate = async (agent, runOptions = {}) => {
     if (typeof agent?.session?.id !== 'string') return { status: 'no-session' }
-    return agent.runMaintenance(signal => runOnce(agent, { ...runOptions, signal }))
+    return track(agent.runMaintenance(signal => runOnce(agent, { ...runOptions, signal })))
   }
 
   /**
@@ -252,11 +267,27 @@ export function createConsolidation(options) {
       }
     }
 
-    const noopReasons = countNoopReasons(reviewed.noopReasons)
+    const rejectedCount = reviewed.rejected.length
+    const rejected = countRejections(reviewed.rejected)
+    const operations = {
+      add: 0,
+      update: 0,
+      supersede: 0,
+      noop: reviewed.noopReasons.length,
+      skipped: reviewed.accepted.length,
+    }
 
-    const outcome = config.autoCommit === false
-      ? { committed: { add: 0, update: 0, supersede: 0 }, skipped: reviewed.accepted, failures: [], applied: [] }
-      : await commitOperations(options.actionOptions, reviewed.accepted)
+    if (config.autoCommit === false) {
+      // Nothing was written, so nothing justifies moving past these events.
+      // Advancing here would consume the window permanently and quietly: the
+      // same events would never be offered again, and re-enabling automatic
+      // writes would not recover them.
+      recordAudit(session, { ...auditBase, status: 'observed', operations, rejected: rejectedCount, ...rejected })
+      logger?.info?.(`dsh-memory: consolidation of ${sessionId} observed ${String(auditBase.relevant_events)} event(s) without committing`)
+      return { ...auditBase, status: 'observed', operations, rejected: rejectedCount, ...rejected }
+    }
+
+    const outcome = await commitOperations(options.actionOptions, reviewed.accepted)
 
     if (outcome.failures.length > 0) {
       // Something a review accepted could not be written. The mark stays put, so
@@ -265,8 +296,9 @@ export function createConsolidation(options) {
       recordAudit(session, {
         ...auditBase,
         status: 'partial',
-        operations: { ...outcome.committed, noop: reviewed.noopReasons.length },
-        ...noopReasons,
+        operations: { ...operations, ...outcome.committed },
+        rejected: rejectedCount,
+        ...rejected,
       })
       return { ...auditBase, status: 'partial', committed: outcome.committed, failures: outcome.failures.length }
     }
@@ -276,11 +308,11 @@ export function createConsolidation(options) {
       state: advanceHwm(current, sessionId, window.toSeq, new Date(now()).toISOString()),
     }))
     collector.dropConsumed(sessionId, window.toSeq)
-    const operations = { ...outcome.committed, noop: reviewed.noopReasons.length }
-    recordAudit(session, { ...auditBase, status: 'success', operations, ...noopReasons })
-    const wrote = operations.add + operations.update + operations.supersede
+    const written = { ...operations, ...outcome.committed }
+    recordAudit(session, { ...auditBase, status: 'success', operations: written, rejected: rejectedCount, ...rejected })
+    const wrote = written.add + written.update + written.supersede
     logger?.info?.(`dsh-memory: consolidation of ${sessionId} consumed ${String(auditBase.relevant_events)} event(s) and wrote ${String(wrote)}`)
-    return { ...auditBase, status: 'success', operations, rejected: reviewed.rejected.length }
+    return { ...auditBase, status: 'success', operations: written, rejected: rejectedCount, ...rejected }
   }
 
   const trigger = createTrigger({
@@ -288,12 +320,7 @@ export function createConsolidation(options) {
     logger,
     ...options.schedule === undefined ? {} : { schedule: options.schedule },
     ...options.cancelSchedule === undefined ? {} : { cancelSchedule: options.cancelSchedule },
-    task: (agent) => {
-      const run = consolidate(agent, { trigger: 'idle-debounce' })
-      inFlight = run.finally(() => { if (inFlight === settled) inFlight = undefined })
-      const settled = inFlight
-      return inFlight
-    },
+    task: agent => consolidate(agent, { trigger: 'idle-debounce' }),
   })
 
   return {
@@ -354,14 +381,17 @@ export function createConsolidation(options) {
      * @returns fulfillment once no automatic run is executing.
      */
     async whenSettled() {
-      try {
-        await inFlight
-      } catch (failure) {
-        // The trigger has already reported this failure and left the mark alone.
-        // Waiting is about knowing the run has finished, not about its outcome,
-        // so letting it through here would surface a consolidation error as a
-        // failed `/memory disable` or a failure escaping from unload.
-        logger?.debug?.(`dsh-memory: a consolidation run ended in failure: ${String(failure?.message ?? failure)}`)
+      // Every run, not the most recent one: admission is already blocked and
+      // debounces are cancelled by the caller, so this set only shrinks.
+      const settled = await Promise.allSettled([...runs])
+      for (const result of settled) {
+        if (result.status === 'rejected') {
+          // The trigger has already reported this failure and left the mark
+          // alone. Waiting is about knowing runs have finished, not about their
+          // outcome, so re-raising would surface a consolidation error as a
+          // failed `/memory disable` or a failure escaping from unload.
+          logger?.debug?.(`dsh-memory: a consolidation run ended in failure: ${String(result.reason?.message ?? result.reason)}`)
+        }
       }
     },
 
@@ -376,36 +406,23 @@ export function createConsolidation(options) {
 }
 
 /**
- * Count the reasons a model gave for proposing nothing.
+ * Count rejections by the code the reviewer assigned.
  *
- * The count is what makes an audit answerable — "noop" alone cannot distinguish
- * "the fact was already there" from "the model judged it transient". The reason
- * text is the model's own words, so it is collapsed, truncated, and screened: an
- * audit is a trace, not a place for the turn's text to reappear.
- * @param reasons - the reasons recorded during review.
- * @returns `{ noop_reasons }` when there were any, otherwise an empty object.
+ * The codes are this plugin's own, so an audit can say why operations were
+ * refused without repeating anything a model wrote. A rejection's `reason` is
+ * human prose that can quote the model's own action, scope and target names, and
+ * an audit is a count of what happened, not a place for the turn's text.
+ * @param rejected - the rejections recorded during review.
+ * @returns `{ rejected_reasons }` when there were any, otherwise an empty object.
  */
-function countNoopReasons(reasons) {
-  if (reasons.length === 0) return {}
+function countRejections(rejected) {
+  if (rejected.length === 0) return {}
   const counts = {}
-  for (const reason of reasons) {
-    const key = sanitizeReason(reason)
-    counts[key] = (counts[key] ?? 0) + 1
+  for (const entry of rejected) {
+    const code = typeof entry.code === 'string' ? entry.code : 'other'
+    counts[code] = (counts[code] ?? 0) + 1
   }
-  return { noop_reasons: counts }
-}
-
-/**
- * Make one model-authored reason safe to keep in an audit.
- * @param reason - the reason as the model wrote it.
- * @returns a short single-line reason, screened for secrets.
- */
-function sanitizeReason(reason) {
-  const collapsed = String(reason ?? '').replace(/\s+/gu, ' ').trim()
-  if (collapsed === '') return 'no reason given'
-  if (findSecret(collapsed) !== undefined) return '[redacted]'
-  const points = Array.from(collapsed)
-  return points.length <= NOOP_REASON_MAX_CHARS ? collapsed : `${points.slice(0, NOOP_REASON_MAX_CHARS).join('')}…`
+  return { rejected_reasons: counts }
 }
 
 /**

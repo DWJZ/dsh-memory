@@ -67,7 +67,7 @@ export function reviewPlan(plan, context) {
       continue
     }
     if (review.kind === 'rejected') {
-      rejected.push({ index, reason: review.reason })
+      rejected.push({ index, code: review.code ?? 'other', reason: review.reason })
       continue
     }
     accepted.push(review.operation)
@@ -85,46 +85,46 @@ export function reviewPlan(plan, context) {
  */
 export function reviewOperation(operation, context) {
   if (typeof operation !== 'object' || operation === null || Array.isArray(operation)) {
-    return { kind: 'rejected', reason: 'operation is not an object' }
+    return { kind: 'rejected', reason: 'operation is not an object', code: 'not-an-object' }
   }
   const action = String(operation.action ?? '')
   if (action === 'noop') {
     return { kind: 'noop', reason: typeof operation.reason === 'string' ? operation.reason : 'no reason given' }
   }
   if (!AUTO_ACTIONS.includes(action)) {
-    return { kind: 'rejected', reason: FORBIDDEN_ACTIONS.includes(action)
+    return { kind: 'rejected', code: FORBIDDEN_ACTIONS.includes(action) ? 'action-forbidden' : 'unknown-action', reason: FORBIDDEN_ACTIONS.includes(action)
       ? `"${action}" is not an automatic action`
       : `unknown action "${action}"` }
   }
 
   const content = typeof operation.content === 'string' ? operation.content.trim() : ''
-  if (content === '') return { kind: 'rejected', reason: 'content is empty' }
+  if (content === '') return { kind: 'rejected', reason: 'content is empty', code: 'empty-content' }
   if (charLength(content) > MAX_CONTENT_CHARS) {
-    return { kind: 'rejected', reason: `content is longer than ${String(MAX_CONTENT_CHARS)} characters` }
+    return { kind: 'rejected', reason: `content is longer than ${String(MAX_CONTENT_CHARS)} characters`, code: 'content-too-long' }
   }
-  if (/[\n\r\u2028\u2029]/u.test(content)) return { kind: 'rejected', reason: 'content is not a single line' }
+  if (/[\n\r\u2028\u2029]/u.test(content)) return { kind: 'rejected', reason: 'content is not a single line', code: 'content-not-single-line' }
 
   const confidence = operation.confidence
   if (typeof confidence !== 'number' || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
-    return { kind: 'rejected', reason: 'confidence must be a number in [0, 1]' }
+    return { kind: 'rejected', reason: 'confidence must be a number in [0, 1]', code: 'confidence-not-a-number' }
   }
   if (confidence < context.minConfidence) {
-    return { kind: 'rejected', reason: `confidence ${String(confidence)} is below the floor ${String(context.minConfidence)}` }
+    return { kind: 'rejected', reason: `confidence ${String(confidence)} is below the floor ${String(context.minConfidence)}`, code: 'confidence-below-floor' }
   }
 
   const target = action === 'add' ? undefined : findTarget(operation.target_id, context)
   if (action !== 'add' && target === undefined) {
-    return { kind: 'rejected', reason: `target_id ${JSON.stringify(operation.target_id ?? null)} is not an active Memory this Session can see` }
+    return { kind: 'rejected', reason: `target_id ${JSON.stringify(operation.target_id ?? null)} is not an active Memory this Session can see`, code: 'target-not-visible' }
   }
 
   // `update` and `supersede` take their scope and category from the record they
   // act on, so a proposal cannot move a fact to another project by restating it.
   const scope = target?.scope ?? operation.scope
   const category = target?.category ?? operation.category
-  if (!WRITE_SCOPES.includes(scope)) return { kind: 'rejected', reason: `unknown scope ${JSON.stringify(scope ?? null)}` }
-  if (!CATEGORIES.includes(category)) return { kind: 'rejected', reason: `unknown category ${JSON.stringify(category ?? null)}` }
+  if (!WRITE_SCOPES.includes(scope)) return { kind: 'rejected', reason: `unknown scope ${JSON.stringify(scope ?? null)}`, code: 'unknown-scope' }
+  if (!CATEGORIES.includes(category)) return { kind: 'rejected', reason: `unknown category ${JSON.stringify(category ?? null)}`, code: 'unknown-category' }
   if (scope === 'project' && (context.projectId === undefined || context.projectId === null)) {
-    return { kind: 'rejected', reason: 'project-scope Memory needs a resolved project for this Session' }
+    return { kind: 'rejected', reason: 'project-scope Memory needs a resolved project for this Session', code: 'no-resolved-project' }
   }
 
   const evidence = buildEvidence(operation.evidence_event_seqs, { ...context, content })
@@ -173,23 +173,23 @@ function findTarget(targetId, context) {
  */
 function buildEvidence(seqs, context) {
   if (!Array.isArray(seqs) || seqs.length === 0) {
-    return { kind: 'rejected', reason: 'evidence_event_seqs must be a non-empty array' }
+    return { kind: 'rejected', reason: 'evidence_event_seqs must be a non-empty array', code: 'evidence-missing' }
   }
   if (seqs.some(seq => !Number.isInteger(seq))) {
-    return { kind: 'rejected', reason: 'evidence_event_seqs must contain integers' }
+    return { kind: 'rejected', reason: 'evidence_event_seqs must contain integers', code: 'evidence-not-integers' }
   }
   const unique = [...new Set(seqs)].sort((left, right) => left - right)
   for (const seq of unique) {
     if (seq < context.fromSeq || seq > context.toSeq) {
-      return { kind: 'rejected', reason: `evidence seq ${String(seq)} is outside the window` }
+      return { kind: 'rejected', reason: `evidence seq ${String(seq)} is outside the window`, code: 'evidence-outside-window' }
     }
     if (!context.visibleSeqs.has(seq)) {
-      return { kind: 'rejected', reason: `evidence seq ${String(seq)} was not shown to the model` }
+      return { kind: 'rejected', reason: `evidence seq ${String(seq)} was not shown to the model`, code: 'evidence-not-shown' }
     }
   }
   const cited = unique.map(seq => context.eventsBySeq.get(seq)).filter(Boolean)
   if (cited.length !== unique.length) {
-    return { kind: 'rejected', reason: 'an evidence seq has no event behind it' }
+    return { kind: 'rejected', reason: 'an evidence seq has no event behind it', code: 'evidence-missing-event' }
   }
   // The quote is a truncation of the cited text, so screening the quote alone
   // would miss a credential that straddles the cut: the fragment that survives
@@ -199,11 +199,11 @@ function buildEvidence(seqs, context) {
   const sources = cited.flatMap(event => textBlocks(event))
   const quote = quoteFrom(sources, context.quoteMaxChars)
   if (quote === undefined) {
-    return { kind: 'rejected', reason: 'the cited events carry no text to quote' }
+    return { kind: 'rejected', reason: 'the cited events carry no text to quote', code: 'no-quotable-text' }
   }
   const secret = findSecretIn([context.content, ...sources, quote])
   if (secret !== undefined) {
-    return { kind: 'rejected', reason: `secret-detected: ${secret.name}` }
+    return { kind: 'rejected', code: 'secret-detected', reason: `secret-detected: ${secret.name}` }
   }
   return {
     kind: 'accepted',

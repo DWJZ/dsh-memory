@@ -401,19 +401,36 @@ console.log('the trigger consults the same pipeline')
   check('disposing the orchestrator is safe', true)
 }
 
-console.log('the audit explains a run')
+console.log('the audit explains a run without repeating the model')
 {
   const harnessed = harness({
     sessionId: 'session_audit',
-    modelAnswer: '{"operations":[{"action":"noop","reason":"transient task state"},{"action":"noop","reason":"transient task state"},{"action":"noop","reason":"already represented"}]}',
+    modelAnswer: '{"operations":[{"action":"noop","reason":"transient task state"},{"action":"noop","reason":"already represented"},{"action":"noop","reason":"the user said their name is Ada"}]}',
   })
   observe(harnessed, [human(0, 'run the tests')])
   await harnessed.consolidation.consolidate(harnessed.agent, { trigger: 'manual-command' })
   const audit = harnessed.audit.at(-1).data
   check('the audit names the trigger that ran it', audit.trigger === 'manual-command')
-  check('the audit counts the noop reasons', audit.noop_reasons['transient task state'] === 2
-    && audit.noop_reasons['already represented'] === 1, JSON.stringify(audit.noop_reasons))
-  check('the ops tally agrees with the reasons', audit.operations.noop === 3)
+  check('the audit counts the no-ops', audit.operations.noop === 3)
+  check('and keeps none of the model\'s own words',
+    !JSON.stringify(audit).includes('transient') && !JSON.stringify(audit).includes('Ada'),
+    JSON.stringify(audit))
+}
+
+{
+  // A rejection is recorded by our own code, never by the model's text.
+  const harnessed = harness({
+    sessionId: 'session_audit_codes',
+    modelAnswer: '{"operations":[{"action":"delete","target_id":"mem_secret_name"}]}',
+  })
+  observe(harnessed, [human(0, 'run the tests')])
+  await harnessed.consolidation.consolidate(harnessed.agent)
+  const audit = harnessed.audit.at(-1).data
+  check('a rejection is recorded under our own code',
+    audit.rejected_reasons?.['action-forbidden'] === 1, JSON.stringify(audit.rejected_reasons))
+  check('the count agrees', audit.rejected === 1)
+  check('the model\'s own target name never reaches the audit',
+    !JSON.stringify(audit).includes('mem_secret_name'))
 }
 
 {
@@ -473,6 +490,53 @@ console.log('a run that did nothing writes no audit')
     refused = String(error.message).includes('already driving')
   }
   check('an agent that cannot grant the phase refuses rather than running beside the turn', refused === true)
+}
+
+console.log('teardown waits for every run, not the newest one')
+{
+  // Two Sessions consolidate concurrently. The one that starts second can finish
+  // first, and a single tracking slot would then report that nothing is in
+  // flight while the first is still writing.
+  const gates = new Map()
+  const parked = (request) => new Promise(resolve => {
+    const key = JSON.stringify(request).includes('second Session') ? 'b' : 'a'
+    gates.set(key, () => resolve('{"operations":[]}'))
+  })
+  const harnessed = harness({ sessionId: 'session_multi_a', modelAnswer: parked })
+  // The second Session has nothing relevant, so its run ends immediately. That
+  // is what clears a single tracking slot while the first is still writing.
+  const phasesB = []
+  const agentB = {
+    session: { id: 'session_multi_b', header: { id: 'session_multi_b', cwd: PROJECT } },
+    status: 'idle',
+    async runMaintenance(task) {
+      phasesB.push('busy')
+      try {
+        return await task(new AbortController().signal)
+      } finally {
+        phasesB.splice(phasesB.indexOf('busy'), 1)
+      }
+    },
+  }
+  observe(harnessed, [human(0, '这个项目用 pnpm')])
+
+  const runA = harnessed.consolidation.consolidate(harnessed.agent)
+  for (let turns = 0; !gates.has('a'); turns += 1) {
+    if (turns > 10000) throw new Error('the first run never reached the model')
+    await new Promise(resolve => { setImmediate(resolve) })
+  }
+  const runB = await harnessed.consolidation.consolidate(agentB)
+  check('the second Session had nothing to consolidate', runB.status === 'nothing-observed', JSON.stringify(runB))
+  let settled = false
+  const waiting = harnessed.consolidation.whenSettled().then(() => { settled = true })
+  // Give a wait that had nothing to wait for every chance to report itself, so
+  // the assertion cannot pass merely because the callback has not run yet.
+  await new Promise(resolve => { setImmediate(resolve) })
+  check('the wait is still pending while the earlier run is in flight', settled === false)
+  gates.get('a')()
+  await waiting
+  check('and it ends once that run does', settled === true)
+  await runA
 }
 
 console.log('waiting for a run survives the run failing')
