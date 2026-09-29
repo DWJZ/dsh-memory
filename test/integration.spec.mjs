@@ -183,6 +183,17 @@ function mainRequests(log) {
  * @param log - the recorded request log.
  * @returns the serialized requests.
  */
+/**
+ * The injected Memory index inside one request, or an empty string.
+ * @param text - the concatenated request text.
+ * @returns the index body.
+ */
+function indexTextOf(text) {
+  const start = text.indexOf('<memory-index>')
+  const end = text.indexOf('</memory-index>')
+  return start < 0 || end < start ? '' : text.slice(start, end)
+}
+
 function requestText(log) {
   return JSON.stringify(mainRequests(log).map(request => request.messages))
 }
@@ -319,7 +330,11 @@ const projectBSession = await runSession({ project: PROJECT_B, task: '装个依�
 check('the second project Session runs', projectBSession.code === 0, projectBSession.stderr.slice(0, 400))
 const projectBRequest = requestText(projectBSession.log)
 check('the second project sees its own fact', projectBRequest.includes('[state] 该项目使用 npm'))
-check('the second project does not see the first project\'s fact', !projectBRequest.includes('该项目使用 pnpm'))
+// The assertion is about the injected index, not about the whole request: a
+// request also carries tool-call arguments, and those legitimately quote what the
+// user said in that project.
+check('the second project does not see the first project\'s fact',
+  !indexTextOf(projectBRequest).includes('该项目使用 pnpm'))
 check('user Memory is visible from the second project', projectBRequest.includes('用户偏好中文解释'))
 
 console.log('27.4 an explicit supersede retires the record it replaces')

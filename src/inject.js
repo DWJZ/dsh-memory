@@ -28,6 +28,55 @@ export const MEMORY_INDEX_NAME = 'memory:index'
  */
 export const MEMORY_INDEX_ORDER = 130
 
+/** Stable name of the Memory policy section. */
+export const MEMORY_POLICY_NAME = 'memory:policy'
+
+/**
+ * Where the policy sits among the prompt sections.
+ *
+ * The harness allocates named positions for its own sections; a local plugin has
+ * no name there, so this is a literal like the index context order. It lands
+ * just before the tool sections, so the model reads the rule before the tool
+ * catalogue that acts on it.
+ */
+export const MEMORY_POLICY_ORDER = 950
+
+/**
+ * The boundary between the two paths into Memory.
+ *
+ * This is a prompt section rather than part of the tool description because a
+ * description only speaks once the model is already considering the tool. A real
+ * run showed the model deciding on its own that a statement was worth keeping and
+ * calling `memory_remember` on it, which takes that decision away from
+ * consolidation and makes what Memory holds depend on the model's tool-calling
+ * habits. The rule belongs in front of the turn, not attached to the call.
+ */
+export const MEMORY_POLICY_TEXT = [
+  'Memory has two separate paths, and they are not interchangeable.',
+  '',
+  'Call `memory_remember` only when the user explicitly asks for something to be remembered,',
+  'saved, or kept for later sessions — "记住", "记一下", "remember this", "save this to memory".',
+  '',
+  'Do not call it because information looks important, durable, useful, or likely to matter later.',
+  'When the user merely states a preference, a project fact, or a decision without asking for it to be kept,',
+  'leave it to the consolidation subsystem, which reads the finished turn and decides whether it becomes Memory.',
+  'Persisting it yourself instead removes that judgement from the subsystem, and makes what Memory holds depend',
+  'on your own reading of the turn.',
+].join('\n')
+
+/**
+ * Register the Memory policy section.
+ * @param ctx - the injection scope that owns the runtime.
+ * @returns the disposer that removes the section.
+ */
+export function registerMemoryPolicy(ctx) {
+  return ctx.systemPrompt.section({
+    name: MEMORY_POLICY_NAME,
+    order: MEMORY_POLICY_ORDER,
+    text: MEMORY_POLICY_TEXT,
+  })
+}
+
 /**
  * Register the always-visible Memory index.
  * @param ctx - Cordis context of this plugin's fiber.

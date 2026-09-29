@@ -154,6 +154,21 @@ check('a missing user store still leaves the project scope readable',
 writeFileSync(userStorePath, savedUserStore)
 check('the restored store renders again', settleIndex(agentStub()).text.includes('用户偏好中文解释'))
 
+console.log('the two paths into Memory are separated in the prompt')
+const policy = ctx.registrations.sections[0]
+check('a Memory policy section is registered', policy !== undefined)
+check('the section is named', policy?.name === 'memory:policy')
+check('the section has a finite order', Number.isFinite(policy?.order))
+check('the policy precedes the tool catalogue', policy?.order < 1000)
+check('the policy names the explicit request as the only trigger',
+  String(policy?.text).includes('only when the user explicitly asks'))
+check('the policy rejects importance as a reason to write',
+  String(policy?.text).includes('Do not call it because information looks important'))
+check('the policy hands ordinary statements to consolidation',
+  String(policy?.text).includes('leave it to the consolidation subsystem'))
+check('the policy is not the index notice',
+  !String(policy?.text).includes('<memory-index>'))
+
 console.log('memory tools')
 const search = toolNamed(ctx, 'memory_search')
 const get = toolNamed(ctx, 'memory_get')
@@ -165,12 +180,19 @@ check('remember requires a mode and content',
   remember.parameters.required.includes('mode') && remember.parameters.required.includes('content'))
 check('remember documents the modes',
   JSON.stringify(remember.parameters.properties.mode.enum) === '["add","update","supersede"]')
-check('remember tells the model when to call it',
-  remember.description.includes('when the user asks you to remember'))
-check('remember keeps unprompted saving out of scope',
-  remember.description.includes('Do not call it unasked') && remember.description.includes('the repository already records'))
-// A real run had the model refuse an explicit request because the description
-// read as a flat prohibition. The filter must be scoped to unprompted writes.
+// A real run had the model call this tool on an ordinary statement, taking the
+// decision away from consolidation. The description now gates on the request
+// rather than on the model's own judgement of importance.
+check('remember gates on an explicit request',
+  remember.description.includes('ONLY when the user explicitly asks'))
+check('remember refuses importance as a reason',
+  remember.description.includes('Do NOT call it merely because information looks important'))
+check('remember says the decision is not the model\'s to make',
+  remember.description.includes('do not decide on your own what is worth remembering'))
+check('remember points at the subsystem that does decide',
+  remember.description.includes('consolidation subsystem'))
+// The other real-run failure: a flat prohibition once made the model refuse an
+// explicit request, so the gate must not swallow a genuine one.
 check('remember states that the repository filter never overrides a request',
   remember.description.includes('saved even when a file also states it'))
 check('remember says the request is the instruction',

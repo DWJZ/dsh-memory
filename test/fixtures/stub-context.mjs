@@ -18,7 +18,7 @@
  * @returns the stub context and its registration record.
  */
 export function createStubContext(options = {}) {
-  const registrations = { contexts: [], tools: [], commands: [], listeners: new Map(), disposeCalls: 0 }
+  const registrations = { contexts: [], sections: [], tools: [], commands: [], listeners: new Map(), disposeCalls: 0 }
   const withheld = new Set(options.without ?? [])
   const warnings = []
   const infos = []
@@ -102,6 +102,13 @@ export function createStubContext(options = {}) {
       return fiber
     },
     systemPrompt: {
+      section(entry) {
+        registrations.sections.push(entry)
+        return counted(() => {
+          const index = registrations.sections.indexOf(entry)
+          if (index >= 0) registrations.sections.splice(index, 1)
+        })
+      },
       context(entry) {
         registrations.contexts.push(entry)
         return counted(() => {

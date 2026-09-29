@@ -45,12 +45,12 @@ const GET_DESCRIPTION = [
 ].join(' ')
 
 const REMEMBER_DESCRIPTION = [
-  'Save a fact to long-term Memory.',
-  'Call this when the user asks you to remember, update, or replace something.',
-  'Do not call it unasked: without such a request, skip temporary task state, an unverified guess,',
-  'and anything the repository already records.',
-  'That filter applies only to deciding what to save on your own; a fact the user asked you to remember is saved even when a file also states it,',
-  'because the request is the instruction and the file is not Memory.',
+  'Save a fact to long-term Memory at the user\'s request.',
+  'Use this ONLY when the user explicitly asks for information to be remembered, saved, persisted, or kept for later sessions.',
+  'Do NOT call it merely because information looks important, durable, useful, or likely to matter later,',
+  'and do not decide on your own what is worth remembering.',
+  'A fact the user asked you to remember is saved even when a file also states it, because the request is the instruction and the file is not Memory.',
+  'Learning from ordinary conversation is handled after the turn by the consolidation subsystem, which reads the trajectory and decides what, if anything, becomes Memory.',
   'mode=add creates a Memory and carries scope and category.',
   'mode=update restates one Memory and requires target_id.',
   'mode=supersede replaces one Memory with a newer fact and requires target_id;',

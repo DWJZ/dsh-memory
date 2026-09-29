@@ -144,8 +144,12 @@ class MemoryMockAdapter extends LlmAdapter {
       return
     }
     // One call per transcript: a write that the plugin refused must not be
-    // retried, or the turn would never end.
-    if (!transcript.includes(TRIGGER) || transcript.includes('memory_remember')) {
+    // retried, or the turn would never end. The check looks for the tool-call
+    // block itself, because the Memory policy section legitimately mentions the
+    // tool by name in the prompt and a substring test would mistake the rule for
+    // a call that had already happened.
+    const alreadyCalled = transcript.includes('"name":"memory_remember"')
+    if (!transcript.includes(TRIGGER) || alreadyCalled) {
       yield * answer('acknowledged')
       return
     }

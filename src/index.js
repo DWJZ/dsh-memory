@@ -25,7 +25,7 @@ import { projectLayout, registryLayout, tombstoneLayout, userLayout, consolidati
 import { readRegistry, resolveProject } from './registry.js'
 import { cleanupStaleTemps, readStore } from './jsonstore.js'
 import { rebuildView } from './views.js'
-import { buildProvenance, createTurnTracker, registerMemoryIndex } from './inject.js'
+import { buildProvenance, createTurnTracker, registerMemoryIndex, registerMemoryPolicy } from './inject.js'
 import { registerMemoryTools } from './tools.js'
 import { registerMemoryCommands } from './commands.js'
 import { renderMemoryIndex } from './retention.js'
@@ -103,6 +103,7 @@ function createController(ctx, settings) {
   const mountRuntime = () => {
     if (runtimeFiber !== null) return
     runtimeFiber = ctx.inject(['systemPrompt', 'tools'], (scope) => {
+      registerMemoryPolicy(scope)
       registerMemoryIndex(scope, agent => renderIndex(deps, agent))
       registerMemoryTools(scope, deps)
     })
