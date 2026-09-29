@@ -19,6 +19,7 @@ const { readStore } = await import(pathToFileURL(join(PLUGIN, 'src/jsonstore.js'
 const { userLayout, projectLayout, tombstoneLayout } = await import(pathToFileURL(join(PLUGIN, 'src/paths.js')).href)
 const { findSecret } = await import(pathToFileURL(join(PLUGIN, 'src/redact.js')).href)
 const { newProjectId } = await import(pathToFileURL(join(PLUGIN, 'src/schema.js')).href)
+const { memoryRecord } = await import('./fixtures/records.mjs')
 
 let failures = 0
 const check = (name, condition, detail = '') => {
@@ -505,6 +506,44 @@ rmSync(blockedTombstones, { recursive: true, force: true })
 writeFileSync(blockedTombstones, savedTraces)
 check('an empty scope reports nothing to clear, without a trace',
   (await actions.clearScope(clocked(135000), { scope: 'user' })).action === 'noop')
+
+console.log('historical_evidence_not_reaudited_on_archive')
+// A record written when the detection rules were weaker: its stored quote holds
+// something today's rules would refuse. Screening is a property of a write, so
+// this canonical record stays valid, and retiring it must not fail.
+const historicalQuote = `sk-${'B'.repeat(24)}`
+const historical = memoryRecord({
+  category: 'reference',
+  content: '旧记录：部署 key 存在密码管理器',
+  created_at: AT,
+  updated_at: AT,
+  evidence: [{
+    kind: 'user',
+    session_id: 'session-before-the-rule',
+    quote: historicalQuote,
+    event_seqs: [],
+    observed_at: AT,
+  }],
+})
+const userStore = userLayout(MEMORY).storePath
+writeFileSync(userStore, `${JSON.stringify({ schema_version: 1, revision: 1, records: [historical] }, null, 2)}\n`)
+check('the historical record loads, since screening is not a schema rule',
+  readStore(userStore).records.length === 1)
+check('the same text is still refused when a write introduces it today',
+  (await actions.addMemory(clocked(138000), {
+    content: 'new fact',
+    scope: 'user',
+    category: 'state',
+    evidence: evidence({ quote: historicalQuote }),
+  })).action === 'noop')
+
+const archivedHistorical = await settles(() => actions.archiveMemory(clocked(139000), { id: historical.id }))
+check('archiving a record whose historical evidence would fail today succeeds',
+  archivedHistorical.ok === true, String(archivedHistorical.failure?.message))
+const afterArchive = readStore(userStore).records.find(record => record.id === historical.id)
+check('the record is archived', afterArchive?.status === 'archived')
+check('the historical quote is left exactly as it was',
+  afterArchive?.evidence[0].quote === historicalQuote)
 
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)

@@ -200,26 +200,26 @@ function createController(ctx, settings) {
 /**
  * Render the injected index for one agent.
  *
- * A failure here must never break a model request, so it degrades to an empty
- * index and a warning rather than propagating.
+ * A canonical read failure propagates rather than degrading to an empty index.
+ * `memories.json` is the source of truth, so a store that violates its own
+ * schema is a fault to report, not a Memory that happens to be empty: swallowing
+ * it would leave the agent quietly amnesiac, which is harder to notice and
+ * harder to diagnose than a turn that names the broken file. The throw reaches
+ * the model request through this context function, so the turn stops there.
+ *
+ * A store that is simply absent is not corruption: `readStore` returns an empty
+ * store for it, which is what a first run looks like.
  * @param deps - resolved settings and layouts.
  * @param agent - the agent whose request is being assembled.
- * @returns the index text, or an empty string.
+ * @returns the index text, or an empty string when there is nothing to inject.
+ * @throws when a canonical store cannot be read or violates its schema.
  */
 function renderIndex(deps, agent) {
-  try {
-    const project = deps.projectFor(agent)
-    return renderMemoryIndex(
-      {
-        user: readStore(deps.scopes.user.storePath).records,
-        project: project === null ? [] : readStore(deps.scopes.project(project.project_id).storePath).records,
-      },
-      { budgetBytes: deps.config.indexBudgetBytes, split: deps.config.indexBudgetSplit },
-    )
-  } catch (failure) {
-    deps.logger?.warn(`dsh-memory: could not render the Memory index: ${String(failure?.message ?? failure)}`)
-    return ''
-  }
+  const project = deps.projectFor(agent)
+  return renderMemoryIndex({
+    user: readStore(deps.scopes.user.storePath).records,
+    project: project === null ? [] : readStore(deps.scopes.project(project.project_id).storePath).records,
+  }, { budgetBytes: deps.config.indexBudgetBytes, split: deps.config.indexBudgetSplit })
 }
 
 /**
