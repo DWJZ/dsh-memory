@@ -475,6 +475,33 @@ console.log('a run that did nothing writes no audit')
   check('an agent that cannot grant the phase refuses rather than running beside the turn', refused === true)
 }
 
+console.log('waiting for a run survives the run failing')
+{
+  // Teardown waits for whatever is in flight. A failed run must not turn that
+  // wait into a second failure that escapes into `/memory disable` or unload.
+  const timers = []
+  const harnessed = harness({
+    sessionId: 'session_failing_run',
+    modelAnswer: () => { throw new Error('the provider refused the call') },
+    schedule: (run) => { timers.push(run); return timers.length },
+    cancelSchedule: () => {},
+  })
+  observe(harnessed, [human(0, '这个项目用 pnpm')])
+  harnessed.consolidation.statusChanged(harnessed.agent, 'idle')
+  const firing = timers[0]()
+  let waitedCleanly = false
+  try {
+    await harnessed.consolidation.whenSettled()
+    waitedCleanly = true
+  } catch {
+    waitedCleanly = false
+  }
+  check('waiting for a failing run does not raise the failure again', waitedCleanly === true)
+  await firing.catch(() => undefined)
+  check('the trigger reported the failure and kept the mark',
+    Object.keys(state.readState(STATE.statePath).sessions).every(id => id !== 'session_failing_run'))
+}
+
 console.log('a Session that produced nothing is not an error')
 {
   const harnessed = harness({ sessionId: 'session_silent' })

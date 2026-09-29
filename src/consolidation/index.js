@@ -354,7 +354,15 @@ export function createConsolidation(options) {
      * @returns fulfillment once no automatic run is executing.
      */
     async whenSettled() {
-      await inFlight
+      try {
+        await inFlight
+      } catch (failure) {
+        // The trigger has already reported this failure and left the mark alone.
+        // Waiting is about knowing the run has finished, not about its outcome,
+        // so letting it through here would surface a consolidation error as a
+        // failed `/memory disable` or a failure escaping from unload.
+        logger?.debug?.(`dsh-memory: a consolidation run ended in failure: ${String(failure?.message ?? failure)}`)
+      }
     },
 
     /**
