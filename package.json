@@ -11,9 +11,9 @@
   "homepage": "https://github.com/DWJZ/dsh-memory#readme",
   "main": "lib/index.js",
   "scripts": {
-    "test": "npm run test:unit && node test/client.smoke.mjs",
-    "test:unit": "node test/paths.spec.mjs && node test/config.spec.mjs && node test/schema.spec.mjs && node test/module.spec.mjs && node test/redact.spec.mjs && node test/lock.spec.mjs && node test/jsonstore.spec.mjs && node test/views.spec.mjs && node test/registry.spec.mjs && node test/actions.spec.mjs && node test/tombstones.spec.mjs && node test/search.spec.mjs && node test/index.spec.mjs && node test/concurrent.spec.mjs && node test/registry-concurrent.spec.mjs && node test/wiring.spec.mjs && node test/commands.spec.mjs && node test/consolidation-state.spec.mjs && node test/consolidation-collector.spec.mjs && node test/consolidation-trigger.spec.mjs && node test/consolidation-model.spec.mjs && node test/consolidation-validate.spec.mjs && node test/consolidation-commit.spec.mjs && node test/consolidation-run.spec.mjs",
-    "test:integration": "node test/integration.spec.mjs",
+    "test": "npm run test:unit && node --import tsx/esm test/client.smoke.mjs",
+    "test:unit": "node --import tsx/esm test/paths.spec.mjs && node --import tsx/esm test/config.spec.mjs && node --import tsx/esm test/schema.spec.mjs && node --import tsx/esm test/module.spec.mjs && node --import tsx/esm test/redact.spec.mjs && node --import tsx/esm test/lock.spec.mjs && node --import tsx/esm test/jsonstore.spec.mjs && node --import tsx/esm test/views.spec.mjs && node --import tsx/esm test/registry.spec.mjs && node --import tsx/esm test/actions.spec.mjs && node --import tsx/esm test/tombstones.spec.mjs && node --import tsx/esm test/search.spec.mjs && node --import tsx/esm test/index.spec.mjs && node --import tsx/esm test/concurrent.spec.mjs && node --import tsx/esm test/registry-concurrent.spec.mjs && node --import tsx/esm test/wiring.spec.mjs && node --import tsx/esm test/commands.spec.mjs && node --import tsx/esm test/consolidation-state.spec.mjs && node --import tsx/esm test/consolidation-collector.spec.mjs && node --import tsx/esm test/consolidation-trigger.spec.mjs && node --import tsx/esm test/consolidation-model.spec.mjs && node --import tsx/esm test/consolidation-validate.spec.mjs && node --import tsx/esm test/consolidation-commit.spec.mjs && node --import tsx/esm test/consolidation-run.spec.mjs",
+    "test:integration": "node --import tsx/esm test/integration.spec.mjs",
     "test:all": "npm run test && npm run test:integration",
     "typecheck": "tsc -p tsconfig.json",
     "build": "tsc -p tsconfig.build.json",
@@ -64,6 +64,7 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.4",
     "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
 }
