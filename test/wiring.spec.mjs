@@ -252,6 +252,54 @@ check('a fresh start honours the stored switch', restartedAgain.registrations.to
 check('a fresh start still registers the command', restartedAgain.registrations.commands.length === 1)
 console.log('a fresh start still reports the stored state', String((await runCommand(restartedAgain, '')).text).includes('disabled'))
 
+console.log('the consolidation seams are wired')
+// An agent-only window is consumed without asking a model, so this exercises the
+// whole path — listener, collector, window, mark — without needing one.
+const consolidationCtx = start({ ...CONFIG, enabled: true })
+await runCommand(consolidationCtx, 'enable')
+// Two listeners observe committed events: the Phase 1 turn tracker for
+// provenance, and the Phase 2 collector for consolidation.
+check('the plugin listens for committed Session events',
+  (consolidationCtx.registrations.listeners.get('session/event') ?? []).length === 2)
+check('the plugin listens for agent status changes',
+  (consolidationCtx.registrations.listeners.get('agent/status') ?? []).length === 1)
+const consolidateAgent = agentStub('session-consolidate', null)
+consolidationCtx.emit('session/event', consolidateAgent.session, {
+  seq: 0,
+  type: 'assistant/message',
+  data: { message: { content: [{ type: 'text', text: 'I ran the tests.' }] } },
+})
+const consolidated = await runCommand(consolidationCtx, 'consolidate', consolidateAgent)
+check('the collected window reaches the pipeline',
+  String(consolidated.text).includes('0..0'), String(consolidated.text))
+check('an agent-only window is consumed rather than sent to a model',
+  String(consolidated.text).includes('no human turn'), String(consolidated.text))
+const again = await runCommand(consolidationCtx, 'consolidate', consolidateAgent)
+check('the mark advanced, so nothing is left to consolidate',
+  String(again.text).includes('Nothing new to consolidate'), String(again.text))
+const dryOnly = await runCommand(consolidationCtx, 'consolidate --dry-run', consolidateAgent)
+check('a dry run over a consumed window reports the same',
+  String(dryOnly.text).includes('Nothing new to consolidate'), String(dryOnly.text))
+
+console.log('consolidation respects its own switch')
+const offCtx = start({ ...CONFIG, enabled: true, consolidation: { enabled: false } })
+await runCommand(offCtx, 'enable')
+const refused = await runCommand(offCtx, 'consolidate', agentStub('session-off'))
+check('the command refuses when consolidation is off',
+  refused.kind === 'error' && String(refused.text).includes('consolidation is turned off'))
+offCtx.emit('session/event', agentStub('session-off').session, {
+  seq: 0,
+  type: 'assistant/message',
+  data: { message: { content: [{ type: 'text', text: 'ignored' }] } },
+})
+check('nothing is collected while it is off',
+  String((await runCommand(offCtx, 'consolidate', agentStub('session-off'))).text).includes('turned off'))
+// The stored switch is shared by the sections below; put it back as they expect.
+await runCommand(offCtx, 'disable')
+await runCommand(consolidationCtx, 'disable')
+await disposeEffects(offCtx)
+await disposeEffects(consolidationCtx)
+
 console.log('disable_disposes_inject_fiber')
 const fiberCtx = start()
 // The stored switch is "disabled" from the section above, so enable first and

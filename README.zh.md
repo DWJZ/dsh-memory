@@ -11,7 +11,9 @@ kind: "plugin-reference"
 
 `dsh-memory` 让 Harness agent 拥有跨 Session 的长期 Memory。它保存用户明确要求记住的内容，把用户级与项目级事实分开，在每个新 Session 注入一小段 active 事实的索引，并通过 `/memory` 暴露整个存储。
 
-Phase 1 只做基础设施：它不自动从 trajectory 提炼，也不对 Memory 的含义做语义推理。一条事实进入 Memory 是因为用户要求；一条记录被替代是因为模型指名了哪一条。语义留在模型侧，存储留在这里。
+一条事实进入 Memory 有两条路径：用户要求记住，或者插件自己学到。后者发生在 Session 空闲且持续空闲之后 —— 自上次 consolidation 以来的轨迹会被读取一次，由模型判断其中哪些值得长期保留。但"能不能存"由插件决定：它会逐条核验引用、应用置信度门槛、扫描 secret，并走与显式请求**完全相同**的落盘路径。自动 consolidation **从不删除任何东西**。
+
+自动学习不是什么：它不在用户工作时运行；不会每次重读整个 Session；也不会存储任何无法在轨迹里指出出处的东西。
 
 本插件实现的契约 —— 存储位置、数据模型、操作语义、并发保证与验收标准 —— 是 [CONTRACT.md](CONTRACT.md)，测试按它编写。
 
@@ -85,6 +87,7 @@ project:
 /memory forget <id>
 /memory clear --user|--project --yes
 /memory export [--user|--project] [--format md|json]
+/memory consolidate [--dry-run]
 /memory enable | /memory disable
 /memory project bind <path> | relink <old> <new> | show
 ```
@@ -110,6 +113,7 @@ project:
 | `maxEvidencePerMemory` | `8` | 写者每条记录保留的 provenance 条数；更早写入的更长列表仍可读 |
 | `exportInlineMaxBytes` | `24000` | `/memory export` 内联输出上限 |
 | `evidenceQuoteMaxChars` | `200` | 存储的 quote 上限，单位是 code point |
+| `consolidation` | 见下 | 自动学习；`{ enabled, autoCommit, debounceMs, minConfidence, maxRelevantEventsPerBatch, maxTrajectoryBytesPerBatch, maxOutputTokens }` |
 
 没有 `memoryDir`：Memory 必须属于 harness，部署不能把它指到项目里。
 

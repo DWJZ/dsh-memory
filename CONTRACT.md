@@ -803,3 +803,141 @@ Trajectory → Automatic Consolidation → 语义 dedupe / update / supersede
 ```
 
 以及正式的 Memory OFF vs Memory ON MemEval。Phase 1 到这里停止继续扩设计。
+
+---
+
+# Phase 2：同步自动 consolidation
+
+Phase 2 增加的是**从新 Session 轨迹自动提炼持久 Memory**。它决定"该记什么"；Phase 1 继续负责"如何安全落盘"，本节不修改 Phase 1 的存储、锁、schema、project identity、检索与派生视图。
+
+```text
+新 Session 事件（mark 之后）
+        ↓ 过滤 ignorable / 内部事件
+        ↓ 人类轮次门禁
+        ↓ 一次 consolidation LLM 调用
+        ↓ 结构化 operation plan
+        ↓ 确定性校验（含 evidence seq 核验）
+        ↓ 复用 Phase 1 actions 提交
+        ↓ 前进 mark
+```
+
+## P2-1. 轨迹边界：插件维护自己的投影
+
+**不得使用已弃用的同步会话历史读取**（`Session.eventAt` / `snapshotEvents` / `ownEvents`）。依据 `.agents/notes/implemented/architecture/2026-09-09-deprecate-synchronous-session-event-reads.md`；该决定同时禁止"提供同样同步历史访问的新别名或包装"。
+
+因此 collector 订阅 `session/event`（post-commit 追加流，与 Phase 1 的 provenance 同一机制），增量维护按 Session 的事件投影。轨迹边界就是该投影。
+
+由此产生的语义，必须按下面写明，不得含糊：
+
+```text
+mark = 已消费到的 seq，不是可从存储重读的光标。
+```
+
+- **正常情形**（插件在该 Session 产生事件前已挂载）：投影覆盖全部新事件，mark 精确推进。
+- **间断情形**（Session resume、插件晚挂载、进程重启、缓冲被上限截断）：投影看不到那一段。此时**不得**回读，也**不得**假装读过。规则：把这段区间记为一次 **gap**（`from_seq` / `to_seq` / `at`），mark 跳过它。gap 必须落在 `consolidation-state.json` 里，并计入审计，使"没看见"与"看了但没有值得记的"可区分。
+- 从未观测过的 Session（无 mark 且无事件）报 `nothing-observed`；已消费完的 Session 报 `nothing-pending`。两者不同，不得合并。
+
+## P2-2. 进度文件
+
+```text
+$DSH_HOME/memory/consolidation-state.json
+```
+
+```json
+{
+  "schema_version": 1,
+  "sessions": {
+    "session_abc": {
+      "last_processed_seq": 241,
+      "gaps": [{ "from_seq": 183, "to_seq": 199, "at": "2026-09-29T..." }],
+      "updated_at": "2026-09-29T..."
+    }
+  }
+}
+```
+
+规则：
+
+- `last_processed_seq` 以**原始 `SessionEvent.seq`** 为坐标，不是"相关事件数"或"人类消息数"；
+- 未消费过时为 `-1`（**不是 0**：seq 0 是真实事件，两者不能长得一样）；
+- mark **只前进**：迟到的批次不得把它拉回去；
+- 读写走与 Phase 1 相同的锁与原子写；损坏的状态文件 **fail loud**，不得重置。
+- 文件不存在是首次运行，读作空状态。
+
+## P2-3. 过滤规则（四类，顺序有意义）
+
+```text
+ignorable === true   → 忽略：不送模型、不可作 evidence，但必须被 mark 消费
+dsh-memory/*         → 内部事件：同上，另按命名空间排除（纵深防御）
+已知且承载轮次内容    → 归一化后送模型（user/message、assistant/message、tool/call、tool/result、developer/message）
+已知但只是簿记        → 消费、不送、不失败
+本 build 不认识       → **停止本批次并指名类型**
+```
+
+最后一类是刻意的：harness 用 `ignorable: true` 标记"读者可以安全跳过"，没有该标记即意味着读者应当看得懂 —— 会话日志自身遇到不认识的事件类型也是拒绝读取。**不得实现"不认识就静默丢弃"。**
+
+**人类轮次门禁**：`user/message` 同时承载合成的注入内容（AGENTS.md、skill、文件变更通知等），因此门禁判据是 `source.kind === 'user'`，不是事件类型本身。窗口内没有人类轮次时：不调用模型，消费窗口，审计记 `no-human-turn`。
+
+## P2-4. 模型输出与插件权威
+
+模型只提议操作，且只允许 `add` / `update` / `supersede` / `noop`。**不得**自动 `forget` / `clear` / `delete` / `archive`。
+
+模型**不得提供被持久化的 evidence**：它只给 `evidence_event_seqs`，插件负责核验（存在、在窗口内、确实送给过模型、非 ignorable、非内部事件）并**自行**从被引用事件取 quote、过 secret 扫描、构造 provenance。
+
+两类问题的处理**不同**：
+
+```text
+计划读不出来（非对象 / operations 非数组）→ 整批失败，mark 不动
+单个操作站不住脚（目标无效、evidence 不实、低于置信度、命中 secret）→ 丢弃该操作并记原因，其余照常提交，窗口消费
+```
+
+`update` / `supersede` 的 scope 与 category **继承自目标记录**，模型给出的同名字段被忽略，因此一次改写不能把事实挪到另一个 project。
+
+置信度门槛 `minConfidence` 默认 `0.8`；低于门槛视为不持久化。
+
+## P2-5. 提交与失败语义
+
+提交**必须**复用 Phase 1 的 `addMemory` / `updateMemory` / `supersedeMemory`：同一把锁、同一 secret 扫描、同一 canonical 校验、同一视图重建。不得新增第二套存储写入路径。
+
+```text
+committed（added/updated/superseded）→ Memory 已变
+skipped（duplicate / conflict）       → Memory 未变且没出错，不得拖住 mark
+failed（写入没发生）                  → mark 不动，窗口重试
+```
+
+成功、仅 NOOP、仅 ignorable、无人类轮次 → **都算成功并前进 mark**（否则同一段无关轨迹会被永远重新检查）。任何失败、以及**部分提交**，mark 都不前进；重试时**重读最新 Memory 状态重新决策**，不重放旧计划。
+
+有界输入：超过 `maxRelevantEventsPerBatch` / `maxTrajectoryBytesPerBatch` 时只消费最旧的有界前缀，mark 只前进到该前缀末尾。单个超大事件仍必须被消费（截断其文本），否则该窗口永远无法前进。
+
+## P2-6. 审计
+
+每次运行写一条 `dsh-memory/consolidation` Session 事件，**标记 `ignorable: true`**，内容为计数：`from_seq` / `to_seq` / `relevant_events` / `ignored_events` / `operations` / `status`。
+
+不得写入：secret、完整轨迹、完整 Memory 内容。审计用于调试与评估，不是第二份 Memory。
+
+审计写入失败**不得**让 mark 回退（提交才是保证，留痕只是留痕），但要 warn。审计事件不可能喂回下一轮：collector 按命名空间排除自己的事件。
+
+## P2-7. 不修改的部分
+
+`jsonstore.js`、`registry.js`、`retrieval.js`、Phase 1 锁设计、canonical schema、project identity、`MEMORY.md` 派生、`memory_search` / `memory_get` / `memory_remember` 的既有语义。
+
+Phase 1 的 secret writer-policy 同样适用于 Phase 2：新增文本（新 content、新 quote、被引用的完整源文本）必须过扫描；历史 evidence 不因无关操作被按新规则重扫。
+
+## P2-8. Phase 2 DoD
+
+- [ ] 只消费 mark 之后的事件；`only_new_events_are_collected`
+- [ ] `ignorable` 事件不送模型、不可作 evidence，但仍被 mark 消费
+- [ ] 内部事件不影响学习，且不产生反馈环
+- [ ] 不认识的**非** ignorable 事件不被静默丢弃
+- [ ] 无法观测的区间被记为 gap 而不是静默跳过
+- [ ] 人类轮次门禁生效；无人类轮次的窗口被消费且不调用模型
+- [ ] 模型只能提议 add / update / supersede / noop；删除类操作被拒
+- [ ] evidence seq 逐条核验；provenance 由插件构造
+- [ ] 低于 `minConfidence` 的操作不落盘
+- [ ] update / supersede 的 scope 与 category 继承自目标
+- [ ] 提交复用 Phase 1 actions（同一锁、同一 secret 扫描、同一视图重建）
+- [ ] 成功 / NOOP / 仅 ignorable / 无人类轮次 → mark 前进
+- [ ] 失败与部分提交 → mark 不动，重试时重新决策
+- [ ] 有界输入；超大单事件仍能推进
+- [ ] 审计事件带计数、标 ignorable、不泄漏内容、写入失败不回退 mark
+- [ ] 下一个 Session 能检索到自动学到的 Memory

@@ -11,7 +11,9 @@ English | [中文](README.zh.md)
 
 `dsh-memory` gives a Harness agent long-term Memory that survives across Sessions. It stores what the user explicitly asks it to remember, keeps user-wide and project-scoped facts apart, injects a small index of the active facts into every new Session, and exposes the whole store through `/memory`.
 
-Phase 1 is infrastructure. It performs no automatic extraction from trajectories and no semantic reasoning about what Memory means: a fact enters Memory because a user asked, and a restatement retires a record because a model named which one. Semantics stay with the model; storage stays here.
+A fact enters Memory in one of two ways. The user asks for it, or the plugin learns it: after a Session goes idle and stays idle, the trajectory since the last consolidation is read once, and a model decides what in it is worth keeping. The plugin decides what *may* be stored — it verifies every citation, applies the confidence floor, screens for secrets, and commits through the same path an explicit request takes. Automatic consolidation never deletes anything.
+
+What automatic learning is not: it does not run while the user is working, it does not read the whole Session again each time, and it does not store anything it cannot point at in the trajectory.
 
 The contract this plugin implements — storage layout, data model, operation semantics, concurrency guarantees, and acceptance criteria — is [CONTRACT.md](CONTRACT.md). The tests are written against it.
 
@@ -85,6 +87,7 @@ The opening notice is what keeps a remembered sentence from reading as a directi
 /memory forget <id>
 /memory clear --user|--project --yes
 /memory export [--user|--project] [--format md|json]
+/memory consolidate [--dry-run]
 /memory enable | /memory disable
 /memory project bind <path> | relink <old> <new> | show
 ```
@@ -110,6 +113,7 @@ Set fields on the plugin row in the profile's `cordis.patch.yml`:
 | `maxEvidencePerMemory` | `8` | Provenance entries a writer keeps per record; an older, longer list still loads |
 | `exportInlineMaxBytes` | `24000` | Largest inline `/memory export` |
 | `evidenceQuoteMaxChars` | `200` | Longest stored quote, in code points |
+| `consolidation` | see below | Automatic learning; `{ enabled, autoCommit, debounceMs, minConfidence, maxRelevantEventsPerBatch, maxTrajectoryBytesPerBatch, maxOutputTokens }` |
 
 There is no `memoryDir`: Memory must belong to the harness, so a deployment cannot point it at a project.
 
