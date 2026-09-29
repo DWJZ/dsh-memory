@@ -15,6 +15,8 @@ A fact enters Memory in one of two ways. The user asks for it, or the plugin lea
 
 What automatic learning is not: it does not run while the user is working, it does not read the whole Session again each time, and it does not store anything it cannot point at in the trajectory.
 
+Memory also reports itself. With `sessionEvents` on, each consolidation run and the project a Session was attributed to are written into the Session log, and the Web UI renders them as rows of the Trajectory ledger — see [Trajectory rows](#trajectory-rows).
+
 The contract this plugin implements — storage layout, data model, operation semantics, concurrency guarantees, and acceptance criteria — is [CONTRACT.md](CONTRACT.md). The tests are written against it.
 
 ## Use this plugin
@@ -136,6 +138,19 @@ A project is identified by `proj_<uuid>`, never by its path. Sessions resolve th
 
 Paths move. `/memory project relink <old> <new>` points the same project id at its new directory and keeps the old one as an alias, so Memory survives the move.
 
+### Trajectory rows
+
+When `sessionEvents` is on, the Web UI's Trajectory ledger shows what the plugin did, one row per event:
+
+| Event | What its row says | Emphasis |
+|---|---|---|
+| `dsh-memory/consolidation` | the run's status and trigger, the sequence range it covered, and what it wrote — added, updated, superseded and no-op counts, plus rejected, skipped and failed when there were any. A gap names the range no process ever observed and carries no counts | `success` green, `partial` amber, `no-human-turn` grey, `gap` red |
+| `dsh-memory/project` | the project root, which lookup decided it — a registered path, a workspace, or a root marker — and the project and workspace ids | none: an attribution is a fact, not an outcome |
+
+Both events are log-only: they carry the envelope's `ignorable` marker, so they never reach a model request, and a build that does not know the type skips them instead of refusing the session. Each row is an `extension` record — this plugin's own summary, emphasis and raw payload — so the ledger renders it without knowing any of this plugin's field names, and the shared details payload tab shows the audit as it was written. Nothing here is served over HTTP: the rows read the Session's own log.
+
+The browser half is declared through `package.json`'s `dsh.client`, so the bundle patch carries one row for the host half and none for the UI.
+
 ## Understand the implementation
 
 Three properties shape the code:
@@ -168,10 +183,13 @@ Three properties shape the code:
 ## Tests
 
 ```sh
-npm run test:unit        # 26 suites, no network, no API key
+npm run test:unit        # every unit suite, no network, no API key
+npm run test             # test:unit, then the browser-half smoke test
 npm run test:integration # boots the shipped headless profile through the real Loader
-npm run test:all         # both
+npm run test:all         # test, then integration
 ```
+
+`test/client.smoke.mjs` loads `client/client.js` outside a browser and drives the same registration calls the Client runtime makes. It builds both rows from events written the way the host half writes them, and holds the browser half to two rules: every word in a row resolves in the Chinese and the English dictionary, and no Harness Client package is requested. With `DSH_CHECKOUT` set to a checkout that has built client libraries, it also registers both definitions through the shipped Conversation registry and pushes the result through the shipped Trajectory projection, so a row the ledger stops accepting fails here rather than in the browser.
 
 The integration suite mounts this plugin and a scripted model adapter straight from the checkout by absolute path, so nothing is installed into a profile. Its four scenarios write Memory in one Session and read it in the next, prove one project cannot see another's Memory, show user Memory crossing projects, and retire a record through an explicit supersede.
 

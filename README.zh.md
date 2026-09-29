@@ -15,6 +15,8 @@ kind: "plugin-reference"
 
 自动学习不是什么：它不在用户工作时运行；不会每次重读整个 Session；也不会存储任何无法在轨迹里指出出处的东西。
 
+Memory 也会自己留痕。打开 `sessionEvents` 后，每次 consolidation 运行、以及 Session 被归属到哪个项目，都会写进 Session 日志，由 Web UI 渲染成轨迹账本里的一行 —— 见[轨迹行](#轨迹行)。
+
 本插件实现的契约 —— 存储位置、数据模型、操作语义、并发保证与验收标准 —— 是 [CONTRACT.md](CONTRACT.md)，测试按它编写。
 
 ## 使用
@@ -136,6 +138,19 @@ project:
 
 路径会移动。`/memory project relink <old> <new>` 让同一个 project id 指向新目录，并把旧路径留作 alias，因此 Memory 能挺过这次移动。
 
+### 轨迹行
+
+打开 `sessionEvents` 后，Web UI 的轨迹账本会展示本插件做了什么，一条事件一行：
+
+| 事件 | 这一行写什么 | 强调色 |
+|---|---|---|
+| `dsh-memory/consolidation` | 本次运行的状态与触发方式、覆盖的 seq 区间，以及写了什么 —— 新增/更新/取代/无操作四个计数，有值时再补上拒绝、跳过、失败。gap 只说这段区间没有任何进程观测到，不带计数 | `success` 绿、`partial` 琥珀、`no-human-turn` 灰、`gap` 红 |
+| `dsh-memory/project` | 项目根、由哪种查找决定（已登记路径 / workspace / 根标记），以及 project id 与 workspace id | 无 —— 归属是事实，不是结果 |
+
+两类事件都只是日志：它们带 envelope 的 `ignorable` 标记，因此永远不会进入模型请求，不认识该类型的构建会跳过它们而不是拒绝该 Session。每一行都是一条 `extension` 记录 —— 本插件自己的摘要、强调色与原始负载 —— 所以轨迹侧渲染它时不需要认识本插件的任何一个字段名，共享的详情面板里能看到写入时的审计原文。这里没有任何东西走 HTTP：这些行读的是 Session 自己的日志。
+
+浏览器半由 `package.json` 的 `dsh.client` 声明，所以 bundle patch 里只有宿主半一行，UI 那半不需要第二行。
+
 ## 实现要点
 
 三条性质决定了代码的形状：
@@ -168,10 +183,13 @@ project:
 ## 测试
 
 ```sh
-npm run test:unit        # 26 个套件，不走网络、不需要 API key
+npm run test:unit        # 全部 unit 套件，不走网络、不需要 API key
+npm run test             # test:unit，之后跑浏览器半的 smoke 测试
 npm run test:integration # 通过真实 Loader 启动 shipped headless profile
-npm run test:all         # 两者都跑
+npm run test:all         # test，之后 integration
 ```
+
+`test/client.smoke.mjs` 在浏览器之外加载 `client/client.js`，走的是 Client runtime 同一条注册路径。它按宿主半写事件的方式构造出两类事件并渲染出对应的行，同时对浏览器半守住两条规矩：行里的每一个词都能在中英文字典里查到，以及不请求任何 Harness Client 包。把 `DSH_CHECKOUT` 指向一个已构建 client 库的 checkout 时，它还会把两个定义注册进真实的 Conversation registry，并把结果推过真实的轨迹投射 —— 于是轨迹侧不再接受某一行时，失败发生在这里，而不是在浏览器里。
 
 集成套件用绝对路径直接从本 checkout 挂载插件与 scripted model adapter，因此不需要往任何 profile 里装东西。它的四个 scenario 分别在：一个 Session 写入、下一个 Session 读到；一个项目看不到另一个项目的 Memory；user Memory 跨项目可见；以及通过显式 supersede 让一条记录退役。
 
