@@ -165,8 +165,11 @@ Storage schema 允许 `confidence ∈ [0, 1]`。Phase 1 writer **永远写 1.0**
 4. `status === 'superseded'` 当且仅当 `superseded_by !== null`，且目标记录存在；
 5. `id` 全局唯一；
 6. `updated_at >= created_at`；
-7. `evidence.length <= maxEvidencePerMemory`；
-8. 时间统一 ISO-8601 UTC，毫秒精度。
+7. 时间统一 ISO-8601 UTC，毫秒精度。
+
+第 1–3 条与第 6–7 条是单条记录的 invariant；第 4、5 条是 store invariant（需要看到整个 store 才能判定）。两者读入时都必须成立。
+
+`maxEvidencePerMemory` **不属于 store invariant**，它是 **writer policy**：只约束本次 ADD / UPDATE / SUPERSEDE 产生的新状态（累积后保留最新 N 条，见 §7）。因此把配置调小之后，早先写入的、evidence 更长的记录仍然是合法的 canonical 记录，读入与其它记录的写入都不受它影响。若把它当 invariant，降低配置会让整个 store 无法再写。
 
 ---
 
@@ -716,9 +719,10 @@ memory_search / memory_get → 按 read tool 正常展示必要参数
 - [ ] `forget` 在 tombstone 写不进去时如实报告，不谎称留痕
 - [ ] `memory_search` 的 `top_k` 受 `retrievalTopK` 约束
 - [ ] runtime（index + tools）由 `ctx.inject()` 返回的 Fiber 持有；disable 即 dispose 该 Fiber，service remount 不会让已禁用的注册复活，反复 enable/disable 始终只有一个活跃 Fiber
+- [ ] 依赖 service 尚未就绪时 disable：pending Fiber 也要被 dispose，之后依赖就绪不得再注册（否则 disabled 状态下会出现 index/tools）
 - [ ] `.reclaim` 互斥不做自动回收；两个 reclaimer 竞争只有一个成功，且都不会删掉对方新建的互斥
 - [ ] `maxEvidencePerMemory` 只是 writer policy：写入时保留最新 N 条，读入时不用它判定记录是否合法
-- [ ] registry 载入时按 realpath 判重：同一目录的两种拼写不能成为两个 Project
+- [ ] registry 载入时按 §10.3 的两层 key 判重：同一目录的两种拼写（符号链接、或未归一化的 `..`）不能成为两个 Project
 - [ ] 命令解析支持引号与转义（`"..."`、`'...'`、`\ `），带空格的路径是一个参数
 - [ ] 未闭合的引号不静默解析：拒绝整行并说明原因，绝不按猜出的参数边界执行
 - [ ] 每次 mutation 在运行前先校验读到的 store；noop mutation 也要拒绝损坏的 store

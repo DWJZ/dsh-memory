@@ -102,11 +102,15 @@ export function validateRegistry(registry) {
       if (!isAbsolute(root)) {
         throw new TypeError(`dsh-memory: project ${entry.project_id} has a non-absolute root ${JSON.stringify(root)}`)
       }
-      const owner = roots.get(root)
+      // `/foo/bar` and `/foo/x/../bar` are one directory spelled two ways. The
+      // key is the normalized path, not the string as written, or a registry
+      // edited by hand could hand one project two ids.
+      const lexical = resolve(root)
+      const owner = roots.get(lexical)
       if (owner !== undefined && owner !== entry.project_id) {
         throw new TypeError(`dsh-memory: ${root} is claimed by both ${owner} and ${entry.project_id}`)
       }
-      roots.set(root, entry.project_id)
+      roots.set(lexical, entry.project_id)
       // Two different spellings of one directory — a symlink, or a path that
       // resolves through one — would give one project two ids and split its
       // Memory. The lexical check above cannot see that; the real path can.

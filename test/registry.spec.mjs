@@ -247,6 +247,22 @@ writeRegistry([entry({ canonical_root: claimDir })])
 check('a single project on the real directory is accepted',
   registry.readRegistry(LAYOUT.registryPath).projects.length === 1)
 
+// Built by concatenation on purpose: `path.join` would normalize the `..` away
+// and the two entries would be identical strings, testing nothing.
+writeRegistry([
+  entry({ canonical_root: join(ROOT, 'plain', 'project') }),
+  entry({ canonical_root: `${ROOT}/plain/nested/../project` }),
+])
+check('two spellings of one path are one project root',
+  await rejects(() => registry.readRegistry(LAYOUT.registryPath), 'claimed by both'))
+check('the refusal names the spelling that lost',
+  await rejects(() => registry.readRegistry(LAYOUT.registryPath), 'nested/../project'))
+writeRegistry([
+  entry({ canonical_root: join(ROOT, 'plain', 'project'), aliases: [`${ROOT}/plain/x/../project`] }),
+])
+check('one entry may still list a normalized duplicate of itself',
+  registry.readRegistry(LAYOUT.registryPath).projects.length === 1)
+
 const otherDir = join(ROOT, 'another-real-project')
 mkdirSync(otherDir, { recursive: true })
 writeRegistry([

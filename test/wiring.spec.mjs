@@ -48,8 +48,8 @@ const humanMessage = text => ({ type: 'user/message', data: { content: [{ type: 
 const injectedMessage = text => ({ type: 'user/message', data: { content: [{ type: 'text', text }], source: { kind: 'agent-instructions' } } })
 
 /** Start the plugin against a stub context. */
-const start = (config = CONFIG) => {
-  const ctx = createStubContext()
+const start = (config = CONFIG, stubOptions = {}) => {
+  const ctx = createStubContext(stubOptions)
   plugin.apply(ctx, config)
   return ctx
 }
@@ -220,22 +220,22 @@ check('a disabled start registers no injection', fiberCtx.registrations.injectio
 await runCommand(fiberCtx, 'enable')
 const firstFiber = fiberCtx.registrations.injections[0]
 check('enabling creates one injection', fiberCtx.registrations.injections.length === 1)
-check('the injection is live', firstFiber.disposed === false)
+check('the injection is active', firstFiber.state === 'active')
 await runCommand(fiberCtx, 'disable')
-check('disabling disposes the injection fiber', firstFiber.disposed === true)
+check('disabling disposes the injection fiber', firstFiber.state === 'disposed')
 check('the fiber disposal is counted', fiberCtx.registrations.fiberDisposals === 1)
 
 console.log('service_remount_does_not_restore_disabled_memory')
-// A remount re-runs live injections. A disposed one must stay dead, or the index
+// A remount re-runs active injections. A disposed one must stay dead, or the index
 // and tools would return while the switch still reads "disabled".
-check('no live injection is left to re-run', fiberCtx.remountServices() === 0)
+check('no active injection is left to re-run', fiberCtx.remountServices() === 0)
 check('the index stays gone after a remount', fiberCtx.registrations.contexts.length === 0)
 check('the tools stay gone after a remount', fiberCtx.registrations.tools.length === 0)
 check('the switch still reads disabled',
   JSON.parse(readFileSync(pluginConfigPath(MEMORY), 'utf8')).enabled === false)
 
 console.log('enable_disable_enable_has_single_runtime_fiber')
-const liveFibers = () => fiberCtx.registrations.injections.filter(entry => !entry.disposed).length
+const liveFibers = () => fiberCtx.registrations.injections.filter(entry => entry.state === 'active').length
 await runCommand(fiberCtx, 'enable')
 check('enabling creates exactly one live injection', liveFibers() === 1)
 await runCommand(fiberCtx, 'disable')
@@ -247,6 +247,37 @@ check('every injection ever created is accounted for',
   fiberCtx.registrations.injections.length === 3 && liveFibers() === 1)
 await disposeEffects(fiberCtx)
 check('unloading a re-enabled instance disposes its fiber', liveFibers() === 0)
+
+console.log('disable_before_injected_services_ready_prevents_late_mount')
+// The harder ordering: the services Memory wants are not mounted yet, so the
+// injection sits pending and its callback has never run. Disabling must dispose
+// that pending fiber, or it would start on its own once the services appear —
+// registering tools and an index while the switch reads "disabled".
+const pendingOnly = { without: ['systemPrompt', 'tools'] }
+const pendingCtx = start(CONFIG, pendingOnly)
+const pendingFiber = pendingCtx.registrations.injections[0]
+check('the injection is created but pending', pendingFiber.state === 'pending')
+check('a pending injection registers nothing', pendingCtx.registrations.contexts.length === 0)
+await runCommand(pendingCtx, 'disable')
+check('disabling disposes the pending fiber', pendingFiber.state === 'disposed')
+check('the late services start nothing', pendingCtx.provideServices('systemPrompt', 'tools') === 0)
+check('no index appeared after the services mounted', pendingCtx.registrations.contexts.length === 0)
+check('no tool appeared after the services mounted', pendingCtx.registrations.tools.length === 0)
+check('the switch still reads disabled',
+  JSON.parse(readFileSync(pluginConfigPath(MEMORY), 'utf8')).enabled === false)
+
+// The mirror case, so the assertion above is not passing for free: with the
+// switch left on, the same late mount does start the fiber.
+const lateMountCtx = start(CONFIG, pendingOnly)
+check('a disabled start has no injection at all', lateMountCtx.registrations.injections === undefined)
+await runCommand(lateMountCtx, 'enable')
+const lateFiber = lateMountCtx.registrations.injections[0]
+check('enabling with the services absent leaves the fiber pending', lateFiber.state === 'pending')
+check('mounting the services starts it', lateMountCtx.provideServices('systemPrompt', 'tools') === 1)
+check('the index registered once the services arrived', lateMountCtx.registrations.contexts.length === 1)
+check('the tools registered once the services arrived', lateMountCtx.registrations.tools.length === 3)
+await runCommand(lateMountCtx, 'disable')
+await disposeEffects(lateMountCtx)
 
 console.log('registry_disposal')
 const disposal = start()
