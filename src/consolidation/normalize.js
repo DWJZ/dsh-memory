@@ -253,15 +253,52 @@ export function batchWindow(events, options) {
  * @param maxBytes - the batch budget, used as the per-entry ceiling.
  * @returns the entry, with its text shortened when it exceeded the ceiling.
  */
+/** Fields that may carry unbounded text, by event kind. */
+const FLEXIBLE_FIELDS = ['content', 'arguments']
+
+/** Marks a field that was shortened to fit the batch's byte ceiling. */
+export const TRUNCATION_MARKER = '…[truncated]'
+
+/**
+ * Smallest usable `maxTrajectoryBytesPerBatch`.
+ *
+ * A batch budget has to hold one serialized entry describing an event, including
+ * the event's own type name and sequence number. Below this floor no such entry
+ * can be written, so the setting would be a promise the plugin cannot keep; it is
+ * refused at load instead.
+ */
+export const MIN_TRAJECTORY_BYTES_PER_BATCH = 128
+
 function capEntry(entry, maxBytes) {
   if (!Number.isFinite(maxBytes)) return entry
   if (Buffer.byteLength(JSON.stringify(entry), 'utf8') <= maxBytes) return entry
-  // The budget applies to the entry as the model will read it, so the overhead
-  // of the envelope counts. Only `content` is unbounded, so it is the field that
-  // yields.
-  const overhead = Buffer.byteLength(JSON.stringify({ ...entry, content: '' }), 'utf8')
-  const room = Math.max(0, maxBytes - overhead)
-  return { ...entry, content: truncateToBytes(String(entry.content ?? ''), room) }
+  // Which field carries the unbounded text depends on the event: a message has
+  // `content`, a tool call has `arguments`. Shrinking the wrong one leaves the
+  // entry as large as it was.
+  const field = FLEXIBLE_FIELDS.find(name => typeof entry[name] === 'string')
+  if (field === undefined) return entry
+  const text = String(entry[field])
+  const points = Array.from(text)
+  const build = (kept) => ({
+    ...entry,
+    [field]: kept >= points.length ? text : `${points.slice(0, kept).join('')}${TRUNCATION_MARKER}`,
+  })
+  if (Buffer.byteLength(JSON.stringify({ ...entry, [field]: '' }), 'utf8') >= maxBytes) {
+    // The budget cannot hold this entry with any text. A truncated fragment
+    // would not fit either, so the entry keeps only what it says about itself.
+    const empty = build(0)
+    return Buffer.byteLength(JSON.stringify(empty), 'utf8') <= maxBytes ? empty : entry
+  }
+  // The kept length is measured by serializing the candidate, not by counting
+  // bytes of the field: JSON escapes what it writes, so the two differ.
+  let low = 0
+  let high = points.length - 1
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2)
+    if (Buffer.byteLength(JSON.stringify(build(middle)), 'utf8') <= maxBytes) low = middle
+    else high = middle - 1
+  }
+  return build(low)
 }
 
 /**
@@ -277,7 +314,7 @@ function capEntry(entry, maxBytes) {
  */
 function truncateToBytes(text, maxBytes) {
   if (Buffer.byteLength(text, 'utf8') <= maxBytes) return text
-  const marker = '…[truncated]'
+  const marker = TRUNCATION_MARKER
   const room = Math.max(0, maxBytes - Buffer.byteLength(marker, 'utf8'))
   let used = 0
   let kept = ''

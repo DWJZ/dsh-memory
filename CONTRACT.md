@@ -1,19 +1,18 @@
-# dsh-memory Phase 1 契约
+# dsh-memory 契约
 
-本文件是 `dsh-memory` Phase 1 的**唯一规范权威**：它规定存储位置、数据模型、操作语义、并发保证与验收标准。测试按它编写，实现按它验收；两者冲突时以本文件为准。
+本文件是 `dsh-memory` 的**唯一规范权威**，覆盖当前全部实现：Phase 1 的存储与显式操作，以及 Phase 2 的同步自动 consolidation。它规定存储位置、数据模型、操作语义、并发保证与验收标准；测试按它编写，实现按它验收；两者冲突时以本文件为准。
 
-Phase 1 只解决基础设施：
+两半各自解决一组问题：
 
 ```text
-存得对
-取得到
-跨 Session 可用
-User / Project scope 不串
-并发不丢
-行为可预测
+Phase 1（§1–§29）
+  存得对 / 取得到 / 跨 Session 可用 / User 与 Project scope 不串 / 并发不丢 / 行为可预测
+
+Phase 2（P2-1 起）
+  一轮结束后自动学习 / 有界输入 / 确定性复核 / 复用 Phase 1 提交 / 可审计
 ```
 
-`README.md`（英文 canonical）与 `README.zh.md` 在实现完成后由本文件拆出。
+`README.md`（英文 canonical）与 `README.zh.md` 由本文件拆出；两份 README 必须描述同一套当前行为。
 
 ---
 
@@ -21,9 +20,11 @@ User / Project scope 不串
 
 **做**：Persistent Storage、User / Project Scope、Stable Project Identity、Compact Memory Index、Memory Search、Explicit Remember、Explicit Update / Supersede、User Commands、Secret Protection、Basic Concurrency Safety、Cross-session Integration Tests。
 
-**不做**：Automatic Consolidation、Trajectory → Memory 自动提炼、Semantic Deduplication、Automatic Conflict Detection、Reflection、Memory → Skill、Skill Promotion、Vector DB、Embeddings、Knowledge Graph、Reranker、Telemetry、Large-scale MemEval、Client UI。
+**不做**（Phase 1 范围；自动提炼由 Phase 2 承担）：Semantic Deduplication、Automatic Conflict Detection、Reflection、Memory → Skill、Skill Promotion、Vector DB、Embeddings、Knowledge Graph、Reranker、Telemetry、Large-scale MemEval、Client UI。
 
-核心原则：**不要把"自动 Memory reasoning"偷偷加回来。**
+Phase 2 补上 Automatic Consolidation（见 P2-1 起的各节）：它只做"从一轮轨迹中提炼可长期保存的事实"，且必须经过确定性复核后才能落库。
+
+核心原则：**自动 Memory reasoning 只能在 Phase 2 定义的路径上发生**，不得从其它入口偷偷加回来。
 
 ---
 
@@ -109,7 +110,9 @@ Memory 的物理位置不可配置：内部恒为 `path.join(resolvedDshHome, 'm
 | `maxTrajectoryBytesPerBatch` | integer | `65536` | `>= 1`（UTF-8 字节，作用于整条序列化 entry） |
 | `maxOutputTokens` | integer | `2048` | `>= 1` |
 
-`autoCommit = false` 时仍然读取窗口、调用模型、复核计划，但**不写入任何 Memory、不推进 mark**（用于评测与观察）；`consolidation.enabled = false` 时不做自动学习，显式写入与命令面不受影响。
+`autoCommit = false` 时仍然读取窗口、调用模型、复核计划，但**不写入任何 Memory、不推进 mark、不从缓冲区丢弃窗口**，audit 状态为 `observed`（用于评测与观察）。这三条缺一不可：只要推进 mark，那些事件就被永久消费，之后重新打开自动提交也再学不到它们。`consolidation.enabled = false` 时不做自动学习，显式写入与命令面不受影响。
+
+`maxTrajectoryBytesPerBatch` 有下限（128 字节）：字节上限要能容纳一条描述事件的序列化 entry（含事件类型名与 seq）。低于下限的配置在加载时抛错，而不是给出一个守不住的承诺。
 
 `dshHome` 解析顺序：`config.dshHome` > `process.env.DSH_HOME` > `~/.dsh`。非法值在加载时抛 `TypeError`，并在消息里指明出错字段。
 

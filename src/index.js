@@ -5,10 +5,12 @@
  * under `$DSH_HOME/memory`, never inside a project, and a compact index of the
  * active records is injected into each new Session.
  *
- * Phase 1 is infrastructure only: explicit remember / update / supersede, user
- * commands, a bounded index, and a durable store that survives concurrent
- * writers. It deliberately performs no automatic extraction from trajectories
- * and no semantic reasoning about what Memory means.
+ * Memory is reached two ways. The explicit path is the `memory_*` tools and the
+ * `/memory` command: the user asks, and the record is written immediately.
+ * The automatic path is consolidation, which reads a finished turn after the
+ * agent goes idle, asks a model what in it is worth keeping, and commits only
+ * what a deterministic review accepts. Both paths write through the same Phase 1
+ * actions, so scope, provenance and screening behave identically.
  *
  * The index and the model tools are registrations, so disabling Memory disposes
  * them rather than leaving callbacks that quietly do nothing. The `/memory`

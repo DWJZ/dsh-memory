@@ -12,6 +12,7 @@
  * @module dsh-memory/config
  */
 
+import { MIN_TRAJECTORY_BYTES_PER_BATCH } from './consolidation/normalize.js'
 import { resolveDshHome, resolveMemoryDir } from './paths.js'
 
 /** Every setting a deployment may override, with its default. */
@@ -93,7 +94,7 @@ function consolidationSetting(value) {
     debounceMs: integerSetting(value.debounceMs, fallback.debounceMs, 'consolidation.debounceMs', 0),
     minConfidence,
     maxRelevantEventsPerBatch: integerSetting(value.maxRelevantEventsPerBatch, fallback.maxRelevantEventsPerBatch, 'consolidation.maxRelevantEventsPerBatch', 1),
-    maxTrajectoryBytesPerBatch: integerSetting(value.maxTrajectoryBytesPerBatch, fallback.maxTrajectoryBytesPerBatch, 'consolidation.maxTrajectoryBytesPerBatch', 1),
+    maxTrajectoryBytesPerBatch: integerSetting(value.maxTrajectoryBytesPerBatch, fallback.maxTrajectoryBytesPerBatch, 'consolidation.maxTrajectoryBytesPerBatch', MIN_TRAJECTORY_BYTES_PER_BATCH),
     maxOutputTokens: integerSetting(value.maxOutputTokens, fallback.maxOutputTokens, 'consolidation.maxOutputTokens', 1),
   }
 }

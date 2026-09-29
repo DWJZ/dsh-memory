@@ -148,6 +148,24 @@ console.log('the byte budget holds in bytes, not characters')
     String(Buffer.byteLength(JSON.stringify(pair.entries), 'utf8')))
 }
 
+console.log('the ceiling covers tool arguments and budgets too small to hold an entry')
+{
+  const big = JSON.stringify({ command: 'x'.repeat(4000) })
+  const call = normalize.batchWindow([{ seq: 800, type: 'tool/call', data: { name: 'bash', arguments: big } }],
+    { afterSeq: 799, maxBytes: 300 })
+  const callBytes = Buffer.byteLength(JSON.stringify(call.entries[0]), 'utf8')
+  check('a tool call is capped too', callBytes <= 300, String(callBytes))
+  check('and the arguments are what yield', String(call.entries[0].arguments).endsWith('[truncated]'))
+
+  for (const budget of [128, 200, 400]) {
+    const tiny = normalize.batchWindow([human(810, '中'.repeat(500))], { afterSeq: 809, maxBytes: budget })
+    const tinyBytes = Buffer.byteLength(JSON.stringify(tiny.entries[0]), 'utf8')
+    check(`an entry stays within a ${String(budget)} byte budget`, tinyBytes <= budget, `${String(tinyBytes)} > ${String(budget)}`)
+    check(`and carries a shortened form at ${String(budget)} bytes`,
+      JSON.stringify(tiny.entries[0]).includes('[truncated]'))
+  }
+}
+
 console.log('collector')
 const collector = createCollector()
 const session = { id: 'session_a' }

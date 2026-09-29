@@ -111,22 +111,30 @@ export function createConsolidation(options) {
     const mark = lastProcessedSeq(state, sessionId)
     // A Session this process has consumed and dropped everything for still has a
     // mark, which is a different thing from a Session it has never seen.
-    if (first === undefined) return mark === NO_PROGRESS ? undefined : mark
+    if (first === undefined) return { afterSeq: mark === NO_PROGRESS ? undefined : mark }
+    if (first <= mark + 1) return { afterSeq: mark }
     // Everything between the mark and the first event this process can still
     // offer was unavailable, whatever the reason: a mount that came late, a
     // Session resumed elsewhere, or events the buffer had to evict under its
     // cap. The gap is the same range in all three cases; what differs is only
     // why, which is worth saying in the log.
-    if (first <= mark + 1) return mark
     const droppedThrough = collector.droppedThrough(sessionId)
-    const reason = droppedThrough >= mark ? 'the buffer evicted them' : 'this process was not observing yet'
     const at = new Date(now()).toISOString()
-    const written = await withState(stateOptions, current => ({
-      changed: true,
-      state: recordGap(current, sessionId, { from_seq: mark + 1, to_seq: first - 1 }, at),
-    }))
-    logger?.info?.(`dsh-memory: consolidation skipped seqs ${String(mark + 1)}..${String(first - 1)} of ${sessionId} (${reason})`)
-    return lastProcessedSeq(written.state, sessionId)
+    // The range is decided against the state as it is inside the lock. Another
+    // process may have consumed part of it between the read above and here, and
+    // a gap written from the older mark would call events somebody else read
+    // "never observed".
+    let gap
+    const written = await withState(stateOptions, (current) => {
+      const currentMark = lastProcessedSeq(current, sessionId)
+      if (first <= currentMark + 1) return { changed: false, state: current }
+      gap = { from_seq: currentMark + 1, to_seq: first - 1 }
+      return { changed: true, state: recordGap(current, sessionId, gap, at) }
+    })
+    if (gap === undefined) return { afterSeq: lastProcessedSeq(written.state, sessionId) }
+    const reason = droppedThrough >= gap.from_seq - 1 ? 'the buffer evicted them' : 'this process was not observing yet'
+    logger?.info?.(`dsh-memory: consolidation skipped seqs ${String(gap.from_seq)}..${String(gap.to_seq)} of ${sessionId} (${reason})`)
+    return { afterSeq: lastProcessedSeq(written.state, sessionId), gap }
   }
 
   /**
@@ -180,7 +188,7 @@ export function createConsolidation(options) {
     const sessionId = session?.id
     if (typeof sessionId !== 'string') return { status: 'no-session' }
 
-    const afterSeq = await reconcile(sessionId)
+    const { afterSeq, gap } = await reconcile(sessionId)
     if (afterSeq === undefined) return { status: 'nothing-observed' }
     const window = batchWindow(collector.eventsFor(sessionId), {
       afterSeq,
@@ -197,6 +205,7 @@ export function createConsolidation(options) {
       relevant_events: window.counts.relevant,
       ignored_events: window.counts.ignored + window.counts.internal + window.counts.skipped,
       trigger: runOptions.trigger ?? 'direct',
+      ...gap === undefined ? {} : { gap },
     }
 
     /**

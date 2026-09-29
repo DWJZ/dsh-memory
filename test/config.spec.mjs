@@ -107,6 +107,18 @@ check('a resolved split is a copy', once.indexBudgetSplit.user === 0.5)
 check('the module defaults are untouched',
   DEFAULTS.indexBudgetSplit.user === 0.4 && DEFAULTS.projectRootMarkers.length === 1)
 
+console.log('a budget too small to hold an entry is refused')
+check('a batch budget below the floor is rejected', await (async () => {
+  try {
+    resolveConfig({ consolidation: { maxTrajectoryBytesPerBatch: 8 } })
+    return false
+  } catch (error) {
+    return String(error.message).includes('maxTrajectoryBytesPerBatch')
+  }
+})())
+check('the floor itself is accepted',
+  resolveConfig({ consolidation: { maxTrajectoryBytesPerBatch: 128 } }).consolidation.maxTrajectoryBytesPerBatch === 128)
+
 console.log('consolidation settings')
 const defaults = resolveConfig({}, {})
 check('consolidation is on by default', defaults.consolidation.enabled === true)
