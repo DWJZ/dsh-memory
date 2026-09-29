@@ -33,6 +33,16 @@ import { MAX_CONTENT_CHARS, charLength, newMemoryId, normalizeContent, validateM
 export const PHASE1_CONFIDENCE = 1.0
 
 /**
+ * Confidence of a record the user restated.
+ *
+ * A restatement is a person asserting the content, so it is nearly certain — but
+ * it refines a record somebody else's judgement formed, rather than being the
+ * first-hand request that creates one, so it does not claim the certainty of
+ * {@link PHASE1_CONFIDENCE}.
+ */
+export const EXPLICIT_UPDATE_CONFIDENCE = 0.95
+
+/**
  * Read the confidence a writer supplied, or fall back.
  * @param value - the supplied confidence, when there is one.
  * @param fallback - the value to use when there is not.
@@ -119,7 +129,7 @@ export async function updateMemory(options, input) {
       ...current,
       content,
       evidence,
-      confidence: requireConfidence(input.confidence, current.confidence),
+      confidence: requireConfidence(input.confidence, EXPLICIT_UPDATE_CONFIDENCE),
       updated_at: nowIso(options),
     }
     validateMemory(record, { maxEvidencePerMemory: options.maxEvidencePerMemory })

@@ -119,7 +119,7 @@ Set fields on the plugin row in the profile's `cordis.patch.yml`:
 | sub-field | default | meaning |
 |---|---|---|
 | `enabled` | `true` | automatic learning on or off; explicit writes are unaffected |
-| `autoCommit` | `true` | `false` evaluates a window and writes nothing: no Memory, no mark, no window dropped |
+| `autoCommit` | `true` | the *automatic* path: `false` evaluates a window and writes nothing — no Memory, no mark, no window dropped. `/memory consolidate` still writes; `--dry-run` is how a person observes |
 | `debounceMs` | `10000` | how long an idle agent waits before its turn is consolidated |
 | `minConfidence` | `0.8` | a proposal below this is dropped rather than stored |
 | `maxRelevantEventsPerBatch` | `200` | largest window offered to the model |

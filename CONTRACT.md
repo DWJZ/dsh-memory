@@ -110,7 +110,9 @@ Memory 的物理位置不可配置：内部恒为 `path.join(resolvedDshHome, 'm
 | `maxTrajectoryBytesPerBatch` | integer | `65536` | `>= 128`（UTF-8 字节，作用于整条序列化 entry） |
 | `maxOutputTokens` | integer | `2048` | `>= 1` |
 
-`autoCommit = false` 时仍然读取窗口、调用模型、复核计划，但**不写入任何 Memory、不从缓冲区丢弃窗口，也不让 mark 越过任何已观察且未提交的事件**（唯一例外是 gap：未被观测到的前缀会按 §P2-1 记为 gap 并把 mark 推到该前缀之后；这是进度语义，不是提交），audit 状态为 `observed`（用于评测与观察）。这三条缺一不可：只要推进 mark，那些事件就被永久消费，之后重新打开自动提交也再学不到它们。`consolidation.enabled = false` 时不做自动学习，显式写入与命令面不受影响。
+**`autoCommit` 只约束自动路径。** 人主动敲 `/memory consolidate` 就是要求"把这个窗口写下来"，所以该命令总是提交，不受 `autoCommit: false` 影响；要观察就用 `--dry-run`（它显式声明不写）。
+
+`autoCommit = false` 时自动路径仍然读取窗口、调用模型、复核计划，但**不写入任何 Memory、不从缓冲区丢弃窗口，也不让 mark 越过任何已观察且未提交的事件**（唯一例外是 gap：未被观测到的前缀会按 §P2-1 记为 gap 并把 mark 推到该前缀之后；这是进度语义，不是提交），audit 状态为 `observed`（用于评测与观察）。这三条缺一不可：只要推进 mark，那些事件就被永久消费，之后重新打开自动提交也再学不到它们。`consolidation.enabled = false` 时不做自动学习，显式写入与命令面不受影响。
 
 `maxTrajectoryBytesPerBatch` 有下限（128 字节）：字节上限要能容纳一条描述事件的序列化 entry（含事件类型名与 seq）。低于下限的配置在加载时抛错，而不是给出一个守不住的承诺。
 
@@ -174,6 +176,7 @@ Storage schema 允许 `confidence ∈ [0, 1]`。Phase 1 writer **永远写 1.0**
 
 - `memory_remember` 不接受 `confidence` 参数，显式写入的记录一律 `1.0`（用户直接要求的事实不是概率判断）；
 - **Phase 2 的自动写入持久化 reviewed 置信度**：ADD / SUPERSEDE 用模型给的值，UPDATE 把它写进被改写的记录。低于 `consolidation.minConfidence` 的提案不会到达这一步；
+- **显式 update 写入 `0.95`**（`EXPLICIT_UPDATE_CONFIDENCE`），既不沿用被改写记录的旧值，也不自称为 `1.0`：用户重申了内容，所以他确定；但这条记录是在别人的判断之上被修正的，不是他直接新建的；
 - Phase 1 ranking 不使用 confidence；
 - canonical 中 `[0, 1]` 都是合法 schema（不是只有 1.0）；
 - Phase 2 的 automatic consolidation 可直接写 `< 1.0`，不需要升级 schema。

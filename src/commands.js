@@ -197,6 +197,10 @@ async function consolidateCommand(deps, invocation, flags) {
     const outcome = await deps.consolidate(invocation.agent, {
       dryRun: flags.has('dry-run') === true,
       trigger: 'manual-command',
+      // `consolidation.autoCommit: false` asks the automatic path to observe
+      // instead of write. A person typing this command is asking for the opposite,
+      // and `--dry-run` is how they ask for observation.
+      autoCommit: true,
     })
     return ok(describeConsolidation(outcome))
   } catch (failure) {

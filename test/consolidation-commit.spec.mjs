@@ -164,6 +164,34 @@ check('its id was preserved', updatedProject?.id === targetProjectId)
 check('its project is unchanged', updatedProject?.project_id === PROJECT)
 check('its evidence accumulated', updatedProject?.evidence.length >= 2)
 
+console.log('an explicit restatement is nearly certain')
+const loweredForRestatement = await commitOperations(OPTIONS, [{
+  action: 'add', scope: 'project', category: 'state',
+  content: 'A fact the consolidator was unsure about.', confidence: 0.7,
+  projectId: PROJECT, evidence: provenance([392]),
+}])
+check('the uncertain record is stored as such', loweredForRestatement.committed.add === 1)
+const restatedByUser = await commitOperations(OPTIONS, [{
+  action: 'update', scope: 'project', category: 'state',
+  target_id: projectRecords().find(record => record.content === 'A fact the consolidator was unsure about.').id,
+  content: 'A fact the user restated.',
+  projectId: PROJECT, evidence: provenance([393]),
+}])
+check('an explicit restatement is recorded', restatedByUser.committed.update === 1)
+check('and it is nearly certain, not uncertain and not absolute',
+  projectRecords().find(record => record.content === 'A fact the user restated.')?.confidence === 0.95,
+  String(projectRecords().find(record => record.content === 'A fact the user restated.')?.confidence))
+const autoUpdate = await commitOperations(OPTIONS, [{
+  action: 'update', scope: 'project', category: 'state',
+  target_id: projectRecords().find(record => record.content === 'A fact the user restated.').id,
+  content: 'A fact the consolidator refined.',
+  confidence: 0.81,
+  projectId: PROJECT, evidence: provenance([394]),
+}])
+check('an automatic update still keeps the value the review approved',
+  autoUpdate.committed.update === 1
+  && projectRecords().find(record => record.content === 'A fact the consolidator refined.')?.confidence === 0.81)
+
 console.log('the reviewed confidence is what gets stored')
 const scored = await commitOperations(OPTIONS, [addition({
   content: 'A fact the consolidator was only fairly sure about.',

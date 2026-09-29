@@ -119,7 +119,7 @@ project:
 | 子字段 | 默认 | 含义 |
 |---|---|---|
 | `enabled` | `true` | 自动学习开关；显式写入不受影响 |
-| `autoCommit` | `true` | `false` 时只评估窗口、什么都不写：不写 Memory、不推进 mark、不丢弃窗口 |
+| `autoCommit` | `true` | 只管**自动**路径：`false` 时只评估、什么都不写（不写 Memory、不推进 mark、不丢弃窗口）。人敲的 `/memory consolidate` 照样写入；要观察用 `--dry-run` |
 | `debounceMs` | `10000` | agent 空闲多久后开始整理这一轮 |
 | `minConfidence` | `0.8` | 低于此值的提案被丢弃，不落库 |
 | `maxRelevantEventsPerBatch` | `200` | 交给模型的最大窗口 |

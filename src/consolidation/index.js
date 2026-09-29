@@ -336,7 +336,7 @@ export function createConsolidation(options) {
       failed: 0,
     }
 
-    if (config.autoCommit === false) {
+    if ((runOptions.autoCommit ?? config.autoCommit) === false) {
       // Nothing was written, so nothing justifies moving past these events.
       // Advancing here would consume the window permanently and quietly: the
       // same events would never be offered again, and re-enabling automatic

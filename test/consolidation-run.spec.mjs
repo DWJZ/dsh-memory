@@ -537,6 +537,28 @@ console.log('operation counts mean one thing each')
     again.operations.add === 0 && again.operations.skipped === 1, JSON.stringify(again.operations))
 }
 
+console.log('a person asking for this window is not the automatic path')
+{
+  // The deployment may have asked the automatic path to observe rather than
+  // write. A command is the opposite request, and `--dry-run` is how a person
+  // asks for observation.
+  const harnessed = harness({ sessionId: 'session_command_commits', modelAnswer: addProjectFact([1]), autoCommit: false })
+  observe(harnessed, [human(1, '这个项目以后用 pnpm'), assistant(2, '好的'), toolResult(3, 'pnpm@10')])
+  const automatic = await harnessed.consolidation.consolidate(harnessed.agent)
+  check('the automatic path observes', automatic.status === 'observed')
+  // A dry run with the window still pending: it reports a plan and still writes
+  // nothing, which is how a person asks for observation.
+  const beforeDryRun = readStore(projectLayout(MEMORY, PROJECT).storePath).records.length
+  const dryRun = await harnessed.consolidation.consolidate(harnessed.agent, { dryRun: true, trigger: 'manual-command', autoCommit: true })
+  check('--dry-run reports without writing', dryRun.status === 'dry-run', JSON.stringify(dryRun))
+  check('and the store is unchanged by it',
+    readStore(projectLayout(MEMORY, PROJECT).storePath).records.length === beforeDryRun)
+  const outcome = await harnessed.consolidation.consolidate(harnessed.agent, { trigger: 'manual-command', autoCommit: true })
+  check('the same window commits when a person asks for it',
+    outcome.status === 'success', JSON.stringify(outcome))
+  check('and the fact is stored', projectStoreHas('The project uses pnpm.'))
+}
+
 console.log('observation mode leaves the window alone')
 {
   const harnessed = harness({ sessionId: 'session_observe', modelAnswer: addProjectFact([1]), autoCommit: false })
