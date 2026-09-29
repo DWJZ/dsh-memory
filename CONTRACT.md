@@ -169,7 +169,17 @@ Storage schema 允许 `confidence ∈ [0, 1]`。Phase 1 writer **永远写 1.0**
 
 第 1–3 条与第 6–7 条是单条记录的 invariant；第 4、5 条是 store invariant（需要看到整个 store 才能判定）。两者读入时都必须成立。
 
-`maxEvidencePerMemory` **不属于 store invariant**，它是 **writer policy**：只约束本次 ADD / UPDATE / SUPERSEDE 产生的新状态（累积后保留最新 N 条，见 §7）。因此把配置调小之后，早先写入的、evidence 更长的记录仍然是合法的 canonical 记录，读入与其它记录的写入都不受它影响。若把它当 invariant，降低配置会让整个 store 无法再写。
+`maxEvidencePerMemory` **不属于 store invariant**，它是 **writer policy**：只约束本次 ADD / UPDATE / SUPERSEDE 产生的新状态（累积后保留最新 N 条，见 §7）。
+
+判据是"这次写入有没有产生新的 evidence 状态"，而不是"这条记录是谁"：
+
+- ADD：新记录 → 适用；
+- UPDATE：改写 evidence → 适用（累积后截断到 cap）；
+- SUPERSEDE 的 replacement：新记录 → 适用；
+- SUPERSEDE 中被 retire 的旧记录：只改 `status` 与 `superseded_by`，不产生 evidence → **不适用**；
+- ARCHIVE：只改 `status` → **不适用**。
+
+**改动 `maxEvidencePerMemory` 永远不得让此前合法的 canonical 数据失效。** 这条对 Phase 2 与运行时改配置同样成立：调小配置之后，旧记录仍可读、仍可 archive / supersede，也能与其它记录一起参与任何写入。若把它当 invariant，降低配置会让整个 store 无法再写。
 
 ---
 

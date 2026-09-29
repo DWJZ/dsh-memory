@@ -141,7 +141,9 @@ export async function supersedeMemory(options, input) {
     // The retired record keeps its created_at/updated_at: what changed is its
     // status, and the replacement carries the newer content.
     const retired = { ...current, status: 'superseded', superseded_by: replacement.id }
-    validateMemory(retired, { maxEvidencePerMemory: options.maxEvidencePerMemory })
+    // Retiring adds no evidence, so the current cap does not apply to it:
+    // lowering the cap must not make an existing record impossible to retire.
+    validateMemory(retired)
     return {
       changed: true,
       records: [...store.records.map(entry => entry.id === retired.id ? retired : entry), replacement],
@@ -164,7 +166,8 @@ export async function archiveMemory(options, input) {
   return apply(options, located.layout, (store) => {
     const current = requireActive(store, input.id)
     const record = { ...current, status: 'archived' }
-    validateMemory(record, { maxEvidencePerMemory: options.maxEvidencePerMemory })
+    // Archiving adds no evidence, so the current cap does not apply to it.
+    validateMemory(record)
     return {
       changed: true,
       records: store.records.map(entry => entry.id === record.id ? record : entry),

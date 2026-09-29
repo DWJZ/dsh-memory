@@ -95,6 +95,19 @@ const rejects = async (thunk, fragment) => {
   }
 }
 
+/**
+ * Run one action, reporting a rejection as data instead of throwing.
+ * @param thunk - the call to attempt.
+ * @returns whether it resolved, with either its value or the failure.
+ */
+const settles = async (thunk) => {
+  try {
+    return { ok: true, value: await thunk() }
+  } catch (failure) {
+    return { ok: false, failure }
+  }
+}
+
 console.log('memory_add')
 const added = await actions.addMemory(clocked(0), {
   content: '该项目使用 pnpm',
@@ -409,6 +422,56 @@ const cappedRecord = readStore(userLayout(MEMORY).storePath).records.find(record
 check('the writer keeps only the newest entries', cappedRecord.evidence.length === 2)
 check('the newest entry is kept', cappedRecord.evidence.at(-1).quote === 'third')
 check('the oldest entry was evicted', !cappedRecord.evidence.some(entry => entry.quote === 'first'))
+
+console.log('a lowered evidence cap does not block retiring an old record')
+// A record written under a generous cap, then acted on under a small one. Both
+// retirement paths only change `status`, so neither may consult the current cap.
+const generous = { ...clocked(136000), maxEvidencePerMemory: 8 }
+const legacy = await actions.addMemory(generous, {
+  content: 'legacy with long evidence', scope: 'user', category: 'state',
+})
+for (let round = 0; round < 5; round += 1) {
+  await actions.updateMemory(generous, {
+    id: legacy.id, content: 'legacy with long evidence', evidence: evidence({ quote: `round ${String(round)}` }),
+  })
+}
+const legacyStored = readStore(userLayout(MEMORY).storePath).records.find(record => record.id === legacy.id)
+check('the legacy record holds more evidence than the small cap we will apply',
+  legacyStored.evidence.length > 3)
+
+const strict = { ...clocked(137000), maxEvidencePerMemory: 3 }
+// Settled rather than awaited directly: a regression here throws, and an
+// uncaught throw would end the suite instead of reporting one failed check.
+const archivedUnderStrictCap = await settles(() => actions.archiveMemory(strict, { id: legacy.id }))
+check('archiving succeeds under the lowered cap', archivedUnderStrictCap.ok,
+  String(archivedUnderStrictCap.failure?.message))
+check('the archived record still holds its evidence',
+  readStore(userLayout(MEMORY).storePath).records.find(record => record.id === legacy.id)
+    ?.evidence.length === legacyStored.evidence.length)
+
+const legacyTwo = await actions.addMemory(generous, {
+  content: 'second legacy record', scope: 'user', category: 'state',
+})
+for (let round = 0; round < 5; round += 1) {
+  await actions.updateMemory(generous, {
+    id: legacyTwo.id, content: 'second legacy record', evidence: evidence({ quote: `second ${String(round)}` }),
+  })
+}
+const supersededUnderStrictCap = await settles(() => actions.supersedeMemory(strict, {
+  id: legacyTwo.id,
+  content: 'replacement under the small cap',
+  projectId: PROJECT_A,
+  evidence: evidence({ quote: 'the replacement request' }),
+}))
+check('superseding succeeds under the lowered cap', supersededUnderStrictCap.ok,
+  String(supersededUnderStrictCap.failure?.message))
+const afterSupersede = readStore(userLayout(MEMORY).storePath).records
+const retiredLegacy = afterSupersede.find(record => record.id === legacyTwo.id)
+check('the retired record is superseded, not rejected', retiredLegacy?.status === 'superseded')
+const freshReplacement = afterSupersede.find(record => record.id === supersededUnderStrictCap.value?.id)
+check('the replacement carries only the evidence this write produced',
+  freshReplacement?.evidence.length === 1)
+check('the replacement obeys the current cap', (freshReplacement?.evidence.length ?? 0) <= 3)
 
 console.log('clear reports whether it left a trace')
 const clearTarget = await actions.addMemory(clocked(131000), {
