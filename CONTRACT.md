@@ -1096,3 +1096,35 @@ DSH STORE 的固定 Commit 检查（Issue #1245）判定的两条确定原因是
 - `src/index.ts`(205)：`matched_by: string` 收窄为 `ProjectMatch`。
 - `src/actions.ts`(436)：`mutateAndRefreshView` 的 `result` 需为对象类型（现在 spread 的是 unknown）。
 - `src/commands.ts`(208)：把 `unknown` 传入 `RunAudit` 参数。
+
+## 最后 4 个类型错误：两条链，必须整段落地
+
+当前：服务端 **4** / 客户端 **0**（`npm run typecheck`）。这 4 个都不是"缺一个标注"，而是
+**两条必须一次做完的链**——只做其中一层必然级联（本会话实验 4 次：5→16、5→15、4→17、4→6）。
+
+**硬规则：运行时四条命令必须始终绿**（`npm run test:unit` 1325 断言、`npm run test:integration`、
+`npm run build`、`node --import tsx/esm test/client.smoke.mjs`）。曾有一次改动破坏了 `withStore`
+的签名、`test:unit` 掉到 227 断言，当场回退——**破坏运行时的中间态不可接受**。
+
+### 链 1：`consolidation/validate.ts`（3 个错误）
+
+`export function reviewOperation(operation, context: ReviewContext)` 的返回是**推断联合**，成员
+`kind` 被放宽成 `string`，于是 `reviewPlan` 读 `review.code` / `review.operation` 失败。
+
+改法（**一次做完**）：签名改 `(operation: unknown, context: ReviewContext): ReviewOutcome`，
+加 `asRecord(value: unknown): Record<string, unknown> | undefined`，把体内 `operation.` 换成收窄后的
+名字，再补 **11 处逐字段守卫**：151/160/161/166（`string`）、167（字面量 `kind`）、172
+（`'add' | 'update' | 'supersede'`）、173/174（`MemoryRecord`）。只做头部会 4 → 15。
+
+### 链 2：`actions.ts`(436)（1 个错误）
+
+`apply` 里 `{ ...outcome.result, … }` 的 `outcome.result` 是 `unknown`。源头在
+`jsonstore.ts`：`StoreMutation` 的 `result?: unknown`。
+
+改法（**一次做完**）：`StoreMutation<T = Record<string, unknown>>`、`withStore<T>(… operation:
+(store: MemoryStore) => StoreMutation<T> | undefined)`、`apply<T extends Record<string,
+unknown>>(…)`（三处精确文本替换即可命中），**并且**给六个调用方（`actions.ts` 的
+81/128/164/206/229/278）的回调返回形状补齐，让 `T` 能被推断出来。只改前三处会 4 → 17。
+
+> 经验：这三处用**逐处精确文本替换**（每处断言命中一次）是可行的；用正则往签名里插 `<T,`
+> 会静默破坏签名并连带打断运行时（第 18 轮已发生一次）。
