@@ -21,6 +21,7 @@ import { CATEGORIES } from './schema.js'
 import type { ProjectEntry } from './types/identity.js'
 import type { Context } from '@deepseek-ai/cordis'
 import type { MemoryDeps } from './types/deps.js'
+import type { MemoryCategory, MemoryScope } from './types/memory.js'
 
 /** Modes `memory_remember` accepts. */
 const MODES = Object.freeze(['add', 'update', 'supersede'])
@@ -70,6 +71,45 @@ const REMEMBER_DESCRIPTION = [
  * @param deps.evidenceFor - host-built provenance for one agent.
  * @returns a disposer removing every registration.
  */
+/**
+ * What each tool reads from its arguments.
+ *
+ * The tool's declared schema is the authority for these fields; the aliases exist so
+ * a handler says what it consumes. Written as aliases rather than interfaces because
+ * an interface has no implicit index signature and would not be assignable where a
+ * plain record is expected.
+ */
+type SearchArgs = {
+  /** The text to look for. */
+  query: string
+  /** Which store to search, when the caller narrows it. */
+  scope?: MemoryScope | undefined
+  /** Which category to search, when the caller narrows it. */
+  category?: MemoryCategory | undefined
+  /** Largest number of results. */
+  top_k?: number | undefined
+}
+
+/** What `memory_get` reads. */
+type GetArgs = {
+  /** The record to read. */
+  id: string
+}
+
+/** What `memory_remember` reads. */
+type RememberArgs = {
+  /** Which action the caller asks for. */
+  mode: 'add' | 'update' | 'supersede'
+  /** The fact to store or the replacement text. */
+  content: string
+  /** Which store, for `add`. */
+  scope?: MemoryScope | undefined
+  /** Which category, for `add`. */
+  category?: MemoryCategory | undefined
+  /** The record to act on, for `update` and `supersede`. */
+  target_id?: string | undefined
+}
+
 export function registerMemoryTools(ctx: Context, deps: MemoryDeps) {
   const disposers = [
     ctx.tools.register(searchTool(deps)),
@@ -109,7 +149,7 @@ function searchTool(deps: MemoryDeps) {
       additionalProperties: false,
     },
     output: { ...JSON_OUTPUT, schema: { type: 'object' } },
-    execute(args: Record<string, unknown>, exec) {
+    execute(args: SearchArgs, exec: { agent: MemoryAgent }) {
       const project = deps.projectFor(exec.agent)
       const found = searchRecords(visibleRecords(deps, project), {
         query: args.query,
@@ -142,7 +182,7 @@ function getTool(deps: MemoryDeps) {
       additionalProperties: false,
     },
     output: { ...JSON_OUTPUT, schema: { type: 'object' } },
-    execute(args: Record<string, unknown>, exec) {
+    execute(args: GetArgs, exec: { agent: MemoryAgent }) {
       const project = deps.projectFor(exec.agent)
       try {
         const located = locateVisible(scopeOptions(deps, project), args.id, project?.project_id ?? null)
@@ -183,7 +223,7 @@ function rememberTool(deps: MemoryDeps) {
       additionalProperties: false,
     },
     output: { ...JSON_OUTPUT, schema: { type: 'object' } },
-    async execute(args: Record<string, unknown>, exec) {
+    async execute(args: RememberArgs, exec: { agent: MemoryAgent }) {
       requireParameterSet(args)
       const project = deps.projectFor(exec.agent)
       const options = scopeOptions(deps, project)
