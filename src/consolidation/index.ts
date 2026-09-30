@@ -202,8 +202,8 @@ export function createConsolidation(options: ConsolidationOptions) {
    * @param run - the promise for one run.
    * @returns the same promise, so callers keep the outcome.
    */
-  const track = (run: Promise<unknown>) => {
-    let tracked: Promise<unknown> | undefined
+  const track = <T>(run: Promise<T>): Promise<T> => {
+    let tracked: Promise<T> | undefined
     tracked = run.finally(() => { runs.delete(tracked) })
     runs.add(tracked)
     return tracked
