@@ -29,6 +29,8 @@ interface MemorySession {
 
 /** The Agent members this plugin drives. */
 interface MemoryAgent {
+  /** The agent's current status; the idle trigger compares it with 'idle'. */
+  readonly status?: string | undefined
   readonly session: MemorySession
   /**
    * Run work inside the agent's maintenance phase. Rejects when a turn or another

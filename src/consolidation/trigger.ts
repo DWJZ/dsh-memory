@@ -35,7 +35,24 @@ export const DEFAULT_DEBOUNCE_MS = 10_000
  * @param options.logger - optional `{ warn }` sink.
  * @returns the trigger.
  */
-export function createTrigger(options) {
+
+/** What the idle trigger takes. */
+export interface TriggerOptions {
+  /** How long an idle agent waits before its turn is consolidated. */
+  debounceMs?: number
+  /** Injectable scheduler, so a test can fire the debounce without waiting. */
+  schedule?(run: () => void, ms: number): unknown
+  /** Cancels a scheduled run. */
+  cancelSchedule?(handle: unknown): void
+  /** Whether an agent is idle; injectable for the same reason. */
+  isIdle?(agent: MemoryAgent): boolean
+  /** Ask one agent for its turn, once the debounce expires. */
+  task(agent: MemoryAgent): Promise<unknown>
+  /** Diagnostic sink. */
+  logger?: { info?(message: string): void; warn(message: string | Error): void } | undefined
+}
+
+export function createTrigger(options: TriggerOptions) {
   const debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS
   const schedule = options.schedule ?? ((run, ms) => setTimeout(run, ms))
   const cancelSchedule = options.cancelSchedule ?? (handle => { clearTimeout(handle) })
