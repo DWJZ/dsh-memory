@@ -216,7 +216,14 @@ function findTarget(targetId: unknown, context: ReviewContext) {
  * @param context - the judging context, plus the content being stored.
  * @returns `{ kind: 'accepted', entry }` or `{ kind: 'rejected', reason }`.
  */
-function buildEvidence(seqs: unknown, context: ReviewContext) {
+function buildEvidence(
+  seqs: unknown,
+  context: ReviewContext,
+): { kind: 'rejected'; reason: string; code: string } | {
+  kind: 'accepted'
+  entry: { kind: string; session_id: string; event_seqs: number[]; quote: string; observed_at: string }
+  sourceTexts: string[]
+} {
   if (!Array.isArray(seqs) || seqs.length === 0) {
     return { kind: 'rejected', reason: 'evidence_event_seqs must be a non-empty array', code: 'evidence-missing' }
   }
