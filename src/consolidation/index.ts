@@ -97,9 +97,19 @@ export interface AcceptedProposal {
   quote: string
 }
 
+/** The statuses a run that settled reports. */
+export type SettledStatus =
+  | 'success'
+  | 'partial'
+  | 'gap'
+  | 'no-human-turn'
+  | 'nothing-pending'
+  | 'nothing-observed'
+  | 'no-session'
+
 /** What a run that settled reports: counts, not proposals. */
 export interface SettledAudit {
-  status: string
+  status: SettledStatus
   from_seq?: number | undefined
   to_seq?: number | undefined
   relevant_events?: number | undefined
@@ -576,7 +586,9 @@ export function createConsolidation(options: ConsolidationOptions) {
  * @param rejected - the rejections recorded during review.
  * @returns `{ rejected_reasons }` when there were any, otherwise an empty object.
  */
-function countRejections(rejected: readonly { code?: unknown }[]): Record<string, number> {
+function countRejections(
+  rejected: readonly { code?: unknown }[],
+): { rejected_reasons?: Record<string, number> } {
   if (rejected.length === 0) return {}
   const counts: Record<string, number> = {}
   for (const entry of rejected) {
