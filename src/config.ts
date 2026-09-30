@@ -14,6 +14,8 @@
 
 import { MIN_TRAJECTORY_BYTES_PER_BATCH } from './consolidation/normalize.js'
 import { resolveDshHome, resolveMemoryDir } from './paths.js'
+import type { PluginConfig } from './settings.js'
+import type { MemoryConsolidationSettings, MemorySettings } from './types/config.js'
 
 /** Every setting a deployment may override, with its default. */
 export const DEFAULTS = Object.freeze({
@@ -62,7 +64,7 @@ const SPLIT_TOLERANCE = 1e-9
  * @param env - environment used to resolve `$DSH_HOME`.
  * @returns the settings this plugin runs with, including the derived locations.
  */
-export function resolveConfig(config, env = process.env) {
+export function resolveConfig(config: PluginConfig, env: NodeJS.ProcessEnv = process.env): MemorySettings {
   const raw = config ?? {}
   const dshHome = resolveDshHome(raw.dshHome, env)
   return {
@@ -93,7 +95,7 @@ export function resolveConfig(config, env = process.env) {
  * @returns the validated settings.
  * @throws {TypeError} when a field is present and unusable.
  */
-function consolidationSetting(value) {
+function consolidationSetting(value: unknown): MemoryConsolidationSettings {
   const fallback = DEFAULTS.consolidation
   if (value === undefined) return { ...fallback }
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -126,7 +128,7 @@ function consolidationSetting(value) {
  * @param minimum - smallest accepted value.
  * @returns the validated integer.
  */
-function integerSetting(value, fallback, field, minimum) {
+function integerSetting(value: unknown, fallback: number, field: string, minimum: number): number {
   if (value === undefined) return fallback
   if (!Number.isInteger(value) || value < minimum) {
     throw new TypeError(`dsh-memory: config ${field} must be an integer >= ${String(minimum)}, got ${JSON.stringify(value)}`)
@@ -141,7 +143,7 @@ function integerSetting(value, fallback, field, minimum) {
  * @param field - setting name, named in the failure.
  * @returns the validated boolean.
  */
-function booleanSetting(value, fallback, field) {
+function booleanSetting(value: unknown, fallback: boolean, field: string): boolean {
   if (value === undefined) return fallback
   if (typeof value !== 'boolean') {
     throw new TypeError(`dsh-memory: config ${field} must be a boolean, got ${JSON.stringify(value)}`)
@@ -157,7 +159,7 @@ function booleanSetting(value, fallback, field) {
  * @param minimum - smallest accepted value.
  * @returns the validated number.
  */
-function numberSetting(value, fallback, field, minimum) {
+function numberSetting(value: unknown, fallback: number, field: string, minimum: number): number {
   if (value === undefined) return fallback
   if (typeof value !== 'number' || !Number.isFinite(value) || value < minimum) {
     throw new TypeError(`dsh-memory: config ${field} must be a number >= ${String(minimum)}, got ${JSON.stringify(value)}`)
@@ -170,7 +172,7 @@ function numberSetting(value, fallback, field, minimum) {
  * @param value - raw value from cordis.yml.
  * @returns the validated split.
  */
-function splitSetting(value) {
+function splitSetting(value: unknown): { user: number; project: number } {
   if (value === undefined) return { ...DEFAULTS.indexBudgetSplit }
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new TypeError(`dsh-memory: config indexBudgetSplit must be an object, got ${JSON.stringify(value)}`)
@@ -188,7 +190,7 @@ function splitSetting(value) {
  * @param value - raw value from cordis.yml.
  * @returns the validated marker list.
  */
-function markersSetting(value) {
+function markersSetting(value: unknown): string[] {
   if (value === undefined) return [...DEFAULTS.projectRootMarkers]
   if (!Array.isArray(value) || value.length === 0) {
     throw new TypeError(`dsh-memory: config projectRootMarkers must be a non-empty array, got ${JSON.stringify(value)}`)
