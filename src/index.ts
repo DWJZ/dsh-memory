@@ -36,6 +36,8 @@ import { createCollector } from './consolidation/collector.js'
 import { createConsolidation } from './consolidation/index.js'
 import { isAbsolute, relative } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
+import type { MemoryDeps } from './types/deps.js'
+import type { MemorySettings } from './types/config.js'
 
 /** Stable Cordis plugin name. */
 export const name = 'dsh-memory'
@@ -53,7 +55,7 @@ export const inject = ['commands']
  * @param ctx - Cordis context of this plugin's fiber.
  * @param config - raw plugin configuration from cordis.yml, possibly absent.
  */
-export function apply(ctx: Context, config) {
+export function apply(ctx: Context, config: MemorySettings) {
   const settings = resolveConfig(config)
   const controller = createController(ctx, settings)
   ctx.effect(() => () => controller.dispose(), 'dsh-memory.lifecycle')
@@ -327,7 +329,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
  * @returns the index text, or an empty string when there is nothing to inject.
  * @throws when a canonical store cannot be read or violates its schema.
  */
-function renderIndex(deps, agent: MemoryAgent) {
+function renderIndex(deps: MemoryDeps, agent: MemoryAgent) {
   const project = deps.projectFor(agent)
   return renderMemoryIndex({
     user: readStore(deps.scopes.user.storePath).records,
@@ -343,7 +345,7 @@ function renderIndex(deps, agent: MemoryAgent) {
  * @param deps - resolved settings and layouts.
  * @returns fulfillment once the refresh is settled.
  */
-async function refreshViewsOnMount(deps) {
+async function refreshViewsOnMount(deps: MemoryDeps) {
   const { lockTimeoutMs, staleLockMs, logger } = deps.config
   try {
     // A reaper never holds anything for long, so a temporary file is abandoned

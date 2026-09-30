@@ -78,7 +78,7 @@ export function isProjectId(value) {
  * @param text - the raw content.
  * @returns trimmed, whitespace-collapsed, NFC-normalized text.
  */
-export function normalizeContent(text) {
+export function normalizeContent(text: string) {
   return String(text).normalize('NFC').replace(/\s+/gu, ' ').trim()
 }
 
@@ -87,7 +87,7 @@ export function normalizeContent(text) {
  * @param text - the text to measure.
  * @returns the number of code points.
  */
-export function charLength(text) {
+export function charLength(text: string) {
   return Array.from(text).length
 }
 
@@ -97,7 +97,7 @@ export function charLength(text) {
  * @param limit - maximum number of code points to keep.
  * @returns the truncated text.
  */
-export function truncateChars(text, limit) {
+export function truncateChars(text: string, limit) {
   const points = Array.from(text)
   return points.length <= limit ? text : points.slice(0, limit).join('')
 }
@@ -243,7 +243,7 @@ function validateEvidence(entry, memoryId, index) {
  * @param value - the value to test.
  * @param field - field name, named in the failure.
  */
-function requireNonEmptyString(value, field) {
+function requireNonEmptyString(value, field: string) {
   if (typeof value !== 'string' || value === '') {
     throw new TypeError(`dsh-memory: ${field} must be a non-empty string, got ${JSON.stringify(value)}`)
   }
@@ -255,7 +255,7 @@ function requireNonEmptyString(value, field) {
  * @param allowed - the accepted members.
  * @param field - field name, named in the failure.
  */
-function requireMember(value, allowed, field) {
+function requireMember(value, allowed, field: string) {
   if (!allowed.includes(value)) {
     throw new TypeError(`dsh-memory: ${field} must be one of ${allowed.join(', ')}, got ${JSON.stringify(value)}`)
   }
@@ -267,7 +267,7 @@ function requireMember(value, allowed, field) {
  * @param memoryId - owning Memory id, named in the failure.
  * @param field - field name, named in the failure.
  */
-function requireTimestamp(value, memoryId, field) {
+function requireTimestamp(value, memoryId, field: string) {
   if (!isTimestamp(value)) {
     throw new TypeError(`dsh-memory: memory ${memoryId}: ${field} must be an ISO-8601 UTC timestamp, got ${JSON.stringify(value)}`)
   }

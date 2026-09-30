@@ -36,7 +36,7 @@ const inProcessTails = new Map()
  * @param kill - signal sender, injectable for tests.
  * @returns true when the process should be treated as alive.
  */
-export function isProcessAlive(pid, kill = process.kill) {
+export function isProcessAlive(pid: number, kill = process.kill) {
   if (!Number.isInteger(pid) || pid <= 0) return false
   try {
     kill(pid, 0)
@@ -57,7 +57,7 @@ export function isProcessAlive(pid, kill = process.kill) {
  * @param options.onWarn - receives a message when a lock is reclaimed.
  * @returns true when the caller should retry acquisition.
  */
-export function reclaimIfStale(lockPath, options) {
+export function reclaimIfStale(lockPath: string, options) {
   const observed = observeLock(lockPath, options)
   if (observed === undefined) return false
   if (observed.record !== undefined && observed.record.host !== options.host) {
@@ -95,7 +95,7 @@ export function reclaimIfStale(lockPath, options) {
  * @param options - staleness threshold and clock.
  * @returns the observation, or undefined when the lock is absent or still fresh.
  */
-function observeLock(lockPath, options) {
+function observeLock(lockPath: string, options) {
   let stats
   try {
     stats = statSync(lockPath)
@@ -126,7 +126,7 @@ function observeLock(lockPath, options) {
  * @param mutexPath - the mutex file path.
  * @returns true when this call now holds the mutex.
  */
-function takeReclaimMutex(mutexPath) {
+function takeReclaimMutex(mutexPath: string) {
   try {
     closeSync(openSync(mutexPath, 'wx', 0o600))
     return true
@@ -141,7 +141,7 @@ function takeReclaimMutex(mutexPath) {
  * Release the reclaim mutex.
  * @param mutexPath - the mutex file path.
  */
-function releaseReclaimMutex(mutexPath) {
+function releaseReclaimMutex(mutexPath: string) {
   try {
     unlinkSync(mutexPath)
   } catch {
@@ -201,7 +201,7 @@ export async function withLock(options, run) {
  * @param nonce - ownership token written into the lock file.
  * @returns true when this call now holds the lock.
  */
-async function acquire(options, nonce) {
+async function acquire(options, nonce: string) {
   const deadline = options.now() + options.lockTimeoutMs
   for (;;) {
     try {
@@ -241,7 +241,7 @@ async function acquire(options, nonce) {
  * @param lockPath - the lock file path.
  * @param nonce - ownership token written at acquisition.
  */
-function releaseLockFile(lockPath, nonce) {
+function releaseLockFile(lockPath: string, nonce: string) {
   try {
     const record = JSON.parse(readFileSync(lockPath, 'utf8'))
     // Another writer may have reclaimed this lock; deleting it would then
@@ -258,7 +258,7 @@ function releaseLockFile(lockPath, nonce) {
  * @param lockPath - the lock file path.
  * @returns a function that releases this call's place in the chain.
  */
-async function enterProcessChain(lockPath) {
+async function enterProcessChain(lockPath: string) {
   const tail = inProcessTails.get(lockPath) ?? Promise.resolve()
   let finish
   const next = new Promise(resolve => { finish = resolve })
@@ -276,7 +276,7 @@ async function enterProcessChain(lockPath) {
  * @param lockPath - the lock file path.
  * @returns true when the lock file is present.
  */
-export function lockExists(lockPath) {
+export function lockExists(lockPath: string) {
   return existsSync(lockPath)
 }
 
@@ -295,7 +295,7 @@ function withoutUndefined(options) {
  * @param now - clock, injectable for tests.
  * @returns the age in milliseconds.
  */
-function lockAgeMs(lockPath, now) {
+function lockAgeMs(lockPath: string, now) {
   try {
     return now() - statSync(lockPath).mtimeMs
   } catch {

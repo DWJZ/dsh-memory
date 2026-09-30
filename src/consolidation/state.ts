@@ -113,7 +113,7 @@ function validateProgress(progress, where) {
  * @param sessionId - the Session to look up.
  * @returns its record, or undefined when the Session has never been observed.
  */
-export function progressFor(state, sessionId) {
+export function progressFor(state, sessionId: string) {
   return state.sessions[sessionId]
 }
 
@@ -123,7 +123,7 @@ export function progressFor(state, sessionId) {
  * @param sessionId - the Session to look up.
  * @returns the last consumed seq, or {@link NO_PROGRESS} when nothing is recorded.
  */
-export function lastProcessedSeq(state, sessionId) {
+export function lastProcessedSeq(state, sessionId: string) {
   return progressFor(state, sessionId)?.last_processed_seq ?? NO_PROGRESS
 }
 
@@ -138,7 +138,7 @@ export function lastProcessedSeq(state, sessionId) {
  * @param at - ISO-8601 timestamp of the update.
  * @returns the next state document.
  */
-export function advanceHwm(state, sessionId, seq, at) {
+export function advanceHwm(state, sessionId: string, seq: number, at: string) {
   const current = progressFor(state, sessionId)
   if (current !== undefined && seq <= current.last_processed_seq) return state
   return withSession(state, sessionId, {
@@ -163,7 +163,7 @@ export function advanceHwm(state, sessionId, seq, at) {
  * @param at - ISO-8601 timestamp of the update.
  * @returns the next state document.
  */
-export function recordGap(state, sessionId, range, at) {
+export function recordGap(state, sessionId: string, range, at: string) {
   const current = progressFor(state, sessionId)
   const gaps = [...current?.gaps ?? [], { from_seq: range.from_seq, to_seq: range.to_seq, at }]
   return withSession(state, sessionId, {
@@ -180,7 +180,7 @@ export function recordGap(state, sessionId, range, at) {
  * @param progress - its new progress record.
  * @returns the next state document.
  */
-function withSession(state, sessionId, progress) {
+function withSession(state, sessionId: string, progress) {
   return {
     schema_version: CONSOLIDATION_SCHEMA_VERSION,
     sessions: { ...state.sessions, [sessionId]: progress },

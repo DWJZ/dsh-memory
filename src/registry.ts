@@ -252,7 +252,7 @@ export function findProjectRoot(cwd: string, markers, deps = {}) {
  * @returns the owning project and whether this call created it.
  * @throws when the directory does not exist and no project owns it.
  */
-export async function resolveOrRegisterProject(options, root, workspaceId: string) {
+export async function resolveOrRegisterProject(options, root: string, workspaceId: string) {
   const requested = resolve(root)
   return withLock(options, () => {
     const registry = readRegistry(options.registryPath)
