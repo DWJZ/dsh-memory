@@ -20,6 +20,7 @@ import { searchRecords } from './retrieval.js'
 import { CATEGORIES } from './schema.js'
 import type { ProjectEntry } from './types/identity.js'
 import type { Context } from '@deepseek-ai/cordis'
+import type { MemoryDeps } from './types/deps.js'
 
 /** Modes `memory_remember` accepts. */
 const MODES = Object.freeze(['add', 'update', 'supersede'])
@@ -69,7 +70,7 @@ const REMEMBER_DESCRIPTION = [
  * @param deps.evidenceFor - host-built provenance for one agent.
  * @returns a disposer removing every registration.
  */
-export function registerMemoryTools(ctx: Context, deps) {
+export function registerMemoryTools(ctx: Context, deps: MemoryDeps) {
   const disposers = [
     ctx.tools.register(searchTool(deps)),
     ctx.tools.register(getTool(deps)),
@@ -85,7 +86,7 @@ export function registerMemoryTools(ctx: Context, deps) {
  * @param deps - what the tool reads.
  * @returns the tool definition.
  */
-function searchTool(deps) {
+function searchTool(deps: MemoryDeps) {
   return {
     name: 'memory_search',
     description: SEARCH_DESCRIPTION,
@@ -130,7 +131,7 @@ function searchTool(deps) {
  * @param deps - what the tool reads.
  * @returns the tool definition.
  */
-function getTool(deps) {
+function getTool(deps: MemoryDeps) {
   return {
     name: 'memory_get',
     description: GET_DESCRIPTION,
@@ -165,7 +166,7 @@ function getTool(deps) {
  * @param deps - what the tool writes.
  * @returns the tool definition.
  */
-function rememberTool(deps) {
+function rememberTool(deps: MemoryDeps) {
   return {
     name: 'memory_remember',
     description: REMEMBER_DESCRIPTION,
@@ -246,7 +247,7 @@ function requireParameterSet(args: Record<string, unknown>) {
  * @param project - the current project, when there is one.
  * @returns user records followed by the current project's records.
  */
-function visibleRecords(deps, project: ProjectEntry) {
+function visibleRecords(deps: MemoryDeps, project: ProjectEntry | null | undefined) {
   const user = readStore(deps.scopes.user.storePath).records
   if (project === null || project === undefined) return user
   return [...user, ...readStore(deps.scopes.project(project.project_id).storePath).records]
@@ -268,7 +269,7 @@ function stripScore(hit) {
  * @param project - the current project, when there is one.
  * @returns options for the action layer.
  */
-function scopeOptions(deps, project: ProjectEntry) {
+function scopeOptions(deps: MemoryDeps, project: ProjectEntry | null | undefined) {
   return {
     scopes: deps.scopes,
     tombstones: deps.tombstones,

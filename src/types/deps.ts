@@ -10,7 +10,7 @@
 
 import type { MemorySettings } from './config.js'
 import type { ProjectEntry } from './identity.js'
-import type { ActionOptions } from './memory.js'
+import type { ActionOptions, EvidenceEntry, Provenance } from './memory.js'
 
 /** What one command invocation carries. */
 export interface CommandInvocation {
@@ -42,6 +42,10 @@ export interface MemoryDeps {
   setEnabled(next: boolean): Promise<void>
   /** Whether automatic learning is on (both switches considered). */
   consolidationEnabled(): boolean
+  /** Injectable clock in epoch milliseconds. */
+  now?(): number
+  /** The citation for the turn in flight, when the Session has one to cite. */
+  evidenceFor(agent: MemoryAgent): Provenance
   /** Run one consolidation for an agent, as `/memory consolidate` does. */
   consolidate(agent: MemoryAgent, runOptions?: { dryRun?: boolean; trigger?: string }): Promise<unknown>
 }
