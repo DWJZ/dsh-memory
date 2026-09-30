@@ -95,7 +95,7 @@ export function createConsolidation(options) {
    * @param run - the promise for one run.
    * @returns the same promise, so callers keep the outcome.
    */
-  const track = (run) => {
+  const track = (run: Promise<unknown>) => {
     let tracked: Promise<unknown> | undefined
     tracked = run.finally(() => { runs.delete(tracked) })
     runs.add(tracked)
@@ -116,7 +116,7 @@ export function createConsolidation(options) {
    * @param projectId - the Session's project, or null.
    * @returns the active records.
    */
-  const activeMemory = (projectId) => {
+  const activeMemory = (projectId: string | null | undefined) => {
     const user = readStore(scopes.user.storePath).records
     const project = projectId === null || projectId === undefined
       ? []
@@ -152,7 +152,7 @@ export function createConsolidation(options) {
     // process may have consumed part of it between the read above and here, and
     // a gap written from the older mark would call events somebody else read
     // "never observed".
-    let gap
+    let gap: { from_seq: number; to_seq: number } | undefined
     const written = await withState(stateOptions, (current) => {
       const currentMark = lastProcessedSeq(current, sessionId)
       if (first <= currentMark + 1) return { changed: false, state: current }
