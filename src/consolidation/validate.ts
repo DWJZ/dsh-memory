@@ -245,9 +245,9 @@ function buildEvidence(seqs: number[], context: ReviewContext) {
  * @param cited - the cited events.
  * @returns `user`, `tool`, or `agent`.
  */
-function evidenceKind(cited: ObservedEvent[]): string {
-  if (cited.some(event => event.type === 'user/message' && event.data?.source?.kind === 'user')) return 'user'
-  if (cited.some(event => event.type === 'tool/result' || event.type === 'tool/call')) return 'tool'
+function evidenceKind(cited: readonly (ObservedEvent | undefined)[]): string {
+  if (cited.some(event => event?.type === 'user/message' && event?.data?.source?.kind === 'user')) return 'user'
+  if (cited.some(event => event?.type === 'tool/result' || event?.type === 'tool/call')) return 'tool'
   return 'agent'
 }
 
@@ -269,7 +269,7 @@ function quoteFrom(texts: string[], maxChars: number): string | undefined {
  * @param event - a Session event.
  * @returns its text blocks, in order.
  */
-function textBlocks(event: ObservedEvent) {
+function textBlocks(event: ObservedEvent | undefined) {
   const blocks = event?.data?.content ?? event?.data?.message?.content
   if (!Array.isArray(blocks)) return []
   return blocks.filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text)
