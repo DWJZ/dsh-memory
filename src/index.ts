@@ -35,6 +35,7 @@ import { resolveEnabled, writeEnabled } from './settings.js'
 import { createCollector } from './consolidation/collector.js'
 import { createConsolidation } from './consolidation/index.js'
 import { isAbsolute, relative } from 'node:path'
+import type { Context } from '@deepseek-ai/cordis'
 
 /** Stable Cordis plugin name. */
 export const name = 'dsh-memory'
@@ -52,7 +53,7 @@ export const inject = ['commands']
  * @param ctx - Cordis context of this plugin's fiber.
  * @param config - raw plugin configuration from cordis.yml, possibly absent.
  */
-export function apply(ctx, config) {
+export function apply(ctx: Context, config) {
   const settings = resolveConfig(config)
   const controller = createController(ctx, settings)
   ctx.effect(() => () => controller.dispose(), 'dsh-memory.lifecycle')
@@ -65,7 +66,7 @@ export function apply(ctx, config) {
  * @param settings - resolved plugin settings.
  * @returns the controller.
  */
-function createController(ctx, settings) {
+function createController(ctx: Context, settings) {
   const scopes = {
     user: userLayout(settings.memoryDir),
     project: projectId => projectLayout(settings.memoryDir, projectId),
@@ -95,8 +96,8 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
     registry,
     tombstones,
     logger,
-    projectFor: agent => projectsByCwd.get(cwdOf(agent)) ?? null,
-    evidenceFor: agent => buildProvenance(agent, tracker, { evidenceQuoteMaxChars: settings.evidenceQuoteMaxChars }),
+    projectFor: (agent: MemoryAgent) => projectsByCwd.get(cwdOf(agent)) ?? null,
+    evidenceFor: (agent: MemoryAgent) => buildProvenance(agent, tracker, { evidenceQuoteMaxChars: settings.evidenceQuoteMaxChars }),
   }
 
   /**
@@ -113,7 +114,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
     if (runtimeFiber !== null) return
     runtimeFiber = ctx.inject(['systemPrompt', 'tools'], (scope) => {
       registerMemoryPolicy(scope)
-      registerMemoryIndex(scope, agent => renderIndex(deps, agent))
+      registerMemoryIndex(scope, (agent: MemoryAgent) => renderIndex(deps, agent))
       registerMemoryTools(scope, deps)
     })
   }
@@ -155,7 +156,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
    * @param agent - the agent whose directory needs a project.
    * @returns fulfillment once the lookup is settled.
    */
-  const resolveForAgent = async (agent) => {
+  const resolveForAgent = async (agent: MemoryAgent) => {
     const cwd = cwdOf(agent)
     if (cwd === undefined) return
     try {
@@ -184,7 +185,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
    * @param project - the resolved project.
    * @param workspace - the harness workspace that contains the directory, if any.
    */
-  const announceProject = (agent, project, workspace) => {
+  const announceProject = (agent: MemoryAgent, project, workspace) => {
     if (settings.sessionEvents !== true) return
     const session = agent?.session
     if (session === undefined || typeof session.append !== 'function') return
@@ -248,10 +249,10 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
           maxEvidencePerMemory: settings.maxEvidencePerMemory,
           quoteMaxChars: settings.evidenceQuoteMaxChars,
         },
-        projectFor: agent => projectsByCwd.get(cwdOf(agent)) ?? null,
+        projectFor: (agent: MemoryAgent) => projectsByCwd.get(cwdOf(agent)) ?? null,
         logger,
       })
-      deps.consolidate = (agent, runOptions) => consolidation.consolidate(agent, runOptions)
+      deps.consolidate = (agent: MemoryAgent, runOptions) => consolidation.consolidate(agent, runOptions)
       deps.consolidationEnabled = () => settings.consolidation.enabled
       // The model call needs the `llm` service, which a profile may not mount.
       // Taking it as an injection rather than a hard dependency keeps Memory
@@ -268,7 +269,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
       // is gated: collecting costs nothing, so the events stay available to
       // `/memory consolidate`, which a person runs deliberately.
       const learningOnItsOwn = () => collecting() && settings.consolidation.autoCommit === true
-      const disposeEvents = ctx.on('session/event', (session, event) => {
+      const disposeEvents = ctx.on('session/event', (session: MemorySession, event) => {
         if (collecting()) consolidation.observe(session, event)
       })
       const disposeStatus = ctx.on('agent/status', ({ agent, status }) => {
@@ -326,7 +327,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
  * @returns the index text, or an empty string when there is nothing to inject.
  * @throws when a canonical store cannot be read or violates its schema.
  */
-function renderIndex(deps, agent) {
+function renderIndex(deps, agent: MemoryAgent) {
   const project = deps.projectFor(agent)
   return renderMemoryIndex({
     user: readStore(deps.scopes.user.storePath).records,
@@ -375,7 +376,7 @@ async function refreshViewsOnMount(deps) {
  * @param agent - the agent to describe.
  * @returns its absolute working directory, or undefined.
  */
-function cwdOf(agent) {
+function cwdOf(agent: MemoryAgent) {
   const cwd = agent?.session?.header?.cwd
   return typeof cwd === 'string' && cwd !== '' ? cwd : undefined
 }
@@ -389,7 +390,7 @@ function cwdOf(agent) {
  * @param cwd - the session working directory.
  * @returns the workspace root and id, or undefined.
  */
-function workspaceOf(ctx, cwd) {
+function workspaceOf(ctx: Context, cwd) {
   const workspaceRegistry = ctx.get('workspaceRegistry')
   if (workspaceRegistry === undefined || typeof workspaceRegistry.list !== 'function') return undefined
   let workspaces
