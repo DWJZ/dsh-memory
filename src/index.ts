@@ -40,6 +40,21 @@ import type { MemoryDeps } from './types/deps.js'
 import type { MemorySettings } from './types/config.js'
 
 /** Stable Cordis plugin name. */
+
+/**
+ * Describe a caught value the way these warnings always did: an Error's message,
+ * a plain object's `message` when it has one, and otherwise the value itself.
+ * @param failure - whatever was caught.
+ * @returns the text to log.
+ */
+function describeFailure(failure: unknown): string {
+  if (failure instanceof Error) return failure.message
+  if (typeof failure === 'object' && failure !== null && 'message' in failure) {
+    return String((failure as { message: unknown }).message)
+  }
+  return String(failure)
+}
+
 export const name = 'dsh-memory'
 
 /**
@@ -87,10 +102,10 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
   /** Sessions whose attribution was already recorded, so it is written once. */
   const announcedProjects = new Set()
   let enabled = resolveEnabled(settings.memoryDir, settings.enabled)
-  let runtimeFiber = null
-  let llmScope = null
+  let runtimeFiber: { dispose(): Promise<void> } | null = null
+  let llmScope: Context | null = null
   /** Built in `start()`, but referenced by the switch, which outlives mounting. */
-  let consolidation = null
+  let consolidation: ReturnType<typeof createConsolidation> | null = null
 
   const deps = {
     config: settings,
@@ -172,7 +187,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
         announceProject(agent, project, workspace)
       }
     } catch (failure) {
-      logger.warn(`dsh-memory: could not resolve the project for ${cwd}: ${String(failure?.message ?? failure)}`)
+      logger.warn(`dsh-memory: could not resolve the project for ${cwd}: ${describeFailure(failure)}`)
     }
   }
 
@@ -201,7 +216,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
         matched_by: project.matched_by,
       }, { ignorable: true })
     } catch (failure) {
-      logger.warn(`dsh-memory: could not record the project attribution: ${String(failure?.message ?? failure)}`)
+      logger.warn(`dsh-memory: could not record the project attribution: ${describeFailure(failure)}`)
     }
   }
 
@@ -354,7 +369,7 @@ async function refreshViewsOnMount(deps: MemoryDeps) {
       staleTempMs: Math.max(staleLockMs, lockTimeoutMs * 2),
     })
   } catch (failure) {
-    logger?.warn(`dsh-memory: could not sweep temporary files: ${String(failure?.message ?? failure)}`)
+    logger?.warn(`dsh-memory: could not sweep temporary files: ${describeFailure(failure)}`)
   }
   const layouts = [deps.scopes.user]
   try {
@@ -362,13 +377,13 @@ async function refreshViewsOnMount(deps: MemoryDeps) {
       layouts.push(deps.scopes.project(entry.project_id))
     }
   } catch (failure) {
-    logger?.warn(`dsh-memory: could not read the project registry: ${String(failure?.message ?? failure)}`)
+    logger?.warn(`dsh-memory: could not read the project registry: ${describeFailure(failure)}`)
   }
   for (const layout of layouts) {
     try {
       await rebuildView({ ...layout, lockTimeoutMs, staleLockMs, logger })
     } catch (failure) {
-      logger?.warn(`dsh-memory: memory-view-stale: ${layout.viewPath}: ${String(failure?.message ?? failure)}`)
+      logger?.warn(`dsh-memory: memory-view-stale: ${layout.viewPath}: ${describeFailure(failure)}`)
     }
   }
 }

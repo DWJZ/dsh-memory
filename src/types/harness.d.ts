@@ -42,6 +42,27 @@ type MemoryCategory = 'state' | 'preference' | 'decision' | 'lesson' | 'referenc
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
+    /**
+     * Subscribe to one of the events this plugin observes. The overridden
+     * signatures name the payloads it reads; the last one keeps other event names
+     * available without pretending to know their arguments.
+     */
+    on(event: 'session/event', listener: (session: MemorySession, event: ObservedEvent) => void): () => void
+    on(event: 'agent/status', listener: (payload: { agent: MemoryAgent; status: string }) => void): () => void
+    on(event: string, listener: (...args: never[]) => unknown): () => void
+
+    /**
+     * Run a callback once every named service is available, in a child fiber the
+     * returned handle owns. Disposing it removes everything the callback registered.
+     */
+    inject(deps: string[], callback: (scope: Context) => unknown): { dispose(): Promise<void> }
+
+    /**
+     * Register a disposable contribution. Returns the disposer, and the runtime
+     * also runs it when the owning fiber is disposed.
+     */
+    effect(callback: () => void | (() => void), label?: string): () => void
+
     /** The tool catalogue this plugin registers `memory_get` and friends into. */
     tools: {
       register(definition: {
