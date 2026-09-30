@@ -10,6 +10,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import type { MemoryRecord } from './types/memory.js'
 
 /** Persistent scopes. A session is deliberately not one; it owns the trajectory. */
 export const SCOPES = Object.freeze(['user', 'project'])
@@ -123,7 +124,7 @@ export function isTimestamp(value) {
  *   property of a valid record.
  * @throws {TypeError} when the record violates any schema rule.
  */
-export function validateMemory(record, options = {}) {
+export function validateMemory(record: MemoryRecord, options = {}) {
   if (typeof record !== 'object' || record === null || Array.isArray(record)) {
     throw new TypeError('dsh-memory: memory record must be an object')
   }
@@ -196,7 +197,7 @@ export function validateMemory(record, options = {}) {
  * @throws {TypeError} when any record is invalid, ids repeat, or a supersession
  *   reference dangles.
  */
-export function validateStoreRecords(records, options = {}) {
+export function validateStoreRecords(records: MemoryRecord[], options = {}) {
   if (!Array.isArray(records)) throw new TypeError('dsh-memory: a store document must hold a records array')
   const known = new Set()
   for (const record of records) {

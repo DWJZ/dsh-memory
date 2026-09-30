@@ -17,6 +17,7 @@
 import { readStore, writeAtomic, withStore } from './jsonstore.js'
 import { withLock } from './lock.js'
 import { CATEGORY_PRIORITY, activeRecords } from './retention.js'
+import type { MemoryRecord } from './types/memory.js'
 
 /** Marker identifying the revision a view was rendered from. */
 const REVISION_MARKER = 'dsh-memory: revision'
@@ -28,7 +29,7 @@ const REVISION_MARKER = 'dsh-memory: revision'
  * @param options.revision - canonical revision the render reflects.
  * @returns the complete file content.
  */
-export function renderMemoryView(records, options = {}) {
+export function renderMemoryView(records: MemoryRecord[], options = {}) {
   const revision = options.revision ?? 0
   const active = activeRecords(records)
   const lines = [
@@ -44,7 +45,7 @@ export function renderMemoryView(records, options = {}) {
     return lines.join('\n')
   }
   for (const category of CATEGORY_PRIORITY) {
-    const group = active.filter(record => record.category === category)
+    const group = active.filter((record: MemoryRecord) => record.category === category)
     if (group.length === 0) continue
     lines.push(`## ${category}`, '')
     for (const record of group) lines.push(`- ${record.content}`)
