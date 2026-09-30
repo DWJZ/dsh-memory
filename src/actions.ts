@@ -78,7 +78,8 @@ export async function addMemory(options: ActionOptions, input: AddInput) {
   const screened = screen([...input.sourceTexts ?? [], content], input.evidence?.quote)
   if (screened !== undefined) return noop(`secret-detected:${screened}`)
 
-  return apply(options, layout, (store: MemoryStore) => {
+  // Two branches return different results, so the result type is stated here.
+  return apply<{ action: string; id: string; reason?: string }>(options, layout, (store: MemoryStore) => {
     // The effective project is what the record will store, so a user-scope write
     // compares against other user-scope records rather than a project's.
     const projectId = input.scope === 'project' ? input.projectId : null
@@ -275,8 +276,11 @@ export async function forgetMemory(options: ActionOptions, input: RecordTarget) 
  */
 export async function clearScope(options: ActionOptions, input: ScopeInput) {
   const layout = requireLayout(options, input.scope, input.projectId)
-  const outcome = await apply(options, layout, (store: MemoryStore) => {
-    if (store.records.length === 0) {
+  const outcome = await apply<{ action: string; count: number; reason?: string }>(
+    options,
+    layout,
+    (store: MemoryStore) => {
+      if (store.records.length === 0) {
       return { changed: false, result: { action: 'noop', reason: 'empty-scope', count: 0 } }
     }
     return {
