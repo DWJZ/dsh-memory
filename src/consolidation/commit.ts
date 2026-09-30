@@ -22,6 +22,7 @@
 
 import type { ActionOptions, AutoOperation } from '../types/memory.js'
 import { addMemory, supersedeMemory, updateMemory } from '../actions.js'
+import type { ReviewedOperation } from './validate.js'
 
 /** Actions that leave Memory unchanged without anything having gone wrong. */
 const NON_WRITES = Object.freeze(['noop', 'conflict'])
@@ -65,7 +66,7 @@ export interface CommitOutcome {
  */
 export async function commitOperations(
   options: ActionOptions,
-  operations: readonly AutoOperation[],
+  operations: readonly ReviewedOperation[],
 ): Promise<CommitOutcome> {
   const committed = { add: 0, update: 0, supersede: 0 }
   const skipped: CommitOutcome['skipped'] = []

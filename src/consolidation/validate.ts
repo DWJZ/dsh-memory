@@ -22,7 +22,7 @@
 
 import { CATEGORIES, MAX_CONTENT_CHARS, charLength } from '../schema.js'
 import { findSecretIn } from '../redact.js'
-import type { AutoOperation, EvidenceEntry, MemoryCategory, MemoryRecord, MemoryScope } from '../types/memory.js'
+import type { AddOperation, AutoOperation, EvidenceEntry, MemoryCategory, MemoryRecord, MemoryScope, TargetedOperation } from '../types/memory.js'
 import type { ObservedEvent } from '../types/trajectory.js'
 
 /** Actions automatic consolidation may take. */
@@ -77,26 +77,26 @@ export interface ReviewContext {
  * It is what Phase 1 would write, plus the target the review resolved: a proposal
  * names a target only for `update` and `supersede`, and the dry-run report shows it.
  */
-export interface ReviewedOperation {
-  /** The automatic action the review accepted. */
-  action: AutoOperation['action']
-  /** Which store the record belongs to, resolved by the review. */
-  scope: MemoryScope
-  /** What kind of record it is, resolved by the review. */
-  category: MemoryCategory
-  /** The fact to store or the replacement text. */
-  content: string
+/** An operation the review accepted for a new fact. */
+export interface ReviewedAdd extends AddOperation {
   /** The confidence the review assigned. */
   confidence: number
-  /** The record being rewritten or retired, for `update` and `supersede`. */
-  target_id?: string | undefined
-  /** Set for a project record. */
-  projectId?: string | null | undefined
   /** The citation the review resolved and screened. */
   evidence: EvidenceEntry
-  /** Untruncated text the citation came from, screened again at the write. */
-  sourceTexts?: string[] | undefined
 }
+
+/** An operation the review accepted for an existing record. */
+export interface ReviewedTargeted extends TargetedOperation {
+  /** The record being rewritten or retired. */
+  target_id: string
+  /** The confidence the review assigned. */
+  confidence: number
+  /** The citation the review resolved and screened. */
+  evidence: EvidenceEntry
+}
+
+/** An operation the review accepted: the fact to store, or the record to rewrite. */
+export type ReviewedOperation = ReviewedAdd | ReviewedTargeted
 
 /** What reviewing one proposal produced. */
 export type ReviewOutcome =
@@ -193,22 +193,22 @@ export function reviewOperation(operation: unknown, context: ReviewContext): Rev
   const evidence = buildEvidence(proposal.evidence_event_seqs, { ...context, content })
   if (evidence.kind === 'rejected') return evidence
 
+  const shared = {
+    scope: scope as MemoryScope,
+    category: category as MemoryCategory,
+    content,
+    confidence,
+    projectId: scope === 'project' ? (target?.project_id ?? context.projectId) : undefined,
+    evidence: evidence.entry,
+    // Internal only: never from the model, never persisted, never printed. It
+    // exists so the write itself can screen the untruncated text.
+    sourceTexts: evidence.sourceTexts,
+  }
+  if (action === 'add') return { kind: 'accepted', operation: { action: 'add', ...shared } }
+  // The guard above refused every non-add action without a visible target.
   return {
     kind: 'accepted',
-    operation: {
-      // The checks above refused every other value, so these carry the union members.
-      action: action as AutoOperation['action'],
-      scope: scope as MemoryScope,
-      category: category as MemoryCategory,
-      content,
-      confidence,
-      target_id: target?.id,
-      projectId: scope === 'project' ? (target?.project_id ?? context.projectId) : undefined,
-      evidence: evidence.entry,
-      // Internal only: never from the model, never persisted, never printed. It
-      // exists so the write itself can screen the untruncated text.
-      sourceTexts: evidence.sourceTexts,
-    },
+    operation: { action: action as 'update' | 'supersede', target_id: target?.id ?? '', ...shared },
   }
 }
 

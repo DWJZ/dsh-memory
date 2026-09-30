@@ -89,8 +89,10 @@ export interface AcceptedProposal {
   /** The record it targets, when it changes one. */
   target_id?: string | undefined
   action: string
-  scope: string
-  category: string
+  /** Inherited from the reviewed record, so a `target_id`-less proposal may lack it. */
+  scope?: string | undefined
+  /** Inherited, as `scope` is. */
+  category?: string | undefined
   content: string
   confidence: number
   evidence_event_seqs: readonly number[]
@@ -433,7 +435,8 @@ export function createConsolidation(options: ConsolidationOptions) {
           category: operation.category,
           content: operation.content,
           confidence: operation.confidence,
-          target_id: operation.target_id,
+          // Only an update or a supersede names a record; `add` has none.
+          target_id: operation.action === 'add' ? undefined : operation.target_id,
           evidence_event_seqs: operation.evidence.event_seqs,
           quote: operation.evidence.quote,
         })),
