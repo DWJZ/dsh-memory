@@ -23,6 +23,11 @@ export interface ObservedEvent {
   type: string
   /** The event payload, unread until the type says what to expect. */
   data?: unknown
+  /**
+   * The envelope's marker for a type a reader may not know. This plugin writes its
+   * own rows with it, which is why a build that lacks the type still accepts them.
+   */
+  ignorable?: boolean | undefined
 }
 
 /** One entry of the bounded window a model is asked about. */
