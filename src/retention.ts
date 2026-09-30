@@ -28,7 +28,7 @@ export const CATEGORY_PRIORITY = Object.freeze([
  * @param category - the record's category.
  * @returns the position in {@link CATEGORY_PRIORITY}; unknown categories sort last.
  */
-export function categoryRank(category) {
+export function categoryRank(category: string): number {
   const index = CATEGORY_PRIORITY.indexOf(category)
   return index < 0 ? CATEGORY_PRIORITY.length : index
 }
@@ -40,7 +40,7 @@ export function categoryRank(category) {
  * @param right - the other record.
  * @returns a negative number when `left` sorts first.
  */
-export function compareRecords(left, right) {
+export function compareRecords(left: MemoryRecord, right: MemoryRecord): number {
   const byCategory = categoryRank(left.category) - categoryRank(right.category)
   if (byCategory !== 0) return byCategory
   if (left.updated_at !== right.updated_at) return left.updated_at < right.updated_at ? 1 : -1
@@ -83,10 +83,10 @@ export function indexLine(record: MemoryRecord) {
  * @param content - the remembered text.
  * @returns the text with its structural characters written as escapes.
  */
-function escapeContent(content) {
+function escapeContent(content: unknown): string {
   return String(content).replace(
     /[\\<>\n\r\u2028\u2029]/gu,
-    character => `\\u${character.codePointAt(0).toString(16).padStart(4, '0')}`,
+    character => `\\u${String(character.codePointAt(0)?.toString(16)).padStart(4, '0')}`,
   )
 }
 
@@ -108,7 +108,10 @@ function escapeContent(content) {
  * @param options.split - how the budget is divided when both scopes contend.
  * @returns the index text, or an empty string when nothing fits.
  */
-export function renderMemoryIndex(scopes, options) {
+export function renderMemoryIndex(
+  scopes: { user?: MemoryRecord[] | undefined; project?: MemoryRecord[] | undefined },
+  options: { budgetBytes: number; split?: { user: number; project: number } | undefined },
+): string {
   const split = options.split ?? { user: 0.5, project: 0.5 }
   let userLines = activeRecords(scopes.user ?? []).map(indexLine)
   let projectLines = activeRecords(scopes.project ?? []).map(indexLine)
@@ -151,7 +154,7 @@ export const AUTHORITY_NOTICE = INDEX_AUTHORITY_NOTICE
  * @param projectLines - surviving project-scope lines.
  * @returns the complete injected text.
  */
-function assembleIndex(userLines, projectLines) {
+function assembleIndex(userLines: string[], projectLines: string[]): string {
   const parts = ['<memory-index>', '', INDEX_AUTHORITY_NOTICE, '']
   if (userLines.length > 0) parts.push('user:', ...userLines, '')
   if (projectLines.length > 0) parts.push('project:', ...projectLines, '')
@@ -166,7 +169,11 @@ function assembleIndex(userLines, projectLines) {
  * @param split - the configured share of each scope.
  * @returns the scope to drop from.
  */
-function contendedScope(userLines, projectLines, split) {
+function contendedScope(
+  userLines: string[],
+  projectLines: string[],
+  split: { user: number; project: number },
+) {
   if (projectLines.length === 0) return 'user'
   if (userLines.length === 0) return 'project'
   const userShare = Math.max(split.user ?? 0, Number.EPSILON)
