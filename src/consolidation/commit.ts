@@ -20,10 +20,37 @@
  * Usage: `const outcome = await commitOperations(options, accepted)`.
  */
 
+import type { ActionInput, ActionOptions, AutoOperation } from '../types/memory.js'
 import { addMemory, supersedeMemory, updateMemory } from '../actions.js'
 
 /** Actions that leave Memory unchanged without anything having gone wrong. */
 const NON_WRITES = Object.freeze(['noop', 'conflict'])
+
+/** What one Phase 1 action reports back. */
+interface ActionOutcome {
+  /** `noop` or `conflict` when the action declined, absent when it wrote. */
+  action?: string | undefined
+  /** Why it declined, when it did. */
+  reason?: string | undefined
+}
+
+/** One operation, paired with what committing it produced. */
+export interface AppliedOperation {
+  operation: AutoOperation
+  outcome: ActionOutcome | undefined
+}
+
+/** The tally `commitOperations` reports. */
+export interface CommitOutcome {
+  /** Writes that changed Memory, by action. */
+  committed: { add: number; update: number; supersede: number }
+  /** Operations the actions declined, with the reason. */
+  skipped: { operation: AutoOperation; reason: string }[]
+  /** Operations whose write did not happen. */
+  failures: { operation: AutoOperation; message: string }[]
+  /** Every operation and its result, in proposal order. */
+  applied: AppliedOperation[]
+}
 
 /**
  * Write every accepted operation, one at a time.
@@ -36,14 +63,17 @@ const NON_WRITES = Object.freeze(['noop', 'conflict'])
  * @param operations - the accepted operations, in proposal order.
  * @returns the tally, the per-operation results, and any failures.
  */
-export async function commitOperations(options, operations) {
+export async function commitOperations(
+  options: ActionOptions,
+  operations: readonly AutoOperation[],
+): Promise<CommitOutcome> {
   const committed = { add: 0, update: 0, supersede: 0 }
-  const skipped = []
-  const failures = []
-  const applied = []
+  const skipped: CommitOutcome['skipped'] = []
+  const failures: CommitOutcome['failures'] = []
+  const applied: AppliedOperation[] = []
   for (const operation of operations) {
     try {
-      const outcome = await apply(options, operation)
+      const outcome: ActionOutcome | undefined = await apply(options, operation)
       applied.push({ operation, outcome })
       if (outcome?.action === undefined || NON_WRITES.includes(outcome.action)) {
         skipped.push({ operation, reason: outcome?.reason ?? outcome?.action ?? 'declined' })
@@ -51,7 +81,8 @@ export async function commitOperations(options, operations) {
       }
       committed[operation.action] += 1
     } catch (failure) {
-      failures.push({ operation, message: String(failure?.message ?? failure) })
+      const message = failure instanceof Error ? failure.message : String(failure)
+      failures.push({ operation, message })
     }
   }
   return { committed, skipped, failures, applied }
@@ -63,41 +94,31 @@ export async function commitOperations(options, operations) {
  * @param operation - the accepted operation.
  * @returns the action's result.
  */
-function apply(options, operation) {
+function apply(options: ActionOptions, operation: AutoOperation): Promise<ActionOutcome> {
+  const input: ActionInput = {
+    content: operation.content,
+    scope: operation.scope,
+    category: operation.category,
+    projectId: operation.projectId,
+    evidence: operation.evidence,
+    sourceTexts: operation.sourceTexts,
+    confidence: operation.confidence,
+  }
   switch (operation.action) {
     case 'add':
-      return addMemory(options, {
-        content: operation.content,
-        scope: operation.scope,
-        category: operation.category,
-        projectId: operation.projectId,
-        evidence: operation.evidence,
-        sourceTexts: operation.sourceTexts,
-        confidence: operation.confidence,
-      })
+      return addMemory(options, input)
     case 'update':
       // The project comes from the reviewed target, never from the model, and it
       // has to be passed on: `updateMemory` uses it to decide which scopes the
       // target may be found in, so omitting it makes a project target invisible
       // and turns a valid update into a failed operation.
-      return updateMemory(options, {
-        id: operation.target_id,
-        content: operation.content,
-        projectId: operation.projectId,
-        evidence: operation.evidence,
-        sourceTexts: operation.sourceTexts,
-        confidence: operation.confidence,
-      })
+      return updateMemory(options, { ...input, id: operation.target_id })
     case 'supersede':
-      return supersedeMemory(options, {
-        id: operation.target_id,
-        content: operation.content,
-        projectId: operation.projectId,
-        evidence: operation.evidence,
-        sourceTexts: operation.sourceTexts,
-        confidence: operation.confidence,
-      })
+      return supersedeMemory(options, { ...input, id: operation.target_id })
     default:
+      // The union above says these three are all that arrive, because the
+      // validator refuses anything else first. This stays as the runtime guard
+      // for a caller that reaches here without validating model output.
       throw new Error(`dsh-memory: ${String(operation.action)} is not an automatic action`)
   }
 }
