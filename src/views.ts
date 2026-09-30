@@ -15,9 +15,10 @@
  */
 
 import { readStore, writeAtomic, withStore } from './jsonstore.js'
+import type { StoreLockOptions, StoreMutation } from './jsonstore.js'
 import { withLock } from './lock.js'
 import { CATEGORY_PRIORITY, activeRecords } from './retention.js'
-import type { MemoryRecord } from './types/memory.js'
+import type { MemoryRecord, MemoryStore } from './types/memory.js'
 import { failureMessage } from './errors.js'
 
 /** Marker identifying the revision a view was rendered from. */
@@ -30,7 +31,7 @@ const REVISION_MARKER = 'dsh-memory: revision'
  * @param options.revision - canonical revision the render reflects.
  * @returns the complete file content.
  */
-export function renderMemoryView(records: MemoryRecord[], options = {}) {
+export function renderMemoryView(records: MemoryRecord[], options: { revision?: number | undefined } = {}) {
   const revision = options.revision ?? 0
   const active = activeRecords(records)
   const lines = [
@@ -66,7 +67,7 @@ export function renderMemoryView(records: MemoryRecord[], options = {}) {
  * @returns the revision the view now reflects.
  * @throws when the lock cannot be taken or the view cannot be written.
  */
-export async function rebuildView(options) {
+export async function rebuildView(options: StoreLockOptions & { viewPath: string }) {
   return withLock(options, () => {
     const store = readStore(options.storePath)
     writeAtomic(options.viewPath, renderMemoryView(store.records, { revision: store.revision }))
@@ -81,7 +82,10 @@ export async function rebuildView(options) {
  * @param operation - receives the latest store, returns `{ result, changed, records }`.
  * @returns the mutation result, the committed revision, and whether the view is stale.
  */
-export async function mutateAndRefreshView(options, operation) {
+export async function mutateAndRefreshView(
+  options: StoreLockOptions & { viewPath: string },
+  operation: (store: MemoryStore) => StoreMutation | undefined,
+) {
   const outcome = await withStore(options, operation)
   let viewStale = false
   try {
