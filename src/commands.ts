@@ -289,7 +289,8 @@ async function projectCommand(deps: MemoryDeps, invocation: CommandInvocation, r
     const projects = listProjects(deps.registry.registryPath)
     const current = deps.projectFor(invocation.agent)
     if (projects.length === 0) return ok('No project is registered yet.')
-    const lines = projects.map(entry => [
+    // `listProjects` adds which registered roots are no longer on disk.
+    const lines = projects.map((entry: ProjectEntry & { missing_roots: string[] }) => [
       `${entry.project_id}${entry.project_id === current?.project_id ? '  (current)' : ''}`,
       `  root: ${entry.canonical_root}`,
       ...entry.aliases.length > 0 ? [`  aliases: ${entry.aliases.join(', ')}`] : [],
@@ -410,7 +411,7 @@ function actionOptions(deps: MemoryDeps, invocation: CommandInvocation) {
  * @param outcome - the action's result.
  * @returns the sentence.
  */
-function describeOutcome(verb: string, outcome) {
+function describeOutcome(verb: string, outcome: { action: string; reason?: unknown; id?: unknown }): string {
   if (outcome.action === 'noop') return `Nothing to do: ${String(outcome.reason)}.`
   return `${verb} ${String(outcome.id ?? '')}`.trim()
 }
@@ -421,7 +422,7 @@ function describeOutcome(verb: string, outcome) {
  * @param path - the supplied path.
  * @returns an absolute path.
  */
-function resolvePath(cwd, path: string) {
+function resolvePath(cwd: string | null | undefined, path: string): string {
   return isAbsolute(path) ? path : resolve(cwd ?? process.cwd(), path)
 }
 
