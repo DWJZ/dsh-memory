@@ -22,7 +22,7 @@ import { withLock } from './lock.js'
 import { mutateAndRefreshView } from './views.js'
 import { findSecretIn } from './redact.js'
 import { MAX_CONTENT_CHARS, charLength, newMemoryId, normalizeContent, validateMemory } from './schema.js'
-import type { ActionInput, ActionOptions, MemoryRecord, MemoryScope, MemoryStore, ScopeLayout } from './types/memory.js'
+import type { ActionOptions, AddInput, MemoryRecord, MemoryStore, TargetedInput } from './types/memory.js'
 import { failureMessage } from './errors.js'
 
 /**
@@ -71,7 +71,7 @@ function requireConfidence(value: unknown, fallback: number) {
  * @param input.sourceTexts - complete texts to screen before any truncation.
  * @returns the applied action and the affected id.
  */
-export async function addMemory(options: ActionOptions, input: ActionInput) {
+export async function addMemory(options: ActionOptions, input: AddInput) {
   const layout = requireLayout(options, input.scope, input.projectId)
   const content = requireContent(input.content)
   const screened = screen([...input.sourceTexts ?? [], content], input.evidence?.quote)
@@ -118,7 +118,7 @@ export async function addMemory(options: ActionOptions, input: ActionInput) {
  * @param input.sourceTexts - complete texts to screen before any truncation.
  * @returns the applied action and the record id.
  */
-export async function updateMemory(options: ActionOptions, input: ActionInput) {
+export async function updateMemory(options: ActionOptions, input: TargetedInput) {
   const located = locateVisible(options, input.id, input.projectId)
   const content = requireContent(input.content)
   const screened = screen([...input.sourceTexts ?? [], content], input.evidence?.quote)
@@ -154,7 +154,7 @@ export async function updateMemory(options: ActionOptions, input: ActionInput) {
  * @param input.sourceTexts - complete texts to screen before any truncation.
  * @returns the applied action, the new id, and the retired id.
  */
-export async function supersedeMemory(options: ActionOptions, input: ActionInput) {
+export async function supersedeMemory(options: ActionOptions, input: TargetedInput) {
   const located = locateVisible(options, input.id, input.projectId)
   const content = requireContent(input.content)
   const screened = screen([...input.sourceTexts ?? [], content], input.evidence?.quote)

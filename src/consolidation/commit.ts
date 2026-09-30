@@ -20,7 +20,7 @@
  * Usage: `const outcome = await commitOperations(options, accepted)`.
  */
 
-import type { ActionInput, ActionOptions, AutoOperation } from '../types/memory.js'
+import type { ActionOptions, AutoOperation } from '../types/memory.js'
 import { addMemory, supersedeMemory, updateMemory } from '../actions.js'
 
 /** Actions that leave Memory unchanged without anything having gone wrong. */
@@ -95,30 +95,44 @@ export async function commitOperations(
  * @returns the action's result.
  */
 function apply(options: ActionOptions, operation: AutoOperation): Promise<ActionOutcome> {
-  const input: ActionInput = {
-    content: operation.content,
-    scope: operation.scope,
-    category: operation.category,
-    projectId: operation.projectId,
-    evidence: operation.evidence,
-    sourceTexts: operation.sourceTexts,
-    confidence: operation.confidence,
-  }
   switch (operation.action) {
     case 'add':
-      return addMemory(options, input)
+      return addMemory(options, {
+        content: operation.content,
+        scope: operation.scope,
+        category: operation.category,
+        projectId: operation.projectId,
+        evidence: operation.evidence,
+        sourceTexts: operation.sourceTexts,
+        confidence: operation.confidence,
+      })
     case 'update':
       // The project comes from the reviewed target, never from the model, and it
       // has to be passed on: `updateMemory` uses it to decide which scopes the
       // target may be found in, so omitting it makes a project target invisible
       // and turns a valid update into a failed operation.
-      return updateMemory(options, { ...input, id: operation.target_id })
+      return updateMemory(options, {
+        id: operation.target_id,
+        content: operation.content,
+        projectId: operation.projectId,
+        evidence: operation.evidence,
+        sourceTexts: operation.sourceTexts,
+        confidence: operation.confidence,
+      })
     case 'supersede':
-      return supersedeMemory(options, { ...input, id: operation.target_id })
+      return supersedeMemory(options, {
+        id: operation.target_id,
+        content: operation.content,
+        projectId: operation.projectId,
+        evidence: operation.evidence,
+        sourceTexts: operation.sourceTexts,
+        confidence: operation.confidence,
+      })
     default:
-      // The union above says these three are all that arrive, because the
-      // validator refuses anything else first. This stays as the runtime guard
-      // for a caller that reaches here without validating model output.
-      throw new Error(`dsh-memory: ${String(operation.action)} is not an automatic action`)
-  }
+      // The union says these three are all that arrive, because the validator
+      // refuses anything else first. This stays as the runtime guard for a caller
+      // that reaches here without validating model output.
+      throw new Error(`dsh-memory: ${String((operation as { action: unknown }).action)} is not an automatic action`)
+
+}
 }

@@ -92,36 +92,89 @@ export interface ActionOptions {
   now?: (() => number) | undefined
 }
 
-/** What one action needs beyond its options. */
-export interface ActionInput {
-  /** New content for `add`, `update` and `supersede`. */
-  content?: string | undefined
-  /** `add` only. */
-  scope?: MemoryScope | undefined
-  /** `add` only. */
-  category?: MemoryCategory | undefined
-  /** `add` only; a project record needs one. */
+/**
+ * What `add` needs: the content, and the scope and category it lands in.
+ *
+ * Split per action rather than shared: a bag with every field optional is what
+ * made the compiler unable to tell a complete call from an incomplete one.
+ */
+export interface AddInput {
+  /** The fact to store. */
+  content: string
+  /** Which store it belongs to. */
+  scope: MemoryScope
+  /** What kind of record it is. */
+  category: MemoryCategory
+  /** Required for a project record. */
   projectId?: string | null | undefined
-  /** The target of `update` and `supersede`. */
-  id?: string | undefined
-  /** The citation to accumulate. */
+  /** The citation to attach. */
   evidence?: EvidenceEntry | undefined
-  /** Untruncated text the citation was taken from, screened again at the write. */
+  /** Untruncated text the citation came from, screened again at the write. */
   sourceTexts?: string[] | undefined
   /** Automatic writes state their reviewed confidence; explicit ones do not. */
   confidence?: number | undefined
 }
 
-/** One operation a reviewed plan may carry. */
-export interface AutoOperation {
-  action: 'add' | 'update' | 'supersede'
+/** What `update` and `supersede` need: the record to act on, and the new content. */
+export interface TargetedInput {
+  /** The record being rewritten. */
+  id: string
+  /** The content that replaces it. */
   content: string
-  scope?: MemoryScope | undefined
-  category?: MemoryCategory | undefined
-  /** Inherited from the reviewed target for `update` and `supersede`. */
+  /** The project that record lives in, inherited from the reviewed target. */
   projectId?: string | null | undefined
-  target_id?: string | undefined
+  /** The citation to accumulate. */
   evidence?: EvidenceEntry | undefined
+  /** Untruncated text the citation came from, screened again at the write. */
   sourceTexts?: string[] | undefined
+  /** Automatic writes state their reviewed confidence; explicit ones do not. */
+  confidence?: number | undefined
+}
+
+/** Any input one of the three actions takes. */
+export type ActionInput = AddInput | TargetedInput
+
+/**
+ * One operation a reviewed plan may carry.
+ *
+ * A tagged union, not a bag: an `add` carries the scope and category it lands in,
+ * and a rewrite carries the id it targets. The validator refuses anything else
+ * before this point, so the tags are what a consumer switches on.
+ */
+export type AutoOperation = AddOperation | TargetedOperation
+
+/** Store a new fact. */
+export interface AddOperation {
+  action: 'add'
+  /** The fact to store. */
+  content: string
+  /** Which store it belongs to. */
+  scope: MemoryScope
+  /** What kind of record it is. */
+  category: MemoryCategory
+  /** Required for a project record. */
+  projectId?: string | null | undefined
+  /** The citation to attach. */
+  evidence?: EvidenceEntry | undefined
+  /** Untruncated text the citation came from, screened again at the write. */
+  sourceTexts?: string[] | undefined
+  /** The confidence the review assigned. */
+  confidence?: number | undefined
+}
+
+/** Rewrite or retire an existing record. */
+export interface TargetedOperation {
+  action: 'update' | 'supersede'
+  /** The record being rewritten or retired. */
+  target_id: string
+  /** The content that replaces it. */
+  content: string
+  /** Inherited from the reviewed target; never taken from the model. */
+  projectId?: string | null | undefined
+  /** The citation to accumulate. */
+  evidence?: EvidenceEntry | undefined
+  /** Untruncated text the citation came from, screened again at the write. */
+  sourceTexts?: string[] | undefined
+  /** The confidence the review assigned. */
   confidence?: number | undefined
 }
