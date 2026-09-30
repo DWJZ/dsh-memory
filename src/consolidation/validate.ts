@@ -101,7 +101,7 @@ export function reviewPlan(plan: { operations?: unknown[] } | null | undefined, 
  * @returns `{ kind: 'accepted', operation }`, `{ kind: 'noop', reason }`, or
  *   `{ kind: 'rejected', reason }`.
  */
-export function reviewOperation(operation, context) {
+export function reviewOperation(operation, context: ReviewContext) {
   if (typeof operation !== 'object' || operation === null || Array.isArray(operation)) {
     return { kind: 'rejected', reason: 'operation is not an object', code: 'not-an-object' }
   }
@@ -172,7 +172,7 @@ export function reviewOperation(operation, context) {
  * @param context - the judging context.
  * @returns the record, or undefined when it is not visible and active.
  */
-function findTarget(targetId: string, context) {
+function findTarget(targetId: string, context: ReviewContext) {
   if (typeof targetId !== 'string' || targetId === '') return undefined
   return context.existing.find((record: MemoryRecord) => record.id === targetId && record.status === 'active')
 }
@@ -189,7 +189,7 @@ function findTarget(targetId: string, context) {
  * @param context - the judging context, plus the content being stored.
  * @returns `{ kind: 'accepted', entry }` or `{ kind: 'rejected', reason }`.
  */
-function buildEvidence(seqs: number[], context) {
+function buildEvidence(seqs: number[], context: ReviewContext) {
   if (!Array.isArray(seqs) || seqs.length === 0) {
     return { kind: 'rejected', reason: 'evidence_event_seqs must be a non-empty array', code: 'evidence-missing' }
   }
