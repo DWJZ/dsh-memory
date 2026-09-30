@@ -59,31 +59,67 @@ export const AUDIT_EVENT_TYPE = 'dsh-memory/consolidation'
  * @param options.callModel - the model call seam, injectable for tests.
  * @returns the orchestrator.
  */
-/** The compact result of one run, as it is recorded on the Session and rendered. */
-export interface RunAudit {
-  /** How the run ended. */
-  status: string
-  /** What asked for the run. */
-  trigger?: string | undefined
-  /** Proposed, performed and skipped operations, by action. */
-  operations?: { add: number; update: number; supersede: number; noop: number; skipped?: number; failed?: number } | undefined
-  /** Why they were refused, by code. */
-  rejected_reasons?: Record<string, number> | undefined
-  /** The window the run covered, as the audit records it. */
+/**
+ * The compact result of one run, as it is recorded on the Session and rendered.
+ *
+ * A dry run reports what it would have done — the accepted proposals and the refusals —
+ * while a run that settled reports counts. The two share the window fields, and
+ * `rejected` means a list in the first case and a count in the second.
+ */
+export interface DryRunAudit {
+  status: 'dry-run'
+  /** The window the run covered. */
   from_seq?: number | undefined
   to_seq?: number | undefined
   /** How many events the window held, by disposition. */
   relevant_events?: number | undefined
   ignored_events?: number | undefined
   /** The operations the review accepted, as the model proposed them. */
-  accepted?: readonly Record<string, unknown>[] | undefined
-  /** The proposals the review refused. */
-  rejected?: readonly Record<string, unknown>[] | undefined
+  accepted: readonly AcceptedProposal[]
+  /** The proposals the review refused, with their position in the plan. */
+  rejected: readonly { index?: number | undefined; reason?: string | undefined }[]
   /** Why accepted proposals became no-ops. */
-  noopReasons?: readonly string[] | undefined
-  /** Anything else the run recorded. */
-  [key: string]: unknown
+  noopReasons: readonly string[]
+  /** What asked for the run. */
+  trigger?: string | undefined
 }
+
+/** One proposal a dry run would have written. */
+export interface AcceptedProposal {
+  /** The record it targets, when it changes one. */
+  target_id?: string | undefined
+  action: string
+  scope: string
+  category: string
+  content: string
+  confidence: number
+  evidence_event_seqs: readonly number[]
+  quote: string
+}
+
+/** What a run that settled reports: counts, not proposals. */
+export interface SettledAudit {
+  status: string
+  from_seq?: number | undefined
+  to_seq?: number | undefined
+  relevant_events?: number | undefined
+  ignored_events?: number | undefined
+  /** Proposed, performed and skipped operations, by action. */
+  operations?: { add: number; update: number; supersede: number; noop: number; skipped?: number; failed?: number } | undefined
+  /** How many proposals the review refused. */
+  rejected?: number | undefined
+  /** How many writes did not happen. */
+  failures?: number | undefined
+  /** What the commit changed. */
+  committed?: { add: number; update: number; supersede: number } | undefined
+  /** Why proposals were refused, by code. */
+  rejected_reasons?: Record<string, number> | undefined
+  /** What asked for the run. */
+  trigger?: string | undefined
+}
+
+/** One run's record, discriminated by whether it wrote anything. */
+export type RunAudit = DryRunAudit | SettledAudit
 
 /** The policy one run follows, plus the thresholds it locks and cites with. */
 export interface RunConfig extends MemoryConsolidationSettings {
@@ -573,7 +609,7 @@ export function describeOutcome(outcome: RunAudit): string {
   }
   switch (outcome.status) {
     case 'success': {
-      const { add, update, supersede, noop } = outcome.operations
+      const { add, update, supersede, noop } = outcome.operations ?? { add: 0, update: 0, supersede: 0, noop: 0 }
       return `Consolidated seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)}: ${String(add)} added, ${String(update)} updated, ${String(supersede)} superseded, ${String(noop)} noop${outcome.rejected === 0 ? '' : `, ${String(outcome.rejected)} dropped`}.`
     }
     case 'partial':
