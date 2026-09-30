@@ -420,7 +420,7 @@ function commit(options: RegistryOptions, registry: ProjectRegistry, projects: P
  * @param options - clock source.
  * @returns the same entry, or an updated copy.
  */
-function adoptWorkspace(entry: ProjectEntry, workspaceId: string, options: RegistryOptions) {
+function adoptWorkspace(entry: ProjectEntry, workspaceId: string | undefined, options: RegistryOptions): ProjectEntry {
   if (workspaceId === undefined || entry.workspace_ids.includes(workspaceId)) return entry
   return { ...entry, workspace_ids: [...entry.workspace_ids, workspaceId], updated_at: nowIso(options) }
 }
