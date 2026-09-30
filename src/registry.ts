@@ -49,6 +49,8 @@ export interface RegistryOptions extends FileProbe {
   registryPath: string
   /** Markers that identify a project root. */
   projectRootMarkers?: string[] | undefined
+  /** Injectable clock in epoch milliseconds. */
+  now?(): number
 }
 
 export function emptyRegistry() {
@@ -430,7 +432,7 @@ function adoptWorkspace(entry: ProjectEntry, workspaceId: string, options: Regis
  * @param deps - filesystem seams, injectable for tests.
  * @returns the owning entry, or undefined.
  */
-function locateForRelink(projects: ProjectEntry[], previous, deps: FileProbe) {
+function locateForRelink(projects: ProjectEntry[], previous: string, deps: FileProbe) {
   const exact = projects.find((entry: ProjectEntry) => projectRoots(entry).some(root => resolve(root) === previous))
   if (exact !== undefined) return exact
   // When the old directory still exists, a symlinked spelling of it also counts.
