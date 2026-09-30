@@ -202,6 +202,13 @@ export interface TargetedOperation {
   target_id: string
   /** The content that replaces it. */
   content: string
+  /**
+   * Which store the reviewed target lives in. Inherited from that record, never
+   * taken from the model, so a proposal cannot move a fact between projects.
+   */
+  scope?: MemoryScope | undefined
+  /** What kind of record the reviewed target is. Inherited, as `scope` is. */
+  category?: MemoryCategory | undefined
   /** Inherited from the reviewed target; never taken from the model. */
   projectId?: string | null | undefined
   /** The citation to accumulate. */

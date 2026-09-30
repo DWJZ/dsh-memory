@@ -22,7 +22,7 @@
 
 import { CATEGORIES, MAX_CONTENT_CHARS, charLength } from '../schema.js'
 import { findSecretIn } from '../redact.js'
-import type { AutoOperation, MemoryRecord } from '../types/memory.js'
+import type { AutoOperation, MemoryCategory, MemoryRecord, MemoryScope } from '../types/memory.js'
 import type { ObservedEvent } from '../types/trajectory.js'
 
 /** Actions automatic consolidation may take. */
@@ -131,9 +131,7 @@ export function reviewOperation(operation: unknown, context: ReviewContext): Rev
   if (proposal === undefined) {
     return { kind: 'rejected', reason: 'operation is not an object', code: 'not-an-object' }
   }
-  // The check below refuses anything outside AUTO_ACTIONS, so the accepted branch
-  // only ever carries one of the automatic actions.
-  const action = String(proposal.action ?? '') as AutoOperation['action']
+  const action = String(proposal.action ?? '')
   if (action === 'noop') {
     return { kind: 'noop', reason: typeof proposal.reason === 'string' ? proposal.reason : 'no reason given' }
   }
@@ -179,9 +177,10 @@ export function reviewOperation(operation: unknown, context: ReviewContext): Rev
   return {
     kind: 'accepted',
     operation: {
-      action,
-      scope,
-      category,
+      // The checks above refused every other value, so these carry the union members.
+      action: action as AutoOperation['action'],
+      scope: scope as MemoryScope,
+      category: category as MemoryCategory,
       content,
       confidence,
       target_id: target?.id,
