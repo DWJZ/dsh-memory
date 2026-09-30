@@ -13,8 +13,8 @@
 export interface FileProbe {
   /** Whether a path exists. */
   exists?(path: string): boolean
-  /** The canonical spelling of a path, resolving symlinks. */
-  realpath?(path: string): Promise<string> | string
+  /** The canonical spelling of a path, resolving symlinks. The default is the synchronous `fs.realpathSync`. */
+  realpath?(path: string): string
 }
 
 /** What a temporary-file sweep takes. */

@@ -31,6 +31,26 @@ export const REGISTRY_SCHEMA_VERSION = 1
  * Build an empty registry.
  * @returns a registry with no projects.
  */
+
+/** What the registry functions take: where it lives, and the injectable probes. */
+
+/** What one resolution is asked about. */
+export interface ResolveRequest {
+  /** The directory the Session runs in. */
+  cwd: string
+  /** The harness workspace containing it, when the host has one. */
+  workspaceRoot?: string | undefined
+  /** That workspace's id, recorded against the project. */
+  workspaceId?: string | undefined
+}
+
+export interface RegistryOptions extends FileProbe {
+  /** Absolute path of the registry file. */
+  registryPath: string
+  /** Markers that identify a project root. */
+  projectRootMarkers?: string[] | undefined
+}
+
 export function emptyRegistry() {
   return { schema_version: REGISTRY_SCHEMA_VERSION, revision: 0, projects: [] }
 }
@@ -96,7 +116,7 @@ export function validateRegistry(registry: ProjectRegistry) {
     if (typeof entry.canonical_root !== 'string' || !isAbsolute(entry.canonical_root)) {
       throw new TypeError(`dsh-memory: project ${entry.project_id} must have an absolute canonical_root, got ${JSON.stringify(entry.canonical_root)}`)
     }
-    for (const field of ['aliases', 'workspace_ids']) {
+    for (const field of ['aliases', 'workspace_ids'] as const) {
       if (!Array.isArray(entry[field]) || entry[field].some(value => typeof value !== 'string')) {
         throw new TypeError(`dsh-memory: project ${entry.project_id} ${field} must be an array of strings`)
       }
@@ -254,7 +274,7 @@ export function findProjectRoot(cwd: string, markers: string[], deps: FileProbe 
  * @returns the owning project and whether this call created it.
  * @throws when the directory does not exist and no project owns it.
  */
-export async function resolveOrRegisterProject(options, root: string, workspaceId: string) {
+export async function resolveOrRegisterProject(options: RegistryOptions, root: string, workspaceId?: string) {
   const requested = resolve(root)
   return withLock(options, () => {
     const registry = readRegistry(options.registryPath)
@@ -297,7 +317,7 @@ export async function resolveOrRegisterProject(options, root: string, workspaceI
  * @param request.workspaceId - that workspace's id, when known.
  * @returns the project, or null when the session has no project scope.
  */
-export async function resolveProject(options, request) {
+export async function resolveProject(options: RegistryOptions, request: ResolveRequest) {
   const cwd = resolve(request.cwd)
   const registry = readRegistry(options.registryPath)
   const known = matchProject(registry.projects, cwd, options)
@@ -320,7 +340,7 @@ export async function resolveProject(options, request) {
  * @param path - the directory to bind.
  * @returns the bound project and whether this call created it.
  */
-export async function bindProject(options, path: string) {
+export async function bindProject(options: RegistryOptions, path: string) {
   return resolveOrRegisterProject(options, path)
 }
 
