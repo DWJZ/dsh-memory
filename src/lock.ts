@@ -286,8 +286,17 @@ export function lockExists(lockPath: string) {
  * @param options - the raw options.
  * @returns the same options, minus undefined values.
  */
-function withoutUndefined(options) {
-  return Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined))
+/**
+ * Drop the entries whose value is undefined.
+ *
+ * The result keeps the input's type: only undefined values are removed, and a
+ * required field cannot be one of them.
+ * @param options - the object to copy.
+ * @returns a copy without undefined values.
+ */
+function withoutUndefined<T extends object>(options: T): T {
+  const kept = Object.entries(options).filter(([, value]) => value !== undefined)
+  return Object.fromEntries(kept) as T
 }
 
 /**
