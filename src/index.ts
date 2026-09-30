@@ -110,7 +110,14 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
   // plugin back on runs later, so the compiler cannot see the assignment.
   let consolidation!: ReturnType<typeof createConsolidation>
 
-  const deps = {
+  /**
+   * The wiring the index, the tools, the commands and the switch all share.
+   *
+   * Complete from here. The members `start()` used to attach afterwards are
+   * forwarders whose bodies resolve those bindings when they are called, which is
+   * after `start()` has run and the registrations that reach them exist.
+   */
+  const deps: MemoryDeps = {
     config: settings,
     scopes,
     registry,
@@ -118,6 +125,13 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
     logger,
     projectFor: (agent: MemoryAgent) => projectsByCwd.get(cwdOf(agent)) ?? null,
     evidenceFor: (agent: MemoryAgent) => buildProvenance(agent, tracker, { evidenceQuoteMaxChars: settings.evidenceQuoteMaxChars }),
+    setEnabled: (next: boolean) => setEnabled(next),
+    isEnabled: () => enabled,
+    // A command that rebinds a directory must be able to refresh the session's
+    // cached project, or the next command would still see the old one.
+    resolveProjectFor: (agent: MemoryAgent) => resolveForAgent(agent),
+    consolidationEnabled: () => settings.consolidation.enabled,
+    consolidate: (agent: MemoryAgent, runOptions) => consolidation.consolidate(agent, runOptions),
   }
 
   /**
@@ -229,11 +243,8 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
      * @returns nothing.
      */
     start() {
-      deps.setEnabled = setEnabled
-      deps.isEnabled = () => enabled
       // A command that rebinds a directory must be able to refresh the session's
       // cached project, or the next command would still see the old one.
-      deps.resolveProjectFor = resolveForAgent
       const disposeCommands = registerMemoryCommands(ctx, deps)
       const disposeCreated = ctx.on('agent/created', async ({ agent }) => {
         // `agent/created` is a serial event: the loop awaits each listener before
@@ -272,8 +283,6 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
         projectFor: (agent: MemoryAgent) => projectsByCwd.get(cwdOf(agent)) ?? null,
         logger,
       })
-      deps.consolidate = (agent: MemoryAgent, runOptions) => consolidation.consolidate(agent, runOptions)
-      deps.consolidationEnabled = () => settings.consolidation.enabled
       // The model call needs the `llm` service, which a profile may not mount.
       // Taking it as an injection rather than a hard dependency keeps Memory
       // itself usable without one: explicit writes and the command surface keep
