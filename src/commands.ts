@@ -20,6 +20,7 @@ import { archiveMemory, clearScope, forgetMemory } from './actions.js'
 import { CATEGORIES, STATUSES } from './schema.js'
 import { describeOutcome as describeConsolidation } from './consolidation/index.js'
 import { isAbsolute, resolve } from 'node:path'
+import type { Context } from '@deepseek-ai/cordis'
 
 /** Largest number of rows `list` prints before it says how many remain. */
 const LIST_PAGE = 100
@@ -30,7 +31,7 @@ const LIST_PAGE = 100
  * @param deps - what the command reads, writes, and controls.
  * @returns the exact disposer that removes the command.
  */
-export function registerMemoryCommands(ctx, deps) {
+export function registerMemoryCommands(ctx: Context, deps) {
   return ctx.commands.register({
     name: 'memory',
     description: 'Inspect and control persistent Memory',
