@@ -24,6 +24,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { CommandInvocation, MemoryDeps } from './types/deps.js'
 import { failureMessage } from './errors.js'
 import type { MemoryRecord } from './types/memory.js'
+import type { ProjectEntry } from './types/identity.js'
 
 /** Largest number of rows `list` prints before it says how many remain. */
 const LIST_PAGE = 100
@@ -365,7 +366,7 @@ function selectedScopes(deps: MemoryDeps, invocation: CommandInvocation, flags: 
  * @param project - the current project, when there is one.
  * @returns its records, or none.
  */
-function projectRecords(deps: MemoryDeps, project) {
+function projectRecords(deps: MemoryDeps, project: ProjectEntry) {
   if (project === null || project === undefined) return []
   return readStore(deps.scopes.project(project.project_id).storePath).records
 }
@@ -377,7 +378,7 @@ function projectRecords(deps: MemoryDeps, project) {
  * @param id - the record id.
  * @returns the record, or undefined.
  */
-function findVisible(deps: MemoryDeps, invocation: CommandInvocation, id) {
+function findVisible(deps: MemoryDeps, invocation: CommandInvocation, id: string) {
   const project = deps.projectFor(invocation.agent)
   const user = readStore(deps.scopes.user.storePath).records.find((record: MemoryRecord) => record.id === id)
   if (user !== undefined) return user
@@ -407,7 +408,7 @@ function actionOptions(deps: MemoryDeps, invocation: CommandInvocation) {
  * @param outcome - the action's result.
  * @returns the sentence.
  */
-function describeOutcome(verb, outcome) {
+function describeOutcome(verb: string, outcome) {
   if (outcome.action === 'noop') return `Nothing to do: ${String(outcome.reason)}.`
   return `${verb} ${String(outcome.id ?? '')}`.trim()
 }
@@ -418,7 +419,7 @@ function describeOutcome(verb, outcome) {
  * @param path - the supplied path.
  * @returns an absolute path.
  */
-function resolvePath(cwd, path) {
+function resolvePath(cwd, path: string) {
   return isAbsolute(path) ? path : resolve(cwd ?? process.cwd(), path)
 }
 
@@ -435,7 +436,7 @@ const VALUE_FLAGS = new Set(['status', 'category', 'top', 'format'])
  * @param rawInput - the text after the command name.
  * @returns the tokens and, when a quote is never closed, the reason to refuse.
  */
-function tokenize(rawInput) {
+function tokenize(rawInput: string) {
   const text = String(rawInput ?? '')
   const tokens = []
   let current = ''
@@ -493,7 +494,7 @@ function tokenize(rawInput) {
  * @returns positional arguments, flags where a bare switch maps to `true`, and
  *   the reason to refuse the line when it cannot be tokenized.
  */
-function parseArguments(rawInput) {
+function parseArguments(rawInput: string) {
   const { tokens, error } = tokenize(rawInput)
   if (error !== undefined) return { positional: [], flags: new Map(), error }
   const positional = []
