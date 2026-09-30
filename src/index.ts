@@ -132,7 +132,10 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
     // cached project, or the next command would still see the old one.
     resolveProjectFor: (agent: MemoryAgent) => resolveForAgent(agent),
     consolidationEnabled: () => settings.consolidation.enabled,
-    consolidate: (agent: MemoryAgent, runOptions) => consolidation.consolidate(agent, runOptions),
+    consolidate: (
+      agent: MemoryAgent,
+      runOptions?: { dryRun?: boolean; trigger?: string; signal?: AbortSignal | undefined },
+    ) => consolidation.consolidate(agent, runOptions),
   }
 
   /**
@@ -269,6 +272,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
       })
       consolidation = createConsolidation({
         sessionEvents: settings.sessionEvents,
+        host: settings.host,
         llmScope: () => llmScope ?? undefined,
         collector: createCollector(),
         scopes,
