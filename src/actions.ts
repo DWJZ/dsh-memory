@@ -427,10 +427,10 @@ function accumulate(
  * @param operation - receives the latest store, returns `{ result, changed, records }`.
  * @returns the operation's result plus the committed revision and view state.
  */
-async function apply(
+async function apply<T = Record<string, unknown>>(
   options: ActionOptions,
   layout: ScopeLayout,
-  operation: (store: MemoryStore) => StoreMutation | undefined,
+  operation: (store: MemoryStore) => StoreMutation<T> | undefined,
 ) {
   const outcome = await mutateAndRefreshView(scopeOptions(options, layout), operation)
   return { ...outcome.result, revision: outcome.revision, viewStale: outcome.viewStale }

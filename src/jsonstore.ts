@@ -225,13 +225,13 @@ export interface StoreLockOptions {
  * not is skipped and carries none, which is what lets the writer read them without
  * a second check.
  */
-export type StoreMutation =
-  | { changed: true; records: MemoryRecord[]; result?: unknown }
-  | { changed?: false | undefined; records?: undefined; result?: unknown }
+export type StoreMutation<T = Record<string, unknown>> =
+  | { changed: true; records: MemoryRecord[]; result?: T }
+  | { changed?: false | undefined; records?: undefined; result?: T }
 
-export async function withStore(
+export async function withStore<T = Record<string, unknown>>(
   options: StoreLockOptions,
-  operation: (store: MemoryStore) => StoreMutation | undefined,
+  operation: (store: MemoryStore) => StoreMutation<T> | undefined,
 ) {
   return withLock(options, () => {
     const store = parseStore(options.storePath)

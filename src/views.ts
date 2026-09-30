@@ -82,9 +82,9 @@ export async function rebuildView(options: StoreLockOptions & { viewPath: string
  * @param operation - receives the latest store, returns `{ result, changed, records }`.
  * @returns the mutation result, the committed revision, and whether the view is stale.
  */
-export async function mutateAndRefreshView(
+export async function mutateAndRefreshView<T = Record<string, unknown>>(
   options: StoreLockOptions & { viewPath: string },
-  operation: (store: MemoryStore) => StoreMutation | undefined,
+  operation: (store: MemoryStore) => StoreMutation<T> | undefined,
 ) {
   const outcome = await withStore(options, operation)
   let viewStale = false
