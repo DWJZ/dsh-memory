@@ -13,7 +13,55 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import type { Context } from '@deepseek-ai/cordis'
 import { CONSOLIDATION_SYSTEM_PROMPT, buildRequest } from './policy.js'
+
+/** The terminal reason a stream reports, as far as this call reads it. */
+interface StreamFinish {
+  readonly kind: string
+  readonly failure?: { readonly code?: string; readonly message?: string } | undefined
+}
+
+/** The route a Session resolved, which the call reuses. */
+interface SessionRoute {
+  readonly provider?: string | undefined
+  readonly model?: string | undefined
+}
+
+/**
+ * What the Session must offer: its id, its resolved route, and its sequence.
+ *
+ * `requestHeader` is called unconditionally, not probed: a Session that has not
+ * started yet raises its own error from that call, and replacing it with this
+ * plugin's "no route" message would hide why the call could not be made.
+ */
+export interface ConsolidationSession {
+  requestHeader(): { readonly config?: SessionRoute | undefined } | undefined
+}
+
+/** One request to the consolidation model. */
+export interface ConsolidationRequest {
+  /**
+   * The Session being consolidated, when the caller has one. An absent Session
+   * and a Session without a resolved route both end as "no resolved model route",
+   * which is why the lookup short-circuits here rather than throwing.
+   */
+  session?: ConsolidationSession | undefined
+  /** Its id, stamped onto the call so the adapter can attribute it. */
+  sessionId: string
+  /** First seq in the window. */
+  fromSeq: number
+  /** Last seq in the window. */
+  toSeq: number
+  /** The normalized trajectory, as `batchWindow` produced it. */
+  entries: readonly unknown[]
+  /** Active Memory the model may target. */
+  existing: readonly unknown[]
+  /** Largest answer to accept. */
+  maxOutputTokens: number
+  /** Cancellation from the maintenance task. */
+  signal?: AbortSignal | undefined
+}
 
 /**
  * Ask the model for one operation plan.
@@ -22,19 +70,11 @@ import { CONSOLIDATION_SYSTEM_PROMPT, buildRequest } from './policy.js'
  * carries no harness dependency at runtime, so it reads the chunk sequence the
  * adapter produces and keeps the text.
  * @param ctx - Cordis context of this plugin's fiber.
- * @param {object} request - the consolidation request.
- * @param request.session - the Session being consolidated.
- * @param request.sessionId - its id.
- * @param request.fromSeq - first seq in the window.
- * @param request.toSeq - last seq in the window.
- * @param request.entries - the normalized trajectory.
- * @param request.existing - active Memory the model may target.
- * @param request.maxOutputTokens - largest answer to accept.
- * @param request.signal - cancellation signal from the maintenance task.
+ * @param request - the consolidation request.
  * @returns the model's answer text.
  * @throws when the route is unknown, the call fails, or it produces no text.
  */
-export async function callConsolidator(ctx, request) {
+export async function callConsolidator(ctx: Context, request: ConsolidationRequest): Promise<string> {
   const route = request.session?.requestHeader()?.config
   const provider = route?.provider
   const model = route?.model
@@ -48,7 +88,10 @@ export async function callConsolidator(ctx, request) {
     content: [{ type: 'text', text: buildRequest(request) }],
     source: { kind: 'dsh-memory-consolidation' },
   }
-  const options = {
+
+  let text = ''
+  let reason: StreamFinish | undefined
+  for await (const chunk of ctx.llm.stream({
     provider,
     model,
     system: CONSOLIDATION_SYSTEM_PROMPT,
@@ -56,13 +99,9 @@ export async function callConsolidator(ctx, request) {
     maxTokens: request.maxOutputTokens,
     sessionId: request.sessionId,
     signal: request.signal,
-  }
-
-  let text = ''
-  let reason
-  for await (const chunk of ctx.llm.stream(options)) {
-    if (chunk?.type === 'text-delta' && typeof chunk.text === 'string') text += chunk.text
-    if (chunk?.type === 'finish') reason = chunk.reason
+  })) {
+    if (chunk.type === 'text-delta' && typeof chunk.text === 'string') text += chunk.text
+    if (chunk.type === 'finish') reason = chunk.reason
   }
   // A stream can end having already produced parseable JSON and still not have
   // succeeded: a provider failure is normalized into a terminal `error` or
