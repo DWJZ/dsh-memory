@@ -31,8 +31,10 @@ const NON_WRITES = Object.freeze(['noop', 'conflict'])
 interface ActionOutcome {
   /** `noop` or `conflict` when the action declined, absent when it wrote. */
   action?: string | undefined
+  /** The record the action touched, when it named one. */
+  id?: string | null | undefined
   /** Why it declined, when it did. */
-  reason?: string | undefined
+  reason?: unknown
 }
 
 /** One operation, paired with what committing it produced. */

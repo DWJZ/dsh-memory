@@ -289,7 +289,9 @@ export async function clearScope(options: ActionOptions, input: ScopeInput) {
       result: { action: 'cleared', count: store.records.length },
     }
   })
-  if (outcome.action !== 'cleared') return outcome
+  // Nothing was deleted, so no tombstone was needed. The caller reads this only for
+  // a cleared scope, and stating it keeps both returns the same shape.
+  if (outcome.action !== 'cleared') return { ...outcome, tombstoneWritten: false }
   return {
     ...outcome,
     tombstoneWritten: await recordTombstone(options, {
