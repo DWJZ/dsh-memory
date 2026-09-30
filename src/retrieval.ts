@@ -13,7 +13,7 @@
  * @module dsh-memory/retrieval
  */
 
-import type { MemoryRecord } from './types/memory.js'
+import type { MemoryCategory, MemoryRecord, MemoryScope } from './types/memory.js'
 /** Score contributed by each matching signal. */
 export const SCORE = Object.freeze({
   /** The whole query appears in the content. */
@@ -41,6 +41,20 @@ const CJK_RUN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud
  * @param text - the text to normalize.
  * @returns NFC-normalized, whitespace-collapsed, lowercased text.
  */
+/** What one search asks for. */
+export interface SearchRequest {
+  /** The text to look for. */
+  query: string
+  /** Which store to search; `all` looks in both. */
+  scope?: MemoryScope | 'all' | undefined
+  /** Which category to search, when the caller narrows it. */
+  category?: MemoryCategory | undefined
+  /** The Session's project, for the project store. */
+  projectId?: string | null | undefined
+  /** Largest number of results. */
+  topK?: number | undefined
+}
+
 export function foldForSearch(text: string) {
   return String(text ?? '').normalize('NFC').replace(/\s+/gu, ' ').trim().toLowerCase()
 }
@@ -50,7 +64,7 @@ export function foldForSearch(text: string) {
  * @param query - the folded query.
  * @returns tokens long enough to be meaningful.
  */
-export function queryTokens(query) {
+export function queryTokens(query: string) {
   return [...new Set(query.match(WORD_RUN) ?? [])].filter(token => token.length >= MIN_TOKEN_LENGTH)
 }
 
@@ -59,7 +73,7 @@ export function queryTokens(query) {
  * @param query - the folded query.
  * @returns the bigrams, without duplicates.
  */
-export function queryBigrams(query) {
+export function queryBigrams(query: string) {
   const bigrams = new Set()
   for (const run of query.match(CJK_RUN) ?? []) {
     const characters = Array.from(run)
@@ -76,7 +90,7 @@ export function queryBigrams(query) {
  * @param query - the folded query.
  * @returns the relevance score; zero when nothing matches.
  */
-export function scoreRecord(record: MemoryRecord, query) {
+export function scoreRecord(record: MemoryRecord, query: string) {
   if (query === '') return 0
   const content = foldForSearch(record.content)
   let score = 0
@@ -104,7 +118,7 @@ export function scoreRecord(record: MemoryRecord, query) {
  * @param request.topK - the largest result list.
  * @returns the ranked matches and how many matched in total.
  */
-export function searchRecords(records, request) {
+export function searchRecords(records: MemoryRecord[], request: SearchRequest) {
   const query = foldForSearch(request.query)
   const scope = request.scope ?? 'all'
   const visible = records.filter((record: MemoryRecord) => record.status === 'active'
