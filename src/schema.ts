@@ -55,7 +55,7 @@ export const PROJECT_ID_PATTERN = /^proj_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
  * @param value - the value to test.
  * @returns true when the value is a `mem_` id this plugin could have minted.
  */
-export function isMemoryId(value) {
+export function isMemoryId(value: unknown): boolean {
   return typeof value === 'string' && MEMORY_ID_PATTERN.test(value)
 }
 
@@ -67,7 +67,7 @@ export function isMemoryId(value) {
  * @param value - the value to test.
  * @returns true when the value is a `proj_` id this plugin could have minted.
  */
-export function isProjectId(value) {
+export function isProjectId(value: unknown): boolean {
   return typeof value === 'string' && PROJECT_ID_PATTERN.test(value)
 }
 
@@ -98,7 +98,7 @@ export function charLength(text: string) {
  * @param limit - maximum number of code points to keep.
  * @returns the truncated text.
  */
-export function truncateChars(text: string, limit) {
+export function truncateChars(text: string, limit: number): string {
   const points = Array.from(text)
   return points.length <= limit ? text : points.slice(0, limit).join('')
 }
@@ -108,7 +108,7 @@ export function truncateChars(text: string, limit) {
  * @param value - the value to test.
  * @returns true when the value is a canonical timestamp this plugin writes.
  */
-export function isTimestamp(value) {
+export function isTimestamp(value: unknown): boolean {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(value)
 }
 
@@ -223,15 +223,17 @@ export function validateStoreRecords(records: MemoryRecord[], options: CheckOpti
  * @param index - position in the evidence list, named in the failure.
  * @throws {TypeError} when the entry violates any schema rule.
  */
-function validateEvidence(entry, memoryId, index) {
+function validateEvidence(entry: unknown, memoryId: string, index: number): void {
+  // Model- and file-supplied: read field by field after the checks below.
+  const record = entry as Record<string, unknown>
   const where = `memory ${memoryId}: evidence[${String(index)}]`
   if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
     throw new TypeError(`dsh-memory: ${where} must be an object`)
   }
-  requireMember(entry.kind, EVIDENCE_KINDS, `${where}.kind`)
-  requireNonEmptyString(entry.session_id, `${where}.session_id`)
-  if (typeof entry.quote !== 'string') throw new TypeError(`dsh-memory: ${where}.quote must be a string`)
-  if (!Array.isArray(entry.event_seqs) || entry.event_seqs.some(seq => !Number.isInteger(seq) || seq < 0)) {
+  requireMember(record.kind, EVIDENCE_KINDS, `${where}.kind`)
+  requireNonEmptyString(record.session_id, `${where}.session_id`)
+  if (typeof record.quote !== 'string') throw new TypeError(`dsh-memory: ${where}.quote must be a string`)
+  if (!Array.isArray(record.event_seqs) || record.event_seqs.some(seq => !Number.isInteger(seq) || seq < 0)) {
     throw new TypeError(`dsh-memory: ${where}.event_seqs must be an array of non-negative integers`)
   }
   if (!isTimestamp(entry.observed_at)) {
