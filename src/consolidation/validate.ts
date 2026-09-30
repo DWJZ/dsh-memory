@@ -23,6 +23,7 @@
 import { CATEGORIES, MAX_CONTENT_CHARS, charLength } from '../schema.js'
 import { findSecretIn } from '../redact.js'
 import type { MemoryRecord } from '../types/memory.js'
+import type { ObservedEvent } from '../types/trajectory.js'
 
 /** Actions automatic consolidation may take. */
 export const AUTO_ACTIONS = Object.freeze(['add', 'update', 'supersede', 'noop'])
@@ -54,7 +55,23 @@ export const DEFAULT_MIN_CONFIDENCE = 0.8
  * @param context.now - clock, injectable for tests.
  * @returns the accepted operations and, for each dropped one, why.
  */
-export function reviewPlan(plan, context) {
+/** What one review is given: the window, what the model was shown, and the settings. */
+export interface ReviewContext {
+  sessionId: string
+  projectId: string | null | undefined
+  fromSeq: number
+  toSeq: number
+  visibleSeqs: Set<number>
+  eventsBySeq: Map<number, ObservedEvent>
+  existing: MemoryRecord[]
+  content: string
+  minConfidence: number
+  maxEvidencePerMemory: number
+  quoteMaxChars: number
+  now(): number
+}
+
+export function reviewPlan(plan: { operations?: unknown[] } | null | undefined, context: ReviewContext) {
   if (!Array.isArray(plan?.operations)) {
     throw new TypeError('dsh-memory: a consolidation plan must carry an operations array')
   }
