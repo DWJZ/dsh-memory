@@ -73,6 +73,8 @@ declare module '@deepseek-ai/cordis' {
         name: string
         description: string
         parameters: unknown
+        /** Output contract: what the model reads, and how the result is rendered. */
+        output?: { schema?: unknown; render?(args: unknown, value: unknown): unknown } | undefined
         execute(...args: never[]): unknown
       }): () => void
     }

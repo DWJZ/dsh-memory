@@ -298,7 +298,7 @@ function visibleRecords(deps: MemoryDeps, project: ProjectEntry | null | undefin
  * @param hit - one ranked hit.
  * @returns the contract's result fields.
  */
-function stripScore(hit) {
+function stripScore(hit: { score?: number | undefined } & Record<string, unknown>): Record<string, unknown> {
   const { score: _score, ...rest } = hit
   return rest
 }
