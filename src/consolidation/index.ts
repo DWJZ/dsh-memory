@@ -314,7 +314,7 @@ export function createConsolidation(options: ConsolidationOptions) {
   const consolidate = async (
     agent: MemoryAgent,
     runOptions: { dryRun?: boolean; trigger?: string; signal?: AbortSignal } = {},
-  ) => {
+  ): Promise<RunAudit> => {
     const sessionId = agent?.session?.id
     if (typeof sessionId !== 'string') return { status: 'no-session' }
     // The maintenance claim is taken when the run actually starts, not while it
