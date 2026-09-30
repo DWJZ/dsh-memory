@@ -71,9 +71,17 @@ export interface ReviewContext {
   now(): number
 }
 
+/**
+ * An operation the review accepted.
+ *
+ * It is what Phase 1 would write, plus the target the review resolved: a proposal
+ * names a target only for `update` and `supersede`, and the dry-run report shows it.
+ */
+export type ReviewedOperation = AutoOperation & { target_id?: string | undefined }
+
 /** What reviewing one proposal produced. */
 export type ReviewOutcome =
-  | { kind: 'accepted'; operation: AutoOperation }
+  | { kind: 'accepted'; operation: ReviewedOperation }
   | { kind: 'noop'; reason: string }
   | { kind: 'rejected'; reason: string; code: string }
 
