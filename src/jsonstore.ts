@@ -22,6 +22,7 @@ import { basename, dirname, join } from 'node:path'
 import { withLock } from './lock.js'
 import { validateStoreRecords } from './schema.js'
 import { failureMessage } from './errors.js'
+import type { SweepOptions } from './types/seams.js'
 
 /** Format version this build writes; an unknown version is refused, never guessed. */
 export const STORE_SCHEMA_VERSION = 1
@@ -136,7 +137,7 @@ export function writeAtomic(targetPath, text) {
  * @param options.now - clock, injectable for tests.
  * @returns the number of files removed.
  */
-export function cleanupStaleTemps(dir, options = {}) {
+export function cleanupStaleTemps(dir: string, options: SweepOptions = {}) {
   if (!existsSync(dir)) return 0
   const now = options.now ?? Date.now
   const staleTempMs = options.staleTempMs ?? Number.POSITIVE_INFINITY

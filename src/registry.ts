@@ -22,6 +22,7 @@ import { withLock } from './lock.js'
 import { newProjectId, isProjectId, isTimestamp } from './schema.js'
 import type { ProjectEntry, ProjectRegistry } from './types/identity.js'
 import { failureMessage } from './errors.js'
+import type { FileProbe } from './types/seams.js'
 
 /** Registry format version this build writes; an unknown version is refused. */
 export const REGISTRY_SCHEMA_VERSION = 1
@@ -147,7 +148,7 @@ export function projectRoots(entry: ProjectEntry) {
  * @param deps - filesystem seams, injectable for tests.
  * @returns the real path, or undefined when the path does not exist.
  */
-export function realIdentity(path: string, deps = {}) {
+export function realIdentity(path: string, deps: FileProbe = {}) {
   const realpath = deps.realpath ?? realpathSync
   try {
     return realpath(path)
@@ -168,7 +169,7 @@ export function realIdentity(path: string, deps = {}) {
  * @param deps - filesystem seams, injectable for tests.
  * @returns the owning entry, or undefined when no project owns the path.
  */
-export function ownerOf(projects: ProjectEntry[], candidate, deps = {}) {
+export function ownerOf(projects: ProjectEntry[], candidate: string, deps: FileProbe = {}) {
   const lexical = resolve(candidate)
   const real = realIdentity(candidate, deps)
   for (const entry of projects) {
@@ -194,7 +195,7 @@ export function ownerOf(projects: ProjectEntry[], candidate, deps = {}) {
  * @param deps - filesystem seams, injectable for tests.
  * @returns the matching entry, or undefined when no project contains the directory.
  */
-export function matchProject(projects: ProjectEntry[], cwd: string, deps = {}) {
+export function matchProject(projects: ProjectEntry[], cwd: string, deps: FileProbe = {}) {
   const exists = deps.exists ?? existsSync
   const cwdReal = realIdentity(cwd, deps)
   if (cwdReal === undefined) return undefined
@@ -226,7 +227,7 @@ export function matchProject(projects: ProjectEntry[], cwd: string, deps = {}) {
  * @param deps - filesystem seams, injectable for tests.
  * @returns the marker directory, or undefined when none is found.
  */
-export function findProjectRoot(cwd: string, markers, deps = {}) {
+export function findProjectRoot(cwd: string, markers: string[], deps: FileProbe = {}) {
   const exists = deps.exists ?? existsSync
   let current = resolve(cwd)
   for (;;) {
@@ -367,7 +368,7 @@ export async function relinkProject(options, oldPath, newPath) {
  * @param deps - filesystem seams, injectable for tests.
  * @returns each project with its roots and which of them are still present.
  */
-export function listProjects(registryPath: string, deps = {}) {
+export function listProjects(registryPath: string, deps: FileProbe = {}) {
   const exists = deps.exists ?? existsSync
   const registry = readRegistry(registryPath)
   return registry.projects.map((entry: ProjectEntry) => ({
