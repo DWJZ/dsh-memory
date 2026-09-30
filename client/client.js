@@ -279,9 +279,9 @@ window.__ModuleLoader__.load({
 		 * @returns one label per non-zero counter.
 		 */
 		function extraCountLabels(payload, t) {
-			const operations = payload.operations !== null && typeof payload.operations === "object"
+			const operations = /** @type {Record<string, unknown>} */ (payload.operations !== null && typeof payload.operations === "object"
 				? payload.operations
-				: {};
+				: {});
 			const labels = [];
 			const rejected = countOf(payload.rejected);
 			if (rejected > 0) labels.push(t("opRejected", { count: String(rejected) }));
@@ -362,7 +362,8 @@ window.__ModuleLoader__.load({
 		function createTrajectoryRow(options) {
 			const { kind, eventType, idPrefix, toneOf, summarize, translate } = options;
 			/**
-			 * @param {{ event: { type: string, seq: number, data?: unknown, time?: unknown } }} match - the matched event.
+			 * @param {DshRowMatch} match - the matched event.
+			 * @returns {{ seq: number, time: number, payload: unknown }} - the row state.
 			 */
 			const fold = (match) => ({
 				seq: match.event.seq,
@@ -378,6 +379,7 @@ window.__ModuleLoader__.load({
 				start: (_context, match) => fold(match),
 				update: (context, match) => (match.event.type === eventType ? fold(match) : context.state),
 				buildViewNode: (context) => {
+					/** @type {{ seq: number, time: number, payload: unknown } | undefined} */
 					const current = context.state;
 					if (current === undefined) return null;
 					return {

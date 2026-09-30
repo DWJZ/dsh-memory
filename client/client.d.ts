@@ -50,9 +50,9 @@ interface DshTrajectoryRow {
   /** Whether one event starts a row, and under which id. */
   match(event: { type: string; seq: number; data?: unknown }): { id: string; role: string } | null
   /** Fold one matched event into the row's state. */
-  start(context: DshLedgerNode, match: unknown): unknown
+  start(context: DshLedgerNode, match: DshRowMatch): unknown
   /** Fold a later event into an open row. */
-  update(context: DshLedgerNode, match: unknown): unknown
+  update(context: DshLedgerNode, match: DshRowMatch): unknown
   /** Build the node the ledger renders. */
   buildViewNode(context: DshLedgerNode): unknown
 }
@@ -77,6 +77,21 @@ interface DshClientContext {
        */
       register(definition: DshTrajectoryRow): () => void
     }
+  }
+}
+
+/** The event a row matched, as the ledger hands it over. */
+interface DshRowMatch {
+  /** The Session event the row matched. */
+  event: {
+    /** Its type. */
+    type: string
+    /** Its sequence number. */
+    seq: number
+    /** Its payload, unread until the row decides what to do with it. */
+    data?: unknown
+    /** When it happened, when the log recorded it. */
+    time?: unknown
   }
 }
 
@@ -128,6 +143,6 @@ interface DshLedgerNode {
   kind: string
   /** The row id. */
   id: string
-  /** When the row started, as the ledger recorded it. */
-  start: unknown
+  /** Where the row started, as the ledger recorded it. */
+  start: { location?: unknown } | null | undefined
 }
