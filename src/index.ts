@@ -197,7 +197,12 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
     try {
       const workspace = workspaceOf(ctx, cwd)
       const project = await resolveProject(
-        { ...registry, projectRootMarkers: settings.projectRootMarkers },
+        {
+          ...registry,
+          projectRootMarkers: settings.projectRootMarkers,
+          lockTimeoutMs: settings.lockTimeoutMs,
+          staleLockMs: settings.staleLockMs,
+        },
         { cwd, workspaceRoot: workspace?.root, workspaceId: workspace?.id },
       )
       if (project !== null) {

@@ -45,6 +45,8 @@ export interface ResolveRequest {
 }
 
 export interface RegistryOptions extends FileProbe {
+  /** Absolute path of the registry lock file. */
+  lockPath: string
   /** How long to wait for the registry lock. */
   lockTimeoutMs: number
   /** Age at which an existing registry lock is treated as abandoned. */

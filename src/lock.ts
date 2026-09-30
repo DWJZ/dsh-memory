@@ -302,7 +302,7 @@ function withoutUndefined<T extends object>(options: T): T {
  * @param now - clock, injectable for tests.
  * @returns the age in milliseconds.
  */
-function lockAgeMs(lockPath: string, now: () => number): number {
+function lockAgeMs(lockPath: string, now: () => number): number | undefined {
   try {
     return now() - statSync(lockPath).mtimeMs
   } catch {
