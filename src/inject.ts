@@ -16,6 +16,7 @@
 
 import { truncateChars } from './schema.js'
 import type { Context } from '@deepseek-ai/cordis'
+import type { Provenance } from './types/memory.js'
 
 /** Context contribution name, unique across the harness. */
 export const MEMORY_INDEX_NAME = 'memory:index'
@@ -84,7 +85,7 @@ export function registerMemoryPolicy(ctx: Context) {
  * @param render - builds the index text for one agent; must be synchronous.
  * @returns the exact disposer that removes the contribution.
  */
-export function registerMemoryIndex(ctx: Context, render) {
+export function registerMemoryIndex(ctx: Context, render: (agent: MemoryAgent) => string): () => void {
   return ctx.systemPrompt.context({
     name: MEMORY_INDEX_NAME,
     order: MEMORY_INDEX_ORDER,
@@ -172,7 +173,11 @@ export function createTurnTracker(ctx: Context) {
  * @param options.now - clock source.
  * @returns the evidence entry and the complete texts to screen.
  */
-export function buildProvenance(agent: MemoryAgent, tracker, options) {
+export function buildProvenance(
+  agent: MemoryAgent,
+  tracker: ReturnType<typeof createTurnTracker>,
+  options: { evidenceQuoteMaxChars: number; now?: (() => number) | undefined },
+): Provenance {
   const sessionId = agent?.session?.header?.id
   if (typeof sessionId !== 'string' || sessionId === '') {
     return { evidence: undefined, sourceTexts: [] }
@@ -203,7 +208,7 @@ export function buildProvenance(agent: MemoryAgent, tracker, options) {
  * @param message - the candidate message.
  * @returns true when the message is human input.
  */
-function isHumanInput(message) {
+function isHumanInput(message: { source?: { kind?: string } } | null | undefined): boolean {
   return message?.source?.kind === 'user'
 }
 
@@ -212,7 +217,7 @@ function isHumanInput(message) {
  * @param message - the message to read.
  * @returns its text content.
  */
-function textOfMessage(message) {
+function textOfMessage(message: { content?: unknown } | null | undefined) {
   const content = message?.content
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''

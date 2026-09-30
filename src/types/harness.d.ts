@@ -19,7 +19,8 @@
 /** The Session members this plugin reads and writes. */
 interface MemorySession {
   readonly id: string
-  readonly header?: { readonly cwd?: string } | undefined
+  /** As `SessionHeader`: the id mirrors the Session's, and the cwd is where it runs. Required, as the harness declares it. */
+  readonly header: { readonly id: string; readonly cwd?: string }
   /**
    * Append one Session event. The plugin writes types the harness does not know,
    * which is why the payload is unconstrained and `ignorable` must be set.
@@ -51,6 +52,7 @@ declare module '@deepseek-ai/cordis' {
      */
     on(event: 'session/event', listener: (session: MemorySession, event: ObservedEvent) => void): () => void
     on(event: 'agent/status', listener: (payload: { agent: MemoryAgent; status: string }) => void): () => void
+    on(event: 'session/disposed', listener: (session: MemorySession) => void): () => void
     on(event: string, listener: (...args: never[]) => unknown): () => void
 
     /**
@@ -77,7 +79,7 @@ declare module '@deepseek-ai/cordis' {
 
     /** The prompt layers this plugin contributes the index and policy to. */
     systemPrompt: {
-      context(entry: { name: string; order: number; text: string | ((context: unknown) => string) }): () => void
+      context(entry: { name: string; order: number; text: string | ((context: { agent?: MemoryAgent }) => string) }): () => void
       section(entry: { name: string; order: number; text: string }): () => void
     }
 
