@@ -19,6 +19,8 @@
  * Usage: `const collector = createCollector(); ctx.on('session/event', (s, e) => collector.observe(s, e))`.
  */
 
+import type { ObservedEvent } from '../types/trajectory.js'
+
 /** Largest number of events retained per Session before the oldest are dropped. */
 export const DEFAULT_MAX_BUFFERED_EVENTS = 5000
 
@@ -28,7 +30,7 @@ export const DEFAULT_MAX_BUFFERED_EVENTS = 5000
  * @param options.maxBufferedEvents - per-Session retention cap.
  * @returns the collector.
  */
-export function createCollector(options = {}) {
+export function createCollector(options: { maxBufferedEvents?: number | undefined } = {}) {
   const limit = options.maxBufferedEvents ?? DEFAULT_MAX_BUFFERED_EVENTS
   const bySession = new Map()
 
@@ -108,7 +110,7 @@ export function createCollector(options = {}) {
     dropConsumed(sessionId: string, throughSeq) {
       const buffer = bySession.get(sessionId)
       if (buffer === undefined) return 0
-      const retained = buffer.events.filter(event => event.seq > throughSeq)
+      const retained = buffer.events.filter((event: ObservedEvent) => event.seq > throughSeq)
       const dropped = buffer.events.length - retained.length
       buffer.events = retained
       return dropped

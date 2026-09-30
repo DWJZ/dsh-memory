@@ -14,6 +14,9 @@
  * Usage: `import { buildRequest, parsePlan } from './policy.js'`.
  */
 
+import type { ConsolidationRequest } from './model.js'
+import type { TrajectoryEntry } from '../types/trajectory.js'
+
 /** The instruction that frames one consolidation call. */
 export const CONSOLIDATION_SYSTEM_PROMPT = [
   'You maintain long-term Memory for one coding agent.',
@@ -66,7 +69,7 @@ export const CONSOLIDATION_SYSTEM_PROMPT = [
  * @param request.existing - the active Memory the model may target.
  * @returns the user-role payload for the call.
  */
-export function buildRequest(request) {
+export function buildRequest(request: ConsolidationRequest): string {
   const parts = [
     'New trajectory since the last consolidation:',
     `session: ${request.sessionId}`,
