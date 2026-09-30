@@ -281,7 +281,7 @@ export const TRUNCATION_MARKER = '…[truncated]'
  */
 export const MIN_TRAJECTORY_BYTES_PER_BATCH = 128
 
-function capEntry(entry, maxBytes) {
+function capEntry(entry: TrajectoryEntry, maxBytes: number): TrajectoryEntry {
   if (!Number.isFinite(maxBytes)) return entry
   if (Buffer.byteLength(JSON.stringify(entry), 'utf8') <= maxBytes) return entry
   // Which field carries the unbounded text depends on the event: a message has
@@ -291,7 +291,7 @@ function capEntry(entry, maxBytes) {
   if (field === undefined) return entry
   const text = String(entry[field])
   const points = Array.from(text)
-  const build = (kept) => ({
+  const build = (kept: number) => ({
     ...entry,
     [field]: kept >= points.length ? text : `${points.slice(0, kept).join('')}${TRUNCATION_MARKER}`,
   })

@@ -64,6 +64,11 @@ export interface TrajectoryEntry {
   tool?: string | undefined
   /** The tool arguments, for tool calls; the field a byte ceiling shortens. */
   arguments?: string | undefined
+  /**
+   * The entry is also indexable: a byte ceiling shrinks whichever field carries the
+   * unbounded text, and which one that is depends on the event it was built from.
+   */
+  [key: string]: unknown
 }
 
 /** How a window is bounded, as the batch builder takes it. */
