@@ -79,7 +79,11 @@ export async function commitOperations(
       const outcome: ActionOutcome | undefined = await apply(options, operation)
       applied.push({ operation, outcome })
       if (outcome?.action === undefined || NON_WRITES.includes(outcome.action)) {
-        skipped.push({ operation, reason: outcome?.reason ?? outcome?.action ?? 'declined' })
+        const reason = outcome?.reason
+        skipped.push({
+          operation,
+          reason: typeof reason === 'string' ? reason : outcome?.action ?? 'declined',
+        })
         continue
       }
       committed[operation.action] += 1
