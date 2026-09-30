@@ -284,7 +284,12 @@ async function enableCommand(deps: MemoryDeps, enabled: boolean) {
  */
 async function projectCommand(deps: MemoryDeps, invocation: CommandInvocation, rest: string[]) {
   const [action, ...args] = rest
-  const registryOptions = { ...deps.registry, projectRootMarkers: deps.config.projectRootMarkers }
+  const registryOptions = {
+    ...deps.registry,
+    projectRootMarkers: deps.config.projectRootMarkers,
+    lockTimeoutMs: deps.config.lockTimeoutMs,
+    staleLockMs: deps.config.staleLockMs,
+  }
   if (action === 'show' || action === undefined) {
     const projects = listProjects(deps.registry.registryPath)
     const current = deps.projectFor(invocation.agent)

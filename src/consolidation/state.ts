@@ -59,9 +59,9 @@ export interface StateLockOptions {
   /** Its lock file. */
   lockPath: string
   /** How long to wait for the lock before reporting the file. */
-  lockTimeoutMs?: number
+  lockTimeoutMs: number
   /** Age at which an existing lock is treated as abandoned. */
-  staleLockMs?: number
+  staleLockMs: number
   /** Clock in epoch milliseconds. */
   now?(): number
   /** The host name written into the lock record. */

@@ -20,6 +20,7 @@ import { hostname } from 'node:os'
 import { dirname } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { failureCode } from './errors.js'
+import type { KillProbe } from './types/memory.js'
 
 /** How long one acquisition attempt waits before retrying. */
 const RETRY_DELAY_MS = 25
@@ -37,8 +38,8 @@ const inProcessTails = new Map()
  * @param kill - signal sender, injectable for tests.
  * @returns true when the process should be treated as alive.
  */
-export function isProcessAlive(pid: number, kill = process.kill) {
-  if (!Number.isInteger(pid) || pid <= 0) return false
+export function isProcessAlive(pid: number | undefined, kill: KillProbe = process.kill): boolean {
+  if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return false
   try {
     kill(pid, 0)
     return true
@@ -58,7 +59,7 @@ export function isProcessAlive(pid: number, kill = process.kill) {
  * @param options.onWarn - receives a message when a lock is reclaimed.
  * @returns true when the caller should retry acquisition.
  */
-export function reclaimIfStale(lockPath: string, options) {
+export function reclaimIfStale(lockPath: string, options: ResolvedLock): boolean {
   const observed = observeLock(lockPath, options)
   if (observed === undefined) return false
   if (observed.record !== undefined && observed.record.host !== options.host) {
@@ -96,7 +97,7 @@ export function reclaimIfStale(lockPath: string, options) {
  * @param options - staleness threshold and clock.
  * @returns the observation, or undefined when the lock is absent or still fresh.
  */
-function observeLock(lockPath: string, options) {
+function observeLock(lockPath: string, options: ResolvedLock) {
   let stats
   try {
     stats = statSync(lockPath)
@@ -105,7 +106,7 @@ function observeLock(lockPath: string, options) {
   }
   const ageMs = options.now() - stats.mtimeMs
   if (ageMs <= options.staleLockMs) return undefined
-  let record
+  let record: { pid?: number; host?: string; nonce?: string } | undefined
   try {
     record = JSON.parse(readFileSync(lockPath, 'utf8'))
   } catch {
@@ -168,7 +169,7 @@ function releaseReclaimMutex(mutexPath: string) {
  * @returns whatever `run` returns.
  * @throws when the lock cannot be acquired within `lockTimeoutMs`.
  */
-export async function withLock(options, run) {
+export async function withLock<T>(options: LockRequest, run: () => T | Promise<T>): Promise<T> {
   // An explicit `undefined` override must not erase a default: callers forward
   // optional seams by spreading an options bag that often lacks them.
   const resolved = {
@@ -202,7 +203,7 @@ export async function withLock(options, run) {
  * @param nonce - ownership token written into the lock file.
  * @returns true when this call now holds the lock.
  */
-async function acquire(options, nonce: string) {
+async function acquire(options: ResolvedLock, nonce: string): Promise<boolean> {
   const deadline = options.now() + options.lockTimeoutMs
   for (;;) {
     try {
@@ -224,11 +225,7 @@ async function acquire(options, nonce: string) {
     }
 
     const reclaimed = reclaimIfStale(options.lockPath, {
-      staleLockMs: options.staleLockMs,
-      lockTimeoutMs: options.lockTimeoutMs,
-      host: options.host,
-      kill: options.kill,
-      now: options.now,
+      ...options,
       onWarn: message => options.logger?.warn(`dsh-memory: ${message}`),
     })
     if (reclaimed) continue
@@ -261,7 +258,7 @@ function releaseLockFile(lockPath: string, nonce: string) {
  */
 async function enterProcessChain(lockPath: string) {
   const tail = inProcessTails.get(lockPath) ?? Promise.resolve()
-  let finish: () => void
+  let finish: (value?: unknown) => void = () => {}
   const next = new Promise(resolve => { finish = resolve })
   inProcessTails.set(lockPath, next)
   await tail
@@ -305,7 +302,7 @@ function withoutUndefined<T extends object>(options: T): T {
  * @param now - clock, injectable for tests.
  * @returns the age in milliseconds.
  */
-function lockAgeMs(lockPath: string, now) {
+function lockAgeMs(lockPath: string, now: () => number): number {
   try {
     return now() - statSync(lockPath).mtimeMs
   } catch {
@@ -318,6 +315,27 @@ function lockAgeMs(lockPath: string, now) {
  * @param ms - milliseconds to wait.
  * @returns a promise resolved after the delay.
  */
-function delay(ms) {
+function delay(ms: number): Promise<void> {
   return new Promise(resolve => { setTimeout(resolve, ms) })
+}
+
+/** What taking one lock needs from a caller; the two thresholds are required. */
+export interface LockRequest {
+  lockPath: string
+  lockTimeoutMs: number
+  staleLockMs: number
+  pid?: number
+  host?: string
+  now?(): number
+  kill?: KillProbe
+  logger?: { warn(message: string | Error): void; info?(message: string): void } | undefined
+  onWarn?(message: string): void
+}
+
+/** The same request with every default filled in: what the passes inside withLock get. */
+export interface ResolvedLock extends Omit<LockRequest, 'pid' | 'host' | 'now' | 'kill'> {
+  pid: number
+  host: string
+  now(): number
+  kill: KillProbe
 }

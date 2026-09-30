@@ -71,6 +71,9 @@ export interface ScopeLayout {
  * This module forwards these to the actions without reading them; the fields are
  * the ones the actions and their suites actually set.
  */
+/** How a caller probes whether a recorded process is alive; `process.kill` fits. */
+export type KillProbe = (pid: number, signal?: number) => boolean
+
 export interface ActionOptions {
   /** The two scope layouts. The project layout is resolved per project id. */
   scopes: { user: ScopeLayout; project: (projectId: string | null | undefined) => ScopeLayout }
@@ -87,7 +90,7 @@ export interface ActionOptions {
   /** Written into tombstones, naming who removed a record. */
   host?: string | undefined
   /** Probes whether a pid is alive; injectable so tests need no real process. */
-  kill?: ((pid: number, signal?: number | string) => boolean) | undefined
+  kill?: KillProbe | undefined
   /** Injectable clock, in epoch milliseconds. */
   now?: (() => number) | undefined
 }

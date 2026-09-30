@@ -45,6 +45,10 @@ export interface ResolveRequest {
 }
 
 export interface RegistryOptions extends FileProbe {
+  /** How long to wait for the registry lock. */
+  lockTimeoutMs: number
+  /** Age at which an existing registry lock is treated as abandoned. */
+  staleLockMs: number
   /** Absolute path of the registry file. */
   registryPath: string
   /** Markers that identify a project root. */
@@ -276,7 +280,11 @@ export function findProjectRoot(cwd: string, markers: string[], deps: FileProbe 
  * @returns the owning project and whether this call created it.
  * @throws when the directory does not exist and no project owns it.
  */
-export async function resolveOrRegisterProject(options: RegistryOptions, root: string, workspaceId?: string) {
+export async function resolveOrRegisterProject(
+  options: RegistryOptions,
+  root: string,
+  workspaceId?: string,
+): Promise<{ project: ReturnType<typeof describeProject>; created: boolean }> {
   const requested = resolve(root)
   return withLock(options, () => {
     const registry = readRegistry(options.registryPath)
@@ -359,7 +367,11 @@ export async function bindProject(options: RegistryOptions, path: string) {
  * @returns the updated project.
  * @throws when no project owns the old path, or another project owns the new one.
  */
-export async function relinkProject(options: RegistryOptions, oldPath: string, newPath: string) {
+export async function relinkProject(
+  options: RegistryOptions,
+  oldPath: string,
+  newPath: string,
+): Promise<{ project: ReturnType<typeof describeProject>; changed: boolean }> {
   const previous = resolve(oldPath)
   const next = resolve(newPath)
   return withLock(options, () => {
