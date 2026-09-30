@@ -58,7 +58,7 @@ export function createCollector(options: { maxBufferedEvents?: number | undefine
      * @param event - the committed event.
      * @returns nothing.
      */
-    observe(session, event) {
+    observe(session: MemorySession, event: ObservedEvent) {
       const sessionId = session?.id
       if (typeof sessionId !== 'string' || !Number.isInteger(event?.seq)) return
       const buffer = bufferFor(sessionId)
@@ -107,7 +107,7 @@ export function createCollector(options: { maxBufferedEvents?: number | undefine
      * @param throughSeq - the highest consumed seq.
      * @returns the number of events dropped.
      */
-    dropConsumed(sessionId: string, throughSeq) {
+    dropConsumed(sessionId: string, throughSeq: number) {
       const buffer = bySession.get(sessionId)
       if (buffer === undefined) return 0
       const retained = buffer.events.filter((event: ObservedEvent) => event.seq > throughSeq)
@@ -130,7 +130,7 @@ export function createCollector(options: { maxBufferedEvents?: number | undefine
      * @param keep - Session ids to retain.
      * @returns the number of Sessions forgotten.
      */
-    retain(keep) {
+    retain(keep: ReadonlySet<string>) {
       let forgotten = 0
       for (const sessionId of [...bySession.keys()]) {
         if (keep.has(sessionId)) continue
