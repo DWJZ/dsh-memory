@@ -145,7 +145,7 @@ window.__ModuleLoader__.load({
 		//#region summaries
 		/**
 		 * One payload field that is meant to be a string.
-		 * @param value - the payload field.
+		 * @param {unknown} value - the payload field.
 		 * @returns the value, or the empty string when the field is absent.
 		 */
 		/**
@@ -158,7 +158,7 @@ window.__ModuleLoader__.load({
 
 		/**
 		 * One payload field that is meant to be a counter.
-		 * @param value - the payload field.
+		 * @param {unknown} value - the payload field.
 		 * @returns the value, or zero when the field is absent or not a number.
 		 */
 		/**
@@ -186,8 +186,8 @@ window.__ModuleLoader__.load({
 
 		/**
 		 * One status label, from the closed vocabulary the host writes.
-		 * @param status - the payload status.
-		 * @param t - this namespace's translate function.
+		 * @param {unknown} status - the payload status.
+		 * @param {Translate} t - this namespace's translate function.
 		 * @returns the localized label.
 		 */
 		/**
@@ -204,7 +204,7 @@ window.__ModuleLoader__.load({
 
 		/**
 		 * The ledger tone a consolidation status asks for.
-		 * @param status - the payload status.
+		 * @param {unknown} status - the payload status.
 		 * @returns one tone from the closed set the trajectory target owns.
 		 */
 		/**
@@ -219,8 +219,8 @@ window.__ModuleLoader__.load({
 
 		/**
 		 * One trigger label.
-		 * @param trigger - the payload trigger.
-		 * @param t - this namespace's translate function.
+		 * @param {unknown} trigger - the payload trigger.
+		 * @param {Translate} t - this namespace's translate function.
 		 * @returns the localized label.
 		 */
 		/**
@@ -236,8 +236,8 @@ window.__ModuleLoader__.load({
 
 		/**
 		 * The window a run or gap covers, when the payload carries one.
-		 * @param payload - the consolidation payload.
-		 * @param t - this namespace's translate function.
+		 * @param {Record<string, unknown>} payload - the consolidation payload.
+		 * @param {Translate} t - this namespace's translate function.
 		 * @returns the range label, or null when either end is absent.
 		 */
 		/**
@@ -252,8 +252,8 @@ window.__ModuleLoader__.load({
 
 		/**
 		 * What a run wrote, as the four counters every non-gap audit carries.
-		 * @param operations - the payload's operation counters.
-		 * @param t - this namespace's translate function.
+		 * @param {unknown} operations - the payload's operation counters.
+		 * @param {Translate} t - this namespace's translate function.
 		 * @returns the counts label.
 		 */
 		/**
@@ -274,8 +274,8 @@ window.__ModuleLoader__.load({
 		/**
 		 * The counters a run only mentions when it has any: what the review threw
 		 * away, what a duplicate or a conflict left unwritten, and what failed.
-		 * @param payload - the consolidation payload.
-		 * @param t - this namespace's translate function.
+		 * @param {Record<string, unknown>} payload - the consolidation payload.
+		 * @param {Translate} t - this namespace's translate function.
 		 * @returns one label per non-zero counter.
 		 */
 		function extraCountLabels(payload, t) {
@@ -295,8 +295,8 @@ window.__ModuleLoader__.load({
 		/**
 		 * One consolidation run or gap as a single ledger line: what happened and
 		 * when it ran, over which sequence range, and — for a run — what it wrote.
-		 * @param payload - the audit the host appended.
-		 * @param t - this namespace's translate function.
+		 * @param {Record<string, unknown>} payload - the audit the host appended.
+		 * @param {Translate} t - this namespace's translate function.
 		 * @returns the one-line summary.
 		 */
 		function consolidationSummary(payload, t) {
@@ -320,8 +320,8 @@ window.__ModuleLoader__.load({
 		 * One project attribution as a single ledger line: which project the
 		 * Session belongs to, which lookup decided it, and the two ids the store
 		 * and the workspace are keyed by.
-		 * @param payload - the attribution the host appended.
-		 * @param t - this namespace's translate function.
+		 * @param {Record<string, unknown>} payload - the attribution the host appended.
+		 * @param {Translate} t - this namespace's translate function.
 		 * @returns the one-line summary.
 		 */
 		function projectSummary(payload, t) {
@@ -408,7 +408,7 @@ window.__ModuleLoader__.load({
 
 		/**
 		 * The consolidation row.
-		 * @param translate - this namespace's translate function.
+		 * @param {Translate} translate - this namespace's translate function.
 		 * @returns the business definition.
 		 */
 		/**
@@ -428,7 +428,7 @@ window.__ModuleLoader__.load({
 
 		/**
 		 * The project-attribution row.
-		 * @param translate - this namespace's translate function.
+		 * @param {Translate} translate - this namespace's translate function.
 		 * @returns the business definition.
 		 */
 		function createProjectRow(translate) {
@@ -450,7 +450,7 @@ window.__ModuleLoader__.load({
 
 		/**
 		 * Register the dictionaries and the two ledger rows.
-		 * @param ctx - this plugin's Client context.
+		 * @param {DshClientContext} ctx - this plugin's Client context.
 		 */
 		/**
 		 * @param {DshClientContext} ctx - this plugin's Client context.
