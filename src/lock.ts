@@ -261,7 +261,7 @@ function releaseLockFile(lockPath: string, nonce: string) {
  */
 async function enterProcessChain(lockPath: string) {
   const tail = inProcessTails.get(lockPath) ?? Promise.resolve()
-  let finish
+  let finish: () => void
   const next = new Promise(resolve => { finish = resolve })
   inProcessTails.set(lockPath, next)
   await tail

@@ -83,7 +83,7 @@ export function createConsolidation(options) {
   const inSessionOrder = (sessionId: string, work) => {
     const previous = queues.get(sessionId) ?? Promise.resolve()
     const next = previous.then(work, work)
-    let tail
+    let tail: Promise<unknown> | undefined
     const done = () => { if (queues.get(sessionId) === tail) queues.delete(sessionId) }
     tail = next.then(done, done)
     queues.set(sessionId, tail)
@@ -96,7 +96,7 @@ export function createConsolidation(options) {
    * @returns the same promise, so callers keep the outcome.
    */
   const track = (run) => {
-    let tracked
+    let tracked: Promise<unknown> | undefined
     tracked = run.finally(() => { runs.delete(tracked) })
     runs.add(tracked)
     return tracked

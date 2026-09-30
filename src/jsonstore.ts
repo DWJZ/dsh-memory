@@ -162,7 +162,7 @@ export function cleanupStaleTemps(dir: string, options: SweepOptions = {}) {
  * @returns absolute paths, deepest last.
  */
 function findTemps(dir) {
-  const found = []
+  const found: string[] = []
   let entries
   try {
     entries = readdirSync(dir, { withFileTypes: true })
