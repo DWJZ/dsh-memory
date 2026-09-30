@@ -50,11 +50,11 @@ interface DshTrajectoryRow {
   /** Whether one event starts a row, and under which id. */
   match(event: { type: string; seq: number; data?: unknown }): { id: string; role: string } | null
   /** Fold one matched event into the row's state. */
-  start(context: unknown, match: unknown): unknown
+  start(context: DshLedgerNode, match: unknown): unknown
   /** Fold a later event into an open row. */
-  update(context: { state: unknown }, match: unknown): unknown
+  update(context: DshLedgerNode, match: unknown): unknown
   /** Build the node the ledger renders. */
-  buildViewNode(context: { state: unknown }): unknown
+  buildViewNode(context: DshLedgerNode): unknown
 }
 
 /** This plugin's Client context. */
@@ -116,4 +116,18 @@ interface DshMemoryClientExports {
   CONSOLIDATION_EVENT: string
   /** The Session event type the project row folds. */
   PROJECT_EVENT: string
+}
+
+/** What the ledger hands a row while it folds or renders one node. */
+interface DshLedgerNode {
+  /** The state this row folded so far. */
+  state: unknown
+  /** The row's key in the ledger. */
+  key: string
+  /** The row kind. */
+  kind: string
+  /** The row id. */
+  id: string
+  /** When the row started, as the ledger recorded it. */
+  start: unknown
 }

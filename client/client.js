@@ -20,7 +20,7 @@ window.__ModuleLoader__.load({
 	id: "dsh-memory",
 	factory: (require) => {
 		var module = { exports: {} };
-		/** @type {DshMemoryClientExports} */
+		/** @type {Partial<DshMemoryClientExports>} */
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 
@@ -243,7 +243,7 @@ window.__ModuleLoader__.load({
 		/**
 		 * @param {Record<string, unknown>} payload - the host payload.
 		 * @param {Translate} t - this namespace's translate function.
-		 * @returns {string}.
+		 * @returns {string | null} - null when the payload carries no range.
 		 */
 		function seqRangeLabel(payload, t) {
 			if (typeof payload.from_seq !== "number" || typeof payload.to_seq !== "number") return null;
@@ -262,7 +262,7 @@ window.__ModuleLoader__.load({
 		 * @returns {string}.
 		 */
 		function operationCountsLabel(operations, t) {
-			const counts = operations !== null && typeof operations === "object" ? operations : {};
+			const counts = /** @type {Record<string, unknown>} */ (operations !== null && typeof operations === "object" ? operations : {});
 			return t("opCounts", {
 				add: String(countOf(counts.add)),
 				update: String(countOf(counts.update)),
@@ -361,6 +361,9 @@ window.__ModuleLoader__.load({
 		 */
 		function createTrajectoryRow(options) {
 			const { kind, eventType, idPrefix, toneOf, summarize, translate } = options;
+			/**
+			 * @param {{ event: { type: string, seq: number, data?: unknown, time?: unknown } }} match - the matched event.
+			 */
 			const fold = (match) => ({
 				seq: match.event.seq,
 				time: typeof match.event.time === "number" ? match.event.time : 0,
