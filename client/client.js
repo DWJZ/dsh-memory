@@ -14,6 +14,8 @@
  * involved either. Copy is machine-localizable, which is why the summaries are
  * built from the registered dictionary rather than from literals.
  */
+
+/// <reference path="./client.d.ts" />
 window.__ModuleLoader__.load({
 	id: "dsh-memory",
 	factory: (require) => {
