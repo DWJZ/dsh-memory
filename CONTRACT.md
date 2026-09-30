@@ -985,6 +985,14 @@ headless 一次性运行          → 任务轮次 idle 后进程随即退出并
 
 因此**开发回路是"改完先 build 再重启"**；测试不受影响，它们通过 tsx 直接跑 `src/` 的源码，不需要 build。
 
+## 已知缺口：project 作用域缺 projectId 的探测路径
+
+`actions.ts` 的 `requireLayout(options, scope, projectId)` 在 `scope` 为 project 时会用 `projectId` 解析布局。**存在调用路径传入 project 作用域而没有 projectId**：`updateMemory` / `supersedeMemory` 会用它去探测目标记录属于哪个作用域，`commit.ts` 里"省略 projectId 会让项目目标不可见"那段注释说的就是这件事。
+
+现状是静默的：`options.scopes.project(null)` 会照常返回一个布局（目录名由缺失的 id 拼出），探测因此"查不到"而继续。
+
+**给下一个读者的提醒**：不要直接在 `requireLayout` 里加"缺 id 就报错"。试过一次，单测从 1325 断言掉到 481 —— 说明这条路径是被依赖的，得先看清调用方真正想要什么（是探测、还是写入），再决定改哪一端。类型上把它标成 `string | null | undefined` 是安全的；改变运行时行为不是。
+
 ## P2-7. 不修改的部分
 
 `jsonstore.js`、`registry.js`、`retrieval.js`、Phase 1 锁设计、canonical schema、project identity、`MEMORY.md` 派生、`memory_search` / `memory_get` / `memory_remember` 的既有语义。

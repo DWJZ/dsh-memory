@@ -131,6 +131,23 @@ export interface TargetedInput {
   confidence?: number | undefined
 }
 
+/**
+ * What `archive` needs: the record to retire.
+ *
+ * Its own shape rather than the targeted one: archiving keeps the content it
+ * retires, and the shape says so by not offering a field for it.
+ */
+export interface ArchiveInput {
+  /** The record being retired. */
+  id: string
+  /** The project that record lives in, when it is a project record. */
+  projectId?: string | null | undefined
+  /** The citation to accumulate. */
+  evidence?: EvidenceEntry | undefined
+  /** Untruncated text the citation came from, screened again at the write. */
+  sourceTexts?: string[] | undefined
+}
+
 /** Any input one of the three actions takes. */
 export type ActionInput = AddInput | TargetedInput
 

@@ -22,7 +22,7 @@ import { withLock } from './lock.js'
 import { mutateAndRefreshView } from './views.js'
 import { findSecretIn } from './redact.js'
 import { MAX_CONTENT_CHARS, charLength, newMemoryId, normalizeContent, validateMemory } from './schema.js'
-import type { ActionInput, ActionOptions, AddInput, MemoryRecord, MemoryStore, ScopeLayout, TargetedInput } from './types/memory.js'
+import type { ActionInput, ActionOptions, AddInput, ArchiveInput, MemoryRecord, MemoryStore, ScopeLayout, TargetedInput } from './types/memory.js'
 import { failureMessage } from './errors.js'
 
 /**
@@ -200,7 +200,7 @@ export async function supersedeMemory(options: ActionOptions, input: TargetedInp
  * @param input.projectId - the current project, used to decide visibility.
  * @returns the applied action and the record id.
  */
-export async function archiveMemory(options: ActionOptions, input: ActionInput) {
+export async function archiveMemory(options: ActionOptions, input: ArchiveInput) {
   const located = locateVisible(options, input.id, input.projectId)
   return apply(options, located.layout, (store: MemoryStore) => {
     const current = requireActive(store, input.id)

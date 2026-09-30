@@ -38,6 +38,7 @@ import { isAbsolute, relative } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { MemoryDeps } from './types/deps.js'
 import type { MemorySettings } from './types/config.js'
+import type { ProjectEntry } from './types/identity.js'
 
 /** Stable Cordis plugin name. */
 
@@ -83,10 +84,10 @@ export function apply(ctx: Context, config: MemorySettings) {
  * @param settings - resolved plugin settings.
  * @returns the controller.
  */
-function createController(ctx: Context, settings) {
+function createController(ctx: Context, settings: MemorySettings) {
   const scopes = {
     user: userLayout(settings.memoryDir),
-    project: projectId => projectLayout(settings.memoryDir, projectId),
+    project: (projectId: string) => projectLayout(settings.memoryDir, projectId),
   }
   const registry = registryLayout(settings.memoryDir)
   const tombstones = tombstoneLayout(settings.memoryDir)
@@ -152,7 +153,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
    * @returns fulfillment once the runtime matches the choice.
    * @throws when the choice cannot be persisted, leaving the runtime unchanged.
    */
-  const setEnabled = async (next) => {
+  const setEnabled = async (next: boolean) => {
     if (next === enabled) return
     writeEnabled(settings.memoryDir, next)
     enabled = next
@@ -202,7 +203,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
    * @param project - the resolved project.
    * @param workspace - the harness workspace that contains the directory, if any.
    */
-  const announceProject = (agent: MemoryAgent, project, workspace) => {
+  const announceProject = (agent: MemoryAgent, project: ProjectEntry, workspace) => {
     if (settings.sessionEvents !== true) return
     const session = agent?.session
     if (session === undefined || typeof session.append !== 'function') return
@@ -407,7 +408,7 @@ function cwdOf(agent: MemoryAgent) {
  * @param cwd - the session working directory.
  * @returns the workspace root and id, or undefined.
  */
-function workspaceOf(ctx: Context, cwd) {
+function workspaceOf(ctx: Context, cwd: string) {
   const workspaceRegistry = ctx.get('workspaceRegistry')
   if (workspaceRegistry === undefined || typeof workspaceRegistry.list !== 'function') return undefined
   let workspaces
@@ -432,7 +433,7 @@ function workspaceOf(ctx: Context, cwd) {
  * @param path - the path to test.
  * @returns true when `path` is `root` or lies below it.
  */
-function contains(root, path) {
+function contains(root: string, path: string) {
   const rel = relative(root, path)
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
 }
