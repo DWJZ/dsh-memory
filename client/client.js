@@ -25,6 +25,7 @@ window.__ModuleLoader__.load({
 
 		//#region locale
 		const NS = "dshMemory";
+		/** @type {Record<string, string>} */
 		const zh = {
 			consolidation: "记忆整理",
 			statusSuccess: "成功",
@@ -51,6 +52,7 @@ window.__ModuleLoader__.load({
 			workspaceId: "workspace {id}",
 			workspaceNone: "无 workspace"
 		};
+		/** @type {Record<string, string>} */
 		const en = {
 			consolidation: "Memory consolidation",
 			statusSuccess: "success",
@@ -380,6 +382,9 @@ window.__ModuleLoader__.load({
 		/**
 		 * Register the dictionaries and the two ledger rows.
 		 * @param ctx - this plugin's Client context.
+		 */
+		/**
+		 * @param {DshClientContext} ctx - this plugin's Client context.
 		 */
 		function apply(ctx) {
 			// The binding reads the active locale at call time, so one function
