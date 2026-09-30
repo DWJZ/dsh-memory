@@ -991,6 +991,15 @@ headless 一次性运行          → 任务轮次 idle 后进程随即退出并
 
 **给下一个读者的提醒**：这里有一个需要决定的问题，不是类型问题。要么把 `host`（以及 `kill`）做成经校验的配置字段并让 `resolveConfig` 透传（符合"部署相关的选择应当是配置"的约定），要么删掉这两行死读。类型上我保持原样，因为两种改法都会改变行为或意图。
 
+## 已知缺口：lock.ts 的 withLock 签名与它的六个调用方
+
+`lock.ts` 的三次尝试都失败过，原因现已查清并**拆开**：
+
+1. `withoutUndefined(options)` 的返回类型原先被推断成空对象，于是 `resolved.lockPath`、两个阈值全部报"属性不存在"（6 个错误）。**单独修这一处是净改善**（64 → 58，已提交）。
+2. 给 `withLock(options: LockRequest)` 加上签名则**必须同时改六个调用方**（`actions`、`jsonstore`、`registry`×2、`views`、`consolidation/state`）—— 只改签名会从 58 涨到 74。
+
+**给下一个读者的提醒**：先做第 1 步（已完成），第 2 步要和那六个调用方一次改完；两次分开做都会变差。
+
 ## 已知缺口：project 作用域缺 projectId 的探测路径
 
 `actions.ts` 的 `requireLayout(options, scope, projectId)` 在 `scope` 为 project 时会用 `projectId` 解析布局。**存在调用路径传入 project 作用域而没有 projectId**：`updateMemory` / `supersedeMemory` 会用它去探测目标记录属于哪个作用域，`commit.ts` 里"省略 projectId 会让项目目标不可见"那段注释说的就是这件事。
