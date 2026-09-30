@@ -269,10 +269,14 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
       })
       consolidation = createConsolidation({
         sessionEvents: settings.sessionEvents,
-        llmScope: () => llmScope,
+        llmScope: () => llmScope ?? undefined,
         collector: createCollector(),
         scopes,
-        state: consolidationLayout(settings.memoryDir),
+        state: {
+          ...consolidationLayout(settings.memoryDir),
+          lockTimeoutMs: settings.lockTimeoutMs,
+          staleLockMs: settings.staleLockMs,
+        },
         actionOptions: {
           scopes,
           tombstones,

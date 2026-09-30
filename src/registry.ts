@@ -459,7 +459,7 @@ function locateForRelink(projects: ProjectEntry[], previous: string, deps: FileP
  * @param deps - filesystem seams, injectable for tests.
  * @returns the entry's identity and current roots.
  */
-function describeProject(entry: ProjectEntry, deps: FileProbe) {
+function describeProject(entry: ProjectEntry, deps: FileProbe): ProjectEntry {
   const exists = deps.exists ?? existsSync
   return {
     project_id: entry.project_id,
