@@ -22,7 +22,7 @@
 
 import { CATEGORIES, MAX_CONTENT_CHARS, charLength } from '../schema.js'
 import { findSecretIn } from '../redact.js'
-import type { AutoOperation, MemoryCategory, MemoryRecord, MemoryScope } from '../types/memory.js'
+import type { AutoOperation, EvidenceEntry, MemoryCategory, MemoryRecord, MemoryScope } from '../types/memory.js'
 import type { ObservedEvent } from '../types/trajectory.js'
 
 /** Actions automatic consolidation may take. */
@@ -77,7 +77,26 @@ export interface ReviewContext {
  * It is what Phase 1 would write, plus the target the review resolved: a proposal
  * names a target only for `update` and `supersede`, and the dry-run report shows it.
  */
-export type ReviewedOperation = AutoOperation & { target_id?: string | undefined }
+export interface ReviewedOperation {
+  /** The automatic action the review accepted. */
+  action: AutoOperation['action']
+  /** Which store the record belongs to, resolved by the review. */
+  scope: MemoryScope
+  /** What kind of record it is, resolved by the review. */
+  category: MemoryCategory
+  /** The fact to store or the replacement text. */
+  content: string
+  /** The confidence the review assigned. */
+  confidence: number
+  /** The record being rewritten or retired, for `update` and `supersede`. */
+  target_id?: string | undefined
+  /** Set for a project record. */
+  projectId?: string | null | undefined
+  /** The citation the review resolved and screened. */
+  evidence: EvidenceEntry
+  /** Untruncated text the citation came from, screened again at the write. */
+  sourceTexts?: string[] | undefined
+}
 
 /** What reviewing one proposal produced. */
 export type ReviewOutcome =
