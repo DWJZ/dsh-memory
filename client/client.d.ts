@@ -79,3 +79,41 @@ interface DshClientContext {
     }
   }
 }
+
+/** What one trajectory row is built from. */
+interface TrajectoryRowOptions {
+  /** The row kind, as the ledger groups it. */
+  kind: string
+  /** The Session event type this row folds. */
+  eventType: string
+  /** Prefix of the row id. */
+  idPrefix: string
+  /** Ledger emphasis for one payload. */
+  toneOf(payload: Record<string, unknown>): string
+  /** The one-line summary for one payload. */
+  summarize(payload: Record<string, unknown>, t: Translate): string
+  /** This namespace's translate function. */
+  translate: Translate
+}
+
+/** The bundle's exports. The offline smoke test drives these directly. */
+interface DshMemoryClientExports {
+  /** Register the dictionaries and the two ledger rows. */
+  apply(ctx: DshClientContext): void
+  /** The client services this bundle waits for. */
+  inject: string[]
+  /** One-line summary of a consolidation run. */
+  consolidationSummary(payload: Record<string, unknown>, t: Translate): string
+  /** One-line summary of a project attribution. */
+  projectSummary(payload: Record<string, unknown>, t: Translate): string
+  /** Ledger emphasis for a consolidation status. */
+  statusTone(status: unknown): string
+  /** Build the consolidation row definition. */
+  createConsolidationRow(translate: Translate): DshTrajectoryRow
+  /** Build the project row definition. */
+  createProjectRow(translate: Translate): DshTrajectoryRow
+  /** The Session event type the consolidation row folds. */
+  CONSOLIDATION_EVENT: string
+  /** The Session event type the project row folds. */
+  PROJECT_EVENT: string
+}

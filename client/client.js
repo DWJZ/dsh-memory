@@ -20,6 +20,7 @@ window.__ModuleLoader__.load({
 	id: "dsh-memory",
 	factory: (require) => {
 		var module = { exports: {} };
+		/** @type {DshMemoryClientExports} */
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 
@@ -147,6 +148,10 @@ window.__ModuleLoader__.load({
 		 * @param value - the payload field.
 		 * @returns the value, or the empty string when the field is absent.
 		 */
+		/**
+		 * @param {unknown} value - the value the host wrote.
+		 * @returns {string}.
+		 */
 		function textOf(value) {
 			return typeof value === "string" && value !== "" ? value : "";
 		}
@@ -155,6 +160,10 @@ window.__ModuleLoader__.load({
 		 * One payload field that is meant to be a counter.
 		 * @param value - the payload field.
 		 * @returns the value, or zero when the field is absent or not a number.
+		 */
+		/**
+		 * @param {unknown} value - the value the host wrote.
+		 * @returns {number}.
 		 */
 		function countOf(value) {
 			return typeof value === "number" && Number.isFinite(value) ? value : 0;
@@ -166,6 +175,11 @@ window.__ModuleLoader__.load({
 		 * @param parts - summary segments, in reading order.
 		 * @returns the one-line summary the ledger renders.
 		 */
+		/**
+		 * @param {string} symbol - the row symbol.
+		 * @param {string[]} parts - the rendered parts.
+		 * @returns {string}.
+		 */
 		function join(symbol, parts) {
 			return symbol + " " + parts.filter(part => part !== "").join(" \u00b7 ");
 		}
@@ -175,6 +189,11 @@ window.__ModuleLoader__.load({
 		 * @param status - the payload status.
 		 * @param t - this namespace's translate function.
 		 * @returns the localized label.
+		 */
+		/**
+		 * @param {unknown} status - the payload status.
+		 * @param {Translate} t - this namespace's translate function.
+		 * @returns {string}.
 		 */
 		function statusLabel(status, t) {
 			const key = typeof status === "string" && STATUS_KEYS[status] !== undefined
@@ -188,6 +207,10 @@ window.__ModuleLoader__.load({
 		 * @param status - the payload status.
 		 * @returns one tone from the closed set the trajectory target owns.
 		 */
+		/**
+		 * @param {unknown} status - the payload status.
+		 * @returns {string}.
+		 */
 		function statusTone(status) {
 			return typeof status === "string" && STATUS_TONES[status] !== undefined
 				? STATUS_TONES[status]
@@ -199,6 +222,11 @@ window.__ModuleLoader__.load({
 		 * @param trigger - the payload trigger.
 		 * @param t - this namespace's translate function.
 		 * @returns the localized label.
+		 */
+		/**
+		 * @param {unknown} trigger - the payload trigger.
+		 * @param {Translate} t - this namespace's translate function.
+		 * @returns {string}.
 		 */
 		function triggerLabel(trigger, t) {
 			return t(typeof trigger === "string" && TRIGGER_KEYS[trigger] !== undefined
@@ -212,6 +240,11 @@ window.__ModuleLoader__.load({
 		 * @param t - this namespace's translate function.
 		 * @returns the range label, or null when either end is absent.
 		 */
+		/**
+		 * @param {Record<string, unknown>} payload - the host payload.
+		 * @param {Translate} t - this namespace's translate function.
+		 * @returns {string}.
+		 */
 		function seqRangeLabel(payload, t) {
 			if (typeof payload.from_seq !== "number" || typeof payload.to_seq !== "number") return null;
 			return t("seqRange", { from: String(payload.from_seq), to: String(payload.to_seq) });
@@ -222,6 +255,11 @@ window.__ModuleLoader__.load({
 		 * @param operations - the payload's operation counters.
 		 * @param t - this namespace's translate function.
 		 * @returns the counts label.
+		 */
+		/**
+		 * @param {unknown} operations - the plan operations.
+		 * @param {Translate} t - this namespace's translate function.
+		 * @returns {string}.
 		 */
 		function operationCountsLabel(operations, t) {
 			const counts = operations !== null && typeof operations === "object" ? operations : {};
@@ -317,6 +355,10 @@ window.__ModuleLoader__.load({
 		 * @param options.translate - this namespace's translate function.
 		 * @returns the business definition.
 		 */
+		/**
+		 * @param {TrajectoryRowOptions} options - what the row folds, and how it renders.
+		 * @returns {DshTrajectoryRow}.
+		 */
 		function createTrajectoryRow(options) {
 			const { kind, eventType, idPrefix, toneOf, summarize, translate } = options;
 			const fold = (match) => ({
@@ -365,6 +407,10 @@ window.__ModuleLoader__.load({
 		 * The consolidation row.
 		 * @param translate - this namespace's translate function.
 		 * @returns the business definition.
+		 */
+		/**
+		 * @param {Translate} translate - this namespace's translate function.
+		 * @returns {DshTrajectoryRow}.
 		 */
 		function createConsolidationRow(translate) {
 			return createTrajectoryRow({
