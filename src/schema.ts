@@ -236,7 +236,7 @@ function validateEvidence(entry: unknown, memoryId: string, index: number): void
   if (!Array.isArray(record.event_seqs) || record.event_seqs.some(seq => !Number.isInteger(seq) || seq < 0)) {
     throw new TypeError(`dsh-memory: ${where}.event_seqs must be an array of non-negative integers`)
   }
-  if (!isTimestamp(entry.observed_at)) {
+  if (!isTimestamp(record.observed_at)) {
     throw new TypeError(`dsh-memory: ${where}.observed_at must be an ISO-8601 UTC timestamp`)
   }
 }
@@ -246,7 +246,7 @@ function validateEvidence(entry: unknown, memoryId: string, index: number): void
  * @param value - the value to test.
  * @param field - field name, named in the failure.
  */
-function requireNonEmptyString(value, field: string) {
+function requireNonEmptyString(value: unknown, field: string): void {
   if (typeof value !== 'string' || value === '') {
     throw new TypeError(`dsh-memory: ${field} must be a non-empty string, got ${JSON.stringify(value)}`)
   }
@@ -258,7 +258,7 @@ function requireNonEmptyString(value, field: string) {
  * @param allowed - the accepted members.
  * @param field - field name, named in the failure.
  */
-function requireMember(value, allowed, field: string) {
+function requireMember(value: unknown, allowed: readonly string[], field: string): void {
   if (!allowed.includes(value)) {
     throw new TypeError(`dsh-memory: ${field} must be one of ${allowed.join(', ')}, got ${JSON.stringify(value)}`)
   }
