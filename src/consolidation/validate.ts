@@ -245,7 +245,7 @@ function buildEvidence(seqs: number[], context: ReviewContext) {
  * @param cited - the cited events.
  * @returns `user`, `tool`, or `agent`.
  */
-function evidenceKind(cited) {
+function evidenceKind(cited: ObservedEvent[]): string {
   if (cited.some(event => event.type === 'user/message' && event.data?.source?.kind === 'user')) return 'user'
   if (cited.some(event => event.type === 'tool/result' || event.type === 'tool/call')) return 'tool'
   return 'agent'
@@ -257,7 +257,7 @@ function evidenceKind(cited) {
  * @param maxChars - largest quote, in code points.
  * @returns the quote, or undefined when there was no text.
  */
-function quoteFrom(texts: string[], maxChars) {
+function quoteFrom(texts: string[], maxChars: number): string | undefined {
   const joined = texts.join('\n').trim()
   if (joined === '') return undefined
   const points = Array.from(joined)
@@ -269,7 +269,7 @@ function quoteFrom(texts: string[], maxChars) {
  * @param event - a Session event.
  * @returns its text blocks, in order.
  */
-function textBlocks(event) {
+function textBlocks(event: ObservedEvent) {
   const blocks = event?.data?.content ?? event?.data?.message?.content
   if (!Array.isArray(blocks)) return []
   return blocks.filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text)
