@@ -11,6 +11,8 @@
  * @module dsh-memory/retention
  */
 
+import type { MemoryRecord } from './types/memory.js'
+
 /** Category order used for display; earlier categories survive trimming first. */
 export const CATEGORY_PRIORITY = Object.freeze([
   'preference',
@@ -50,8 +52,8 @@ export function compareRecords(left, right) {
  * @param records - every record in one scope.
  * @returns the active records, ordered by {@link compareRecords}.
  */
-export function activeRecords(records) {
-  return records.filter(record => record.status === 'active').sort(compareRecords)
+export function activeRecords(records: MemoryRecord[]) {
+  return records.filter((record: MemoryRecord) => record.status === 'active').sort(compareRecords)
 }
 
 /**
@@ -66,7 +68,7 @@ export function activeRecords(records) {
  * @param record - the record to render.
  * @returns the line, carrying only the category and the fact.
  */
-export function indexLine(record) {
+export function indexLine(record: MemoryRecord) {
   return `- [${record.category}] ${escapeContent(record.content)}`
 }
 
