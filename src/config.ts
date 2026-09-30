@@ -132,7 +132,7 @@ function consolidationSetting(value: unknown): MemoryConsolidationSettings {
  */
 function integerSetting(value: unknown, fallback: number, field: string, minimum: number): number {
   if (value === undefined) return fallback
-  if (!Number.isInteger(value) || value < minimum) {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < minimum) {
     throw new TypeError(`dsh-memory: config ${field} must be an integer >= ${String(minimum)}, got ${JSON.stringify(value)}`)
   }
   return value
@@ -175,12 +175,13 @@ function numberSetting(value: unknown, fallback: number, field: string, minimum:
  * @returns the validated split.
  */
 function splitSetting(value: unknown): { user: number; project: number } {
+  const source = value as Record<string, unknown>
   if (value === undefined) return { ...DEFAULTS.indexBudgetSplit }
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new TypeError(`dsh-memory: config indexBudgetSplit must be an object, got ${JSON.stringify(value)}`)
   }
-  const user = numberSetting(value.user, DEFAULTS.indexBudgetSplit.user, 'indexBudgetSplit.user', 0)
-  const project = numberSetting(value.project, DEFAULTS.indexBudgetSplit.project, 'indexBudgetSplit.project', 0)
+  const user = numberSetting(source.user, DEFAULTS.indexBudgetSplit.user, 'indexBudgetSplit.user', 0)
+  const project = numberSetting(source.project, DEFAULTS.indexBudgetSplit.project, 'indexBudgetSplit.project', 0)
   if (Math.abs(user + project - 1) >= SPLIT_TOLERANCE) {
     throw new TypeError(`dsh-memory: config indexBudgetSplit must sum to 1, got ${String(user + project)}`)
   }
