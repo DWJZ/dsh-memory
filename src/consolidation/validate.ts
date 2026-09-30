@@ -22,6 +22,7 @@
 
 import { CATEGORIES, MAX_CONTENT_CHARS, charLength } from '../schema.js'
 import { findSecretIn } from '../redact.js'
+import type { MemoryRecord, number, string } from '../types/memory.js'
 
 /** Actions automatic consolidation may take. */
 export const AUTO_ACTIONS = Object.freeze(['add', 'update', 'supersede', 'noop'])
@@ -154,9 +155,9 @@ export function reviewOperation(operation, context) {
  * @param context - the judging context.
  * @returns the record, or undefined when it is not visible and active.
  */
-function findTarget(targetId, context) {
+function findTarget(targetId: string, context) {
   if (typeof targetId !== 'string' || targetId === '') return undefined
-  return context.existing.find(record => record.id === targetId && record.status === 'active')
+  return context.existing.find((record: MemoryRecord) => record.id === targetId && record.status === 'active')
 }
 
 /**
@@ -171,7 +172,7 @@ function findTarget(targetId, context) {
  * @param context - the judging context, plus the content being stored.
  * @returns `{ kind: 'accepted', entry }` or `{ kind: 'rejected', reason }`.
  */
-function buildEvidence(seqs, context) {
+function buildEvidence(seqs: number[], context) {
   if (!Array.isArray(seqs) || seqs.length === 0) {
     return { kind: 'rejected', reason: 'evidence_event_seqs must be a non-empty array', code: 'evidence-missing' }
   }
@@ -239,7 +240,7 @@ function evidenceKind(cited) {
  * @param maxChars - largest quote, in code points.
  * @returns the quote, or undefined when there was no text.
  */
-function quoteFrom(texts, maxChars) {
+function quoteFrom(texts: string[], maxChars) {
   const joined = texts.join('\n').trim()
   if (joined === '') return undefined
   const points = Array.from(joined)
