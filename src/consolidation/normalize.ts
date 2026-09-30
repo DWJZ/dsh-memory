@@ -16,6 +16,7 @@
  * Usage: `import { classify, batchWindow } from './normalize.js'`.
  */
 
+import type { ObservedEvent } from '../types/trajectory.js'
 /** Namespace reserved for this plugin's own Session events. */
 export const INTERNAL_EVENT_PREFIX = 'dsh-memory/'
 
@@ -105,7 +106,18 @@ export const SKIPPED_EVENT_TYPES = Object.freeze(new Set([
  * @returns the classification, whose `kind` is `ignorable`, `internal`,
  *   `relevant`, `skipped`, or `unsupported`.
  */
-export function classify(event) {
+/**
+ * What one event is to consolidation. The five kinds are the ones the function
+ * below returns; `unsupported` is the fallback for a type this build does not know.
+ */
+export interface Classification {
+  /** The classification. */
+  kind: 'ignorable' | 'internal' | 'relevant' | 'skipped' | 'unsupported'
+  /** The event type, as recorded. */
+  type: string
+}
+
+export function classify(event: ObservedEvent): Classification {
   if (event?.ignorable === true) return { kind: 'ignorable', type: String(event.type) }
   const type = String(event?.type ?? '')
   if (type.startsWith(INTERNAL_EVENT_PREFIX)) return { kind: 'internal', type }
