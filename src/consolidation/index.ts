@@ -82,7 +82,7 @@ export function createConsolidation(options) {
    * @param work - the work to run.
    * @returns the work's own outcome.
    */
-  const inSessionOrder = (sessionId: string, work) => {
+  const inSessionOrder = (sessionId: string, work: () => unknown) => {
     const previous = queues.get(sessionId) ?? Promise.resolve()
     const next = previous.then(work, work)
     let tail: Promise<unknown> | undefined
@@ -221,7 +221,7 @@ export function createConsolidation(options) {
    * @param runOptions - run options, including the maintenance signal.
    * @returns a compact outcome.
    */
-  const runOnce = async (agent: MemoryAgent, runOptions) => {
+  const runOnce = async (agent: MemoryAgent, runOptions: { dryRun?: boolean | undefined; trigger?: string | undefined }) => {
     const session = agent?.session
     const sessionId = session?.id
     if (typeof sessionId !== 'string') return { status: 'no-session' }
@@ -391,7 +391,7 @@ export function createConsolidation(options) {
      * @param event - the committed event.
      * @returns nothing.
      */
-    observe(session: MemorySession, event) {
+    observe(session: MemorySession, event: ObservedEvent) {
       collector.observe(session, event)
     },
 
