@@ -95,12 +95,22 @@ window.__ModuleLoader__.load({
 		const SYMBOL_CONSOLIDATION = "\u{1F9E0}";
 		const SYMBOL_PROJECT = "\u{1F4C1}";
 		/** Status → dictionary key. Closed: an unlisted status reads as "other". */
+		/**
+		 * Keyed by the host's own vocabulary; the host may write a value this
+		 * build does not know, which is why lookups are by plain string.
+		 * @type {Record<string, string>}
+		 */
 		const STATUS_KEYS = {
 			success: "statusSuccess",
 			partial: "statusPartial",
 			"no-human-turn": "statusNoHumanTurn"
 		};
 		/** Status → ledger tone, from the closed set the trajectory target owns. */
+		/**
+		 * Keyed by the host's own vocabulary; the host may write a value this
+		 * build does not know, which is why lookups are by plain string.
+		 * @type {Record<string, string>}
+		 */
 		const STATUS_TONES = {
 			success: "positive",
 			partial: "warning",
@@ -108,12 +118,22 @@ window.__ModuleLoader__.load({
 			gap: "critical"
 		};
 		/** Trigger → dictionary key. */
+		/**
+		 * Keyed by the host's own vocabulary; the host may write a value this
+		 * build does not know, which is why lookups are by plain string.
+		 * @type {Record<string, string>}
+		 */
 		const TRIGGER_KEYS = {
 			"idle-debounce": "triggerIdleDebounce",
 			"manual-command": "triggerManualCommand",
 			direct: "triggerDirect"
 		};
 		/** Which lookup decided the project → dictionary key. */
+		/**
+		 * Keyed by the host's own vocabulary; the host may write a value this
+		 * build does not know, which is why lookups are by plain string.
+		 * @type {Record<string, string>}
+		 */
 		const MATCHED_BY_KEYS = {
 			registry: "matchedByRegistry",
 			workspace: "matchedByWorkspace",
