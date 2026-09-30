@@ -22,6 +22,7 @@ import { withLock } from './lock.js'
 import { mutateAndRefreshView } from './views.js'
 import { findSecretIn } from './redact.js'
 import { MAX_CONTENT_CHARS, charLength, newMemoryId, normalizeContent, validateMemory } from './schema.js'
+import type { ActionInput, ActionOptions, MemoryRecord, MemoryScope, MemoryStore, ScopeLayout } from './types/memory.js'
 
 /**
  * Confidence of a record the user asked for directly.
@@ -49,7 +50,7 @@ export const EXPLICIT_UPDATE_CONFIDENCE = 0.95
  * @returns the validated confidence.
  * @throws {TypeError} when a supplied value is not a number in [0, 1].
  */
-function requireConfidence(value, fallback) {
+function requireConfidence(value: unknown, fallback: number) {
   if (value === undefined) return fallback
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
     throw new TypeError(`dsh-memory: confidence must be a number in [0, 1], got ${JSON.stringify(value)}`)
@@ -69,17 +70,17 @@ function requireConfidence(value, fallback) {
  * @param input.sourceTexts - complete texts to screen before any truncation.
  * @returns the applied action and the affected id.
  */
-export async function addMemory(options, input) {
+export async function addMemory(options: ActionOptions, input: ActionInput) {
   const layout = requireLayout(options, input.scope, input.projectId)
   const content = requireContent(input.content)
   const screened = screen([...input.sourceTexts ?? [], content], input.evidence?.quote)
   if (screened !== undefined) return noop(`secret-detected:${screened}`)
 
-  return apply(options, layout, (store) => {
+  return apply(options, layout, (store: MemoryStore) => {
     // The effective project is what the record will store, so a user-scope write
     // compares against other user-scope records rather than a project's.
     const projectId = input.scope === 'project' ? input.projectId : null
-    const duplicate = store.records.find(record => record.status === 'active'
+    const duplicate = store.records.find((record: MemoryRecord) => record.status === 'active'
       && record.scope === input.scope
       && record.project_id === projectId
       && record.category === input.category
@@ -116,13 +117,13 @@ export async function addMemory(options, input) {
  * @param input.sourceTexts - complete texts to screen before any truncation.
  * @returns the applied action and the record id.
  */
-export async function updateMemory(options, input) {
+export async function updateMemory(options: ActionOptions, input: ActionInput) {
   const located = locateVisible(options, input.id, input.projectId)
   const content = requireContent(input.content)
   const screened = screen([...input.sourceTexts ?? [], content], input.evidence?.quote)
   if (screened !== undefined) return noop(`secret-detected:${screened}`)
 
-  return apply(options, located.layout, (store) => {
+  return apply(options, located.layout, (store: MemoryStore) => {
     const current = requireActive(store, input.id)
     const evidence = accumulate(current.evidence, input.evidence, options.maxEvidencePerMemory)
     const record = {
@@ -135,7 +136,7 @@ export async function updateMemory(options, input) {
     validateMemory(record, { maxEvidencePerMemory: options.maxEvidencePerMemory })
     return {
       changed: true,
-      records: store.records.map(entry => entry.id === record.id ? record : entry),
+      records: store.records.map((entry: MemoryRecord) => entry.id === record.id ? record : entry),
       result: { action: 'updated', id: record.id },
     }
   })
@@ -152,13 +153,13 @@ export async function updateMemory(options, input) {
  * @param input.sourceTexts - complete texts to screen before any truncation.
  * @returns the applied action, the new id, and the retired id.
  */
-export async function supersedeMemory(options, input) {
+export async function supersedeMemory(options: ActionOptions, input: ActionInput) {
   const located = locateVisible(options, input.id, input.projectId)
   const content = requireContent(input.content)
   const screened = screen([...input.sourceTexts ?? [], content], input.evidence?.quote)
   if (screened !== undefined) return noop(`secret-detected:${screened}`)
 
-  return apply(options, located.layout, (store) => {
+  return apply(options, located.layout, (store: MemoryStore) => {
     const current = requireActive(store, input.id)
     const at = nowIso(options)
     const replacement = {
@@ -183,7 +184,7 @@ export async function supersedeMemory(options, input) {
     validateMemory(retired)
     return {
       changed: true,
-      records: [...store.records.map(entry => entry.id === retired.id ? retired : entry), replacement],
+      records: [...store.records.map((entry: MemoryRecord) => entry.id === retired.id ? retired : entry), replacement],
       result: { action: 'superseded', id: replacement.id, superseded_id: retired.id },
     }
   })
@@ -198,16 +199,16 @@ export async function supersedeMemory(options, input) {
  * @param input.projectId - the current project, used to decide visibility.
  * @returns the applied action and the record id.
  */
-export async function archiveMemory(options, input) {
+export async function archiveMemory(options: ActionOptions, input: ActionInput) {
   const located = locateVisible(options, input.id, input.projectId)
-  return apply(options, located.layout, (store) => {
+  return apply(options, located.layout, (store: MemoryStore) => {
     const current = requireActive(store, input.id)
     const record = { ...current, status: 'archived' }
     // Archiving adds no evidence, so the current cap does not apply to it.
     validateMemory(record)
     return {
       changed: true,
-      records: store.records.map(entry => entry.id === record.id ? record : entry),
+      records: store.records.map((entry: MemoryRecord) => entry.id === record.id ? record : entry),
       result: { action: 'archived', id: record.id },
     }
   })
@@ -221,10 +222,10 @@ export async function archiveMemory(options, input) {
  * @param input.projectId - the current project, used to decide visibility.
  * @returns the applied action and the deleted id.
  */
-export async function forgetMemory(options, input) {
+export async function forgetMemory(options: ActionOptions, input: ActionInput) {
   const located = locateVisible(options, input.id, input.projectId)
-  const outcome = await apply(options, located.layout, (store) => {
-    const doomed = store.records.find(entry => entry.id === input.id)
+  const outcome = await apply(options, located.layout, (store: MemoryStore) => {
+    const doomed = store.records.find((entry: MemoryRecord) => entry.id === input.id)
     if (doomed === undefined) {
       throw new Error(`dsh-memory: memory ${input.id} is no longer present`)
     }
@@ -233,12 +234,12 @@ export async function forgetMemory(options, input) {
     // chain intact, or — when there is nothing to inherit — becomes an archived
     // record that no longer asserts anything about a successor.
     const survivor = doomed.superseded_by !== null
-      && store.records.some(entry => entry.id === doomed.superseded_by)
+      && store.records.some((entry: MemoryRecord) => entry.id === doomed.superseded_by)
       ? doomed.superseded_by
       : undefined
     const repaired = store.records
-      .filter(entry => entry.id !== input.id)
-      .map((entry) => {
+      .filter((entry: MemoryRecord) => entry.id !== input.id)
+      .map((entry: MemoryRecord) => {
         if (entry.superseded_by !== input.id) return entry
         return survivor === undefined
           ? { ...entry, status: 'archived', superseded_by: null }
@@ -270,9 +271,9 @@ export async function forgetMemory(options, input) {
  * @param input.projectId - the project, required for project scope.
  * @returns the applied action and how many records were deleted.
  */
-export async function clearScope(options, input) {
+export async function clearScope(options: ActionOptions, input: ActionInput) {
   const layout = requireLayout(options, input.scope, input.projectId)
-  const outcome = await apply(options, layout, (store) => {
+  const outcome = await apply(options, layout, (store: MemoryStore) => {
     if (store.records.length === 0) {
       return { changed: false, result: { action: 'noop', reason: 'empty-scope', count: 0 } }
     }
@@ -307,7 +308,7 @@ export class MemoryNotVisibleError extends Error {
    * Describe one invisible record.
    * @param id - the record the caller asked for.
    */
-  constructor(id) {
+  constructor(id: string) {
     super(`dsh-memory: memory ${id} is not visible to this session`)
     this.name = 'MemoryNotVisibleError'
     /** The id that could not be found. */
@@ -323,9 +324,9 @@ export class MemoryNotVisibleError extends Error {
  * @returns the record, its scope, and that scope's layout.
  * @throws {MemoryNotVisibleError} when no visible scope holds the record.
  */
-export function locateVisible(options, id, projectId) {
+export function locateVisible(options: ActionOptions, id: string, projectId: string) {
   for (const candidate of visibleScopes(options, projectId)) {
-    const record = readStore(candidate.layout.storePath).records.find(entry => entry.id === id)
+    const record = readStore(candidate.layout.storePath).records.find((entry: MemoryRecord) => entry.id === id)
     if (record !== undefined) return { scope: candidate.scope, layout: candidate.layout, record }
   }
   throw new MemoryNotVisibleError(id)
@@ -341,7 +342,7 @@ export function locateVisible(options, id, projectId) {
  * @param entry - the tombstone record.
  * @returns fulfillment once the line is durable.
  */
-export async function appendTombstone(options, entry) {
+export async function appendTombstone(options: ActionOptions, entry: MemoryRecord) {
   const target = options.tombstones
   if (target === undefined) throw new Error('dsh-memory: no tombstone location is configured')
   mkdirSync(dirname(target.path), { recursive: true })
@@ -371,7 +372,7 @@ export async function appendTombstone(options, entry) {
  * @returns whether the tombstone reached the log, so a caller can word its
  *   report truthfully instead of promising a trace it does not have.
  */
-async function recordTombstone(options, entry) {
+async function recordTombstone(options: ActionOptions, entry: MemoryRecord) {
   try {
     await appendTombstone(options, entry)
     return true
@@ -392,8 +393,8 @@ async function recordTombstone(options, entry) {
  * @param persistedQuote - the truncated quote that will be stored.
  * @returns the matching rule name, or undefined when everything is clean.
  */
-function screen(fullTexts, persistedQuote) {
-  const beforeTruncation = findSecretIn(fullTexts.map(text => String(text ?? '')))
+function screen(fullTexts: unknown, persistedQuote: unknown) {
+  const beforeTruncation = findSecretIn(fullTexts.map((text: string) => String(text ?? '')))
   if (beforeTruncation !== undefined) return beforeTruncation.name
   if (persistedQuote === undefined) return undefined
   return findSecretIn([persistedQuote])?.name
@@ -406,7 +407,7 @@ function screen(fullTexts, persistedQuote) {
  * @param limit - the largest accepted list.
  * @returns the accumulated list.
  */
-function accumulate(existing, addition, limit) {
+function accumulate(existing: unknown, addition: unknown, limit: unknown) {
   const combined = addition === undefined ? [...existing] : [...existing, addition]
   return combined.slice(-limit)
 }
@@ -418,7 +419,7 @@ function accumulate(existing, addition, limit) {
  * @param operation - receives the latest store, returns `{ result, changed, records }`.
  * @returns the operation's result plus the committed revision and view state.
  */
-async function apply(options, layout, operation) {
+async function apply(options: ActionOptions, layout: ScopeLayout, operation: unknown) {
   const outcome = await mutateAndRefreshView(scopeOptions(options, layout), operation)
   return { ...outcome.result, revision: outcome.revision, viewStale: outcome.viewStale }
 }
@@ -430,8 +431,8 @@ async function apply(options, layout, operation) {
  * @returns the stored record.
  * @throws when the record is gone or no longer active.
  */
-function requireActive(store, id) {
-  const record = store.records.find(entry => entry.id === id)
+function requireActive(store: MemoryStore, id: string) {
+  const record = store.records.find((entry: MemoryRecord) => entry.id === id)
   if (record === undefined) throw new Error(`dsh-memory: memory ${id} is no longer present`)
   if (record.status !== 'active') {
     throw new Error(`dsh-memory: memory ${id} is ${record.status} and cannot be modified`)
@@ -447,7 +448,7 @@ function requireActive(store, id) {
  * @returns that scope's layout.
  * @throws when the caller has no project scope.
  */
-function requireLayout(options, scope, projectId) {
+function requireLayout(options: ActionOptions, scope: MemoryScope, projectId: string) {
   if (scope === 'user') return options.scopes.user
   if (projectId === undefined || projectId === null) {
     throw new Error('dsh-memory: project scope requires a project; this session has none')
@@ -463,7 +464,7 @@ function requireLayout(options, scope, projectId) {
  * @param projectId - the caller's current project, when it has one.
  * @returns the user scope, then the current project's scope when it has one.
  */
-function visibleScopes(options, projectId) {
+function visibleScopes(options: ActionOptions, projectId: string) {
   const scopes = [{ scope: 'user', layout: options.scopes.user }]
   if (projectId !== undefined && projectId !== null) {
     const layout = options.scopes.project(projectId)
@@ -478,7 +479,7 @@ function visibleScopes(options, projectId) {
  * @param layout - the target scope's layout.
  * @returns options for one store call.
  */
-function scopeOptions(options, layout) {
+function scopeOptions(options: ActionOptions, layout: ScopeLayout) {
   return {
     ...layout,
     lockTimeoutMs: options.lockTimeoutMs,
@@ -496,7 +497,7 @@ function scopeOptions(options, layout) {
  * @returns the normalized content.
  * @throws when the content is unusable.
  */
-function requireContent(content) {
+function requireContent(content: unknown) {
   const normalized = normalizeContent(content ?? '')
   if (normalized === '') throw new Error('dsh-memory: content must not be empty')
   if (charLength(normalized) > MAX_CONTENT_CHARS) {
@@ -510,7 +511,7 @@ function requireContent(content) {
  * @param reason - why nothing was stored.
  * @returns a noop outcome.
  */
-function noop(reason) {
+function noop(reason: unknown) {
   return { action: 'noop', id: null, reason }
 }
 
@@ -519,6 +520,6 @@ function noop(reason) {
  * @param options - clock source.
  * @returns an ISO-8601 UTC instant with millisecond precision.
  */
-function nowIso(options) {
+function nowIso(options: ActionOptions) {
   return new Date((options.now ?? Date.now)()).toISOString()
 }
