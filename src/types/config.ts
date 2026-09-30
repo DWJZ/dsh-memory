@@ -33,6 +33,8 @@ export interface MemoryLogger {
   warn(message: string | Error): void
   /** Report something worth knowing. */
   info?(message: string): void
+  /** Report detail a deployment asked for. */
+  debug?(message: string): void
 }
 
 /** Everything this plugin resolves from its own configuration and the deployment. */
