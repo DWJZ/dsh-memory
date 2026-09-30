@@ -73,7 +73,7 @@ export interface ScopeLayout {
  */
 export interface ActionOptions {
   /** The two scope layouts. The project layout is resolved per project id. */
-  scopes: { user: ScopeLayout; project: (projectId: string) => ScopeLayout }
+  scopes: { user: ScopeLayout; project: (projectId: string | null | undefined) => ScopeLayout }
   /** The tombstone ledger and its lock. */
   tombstones: { path: string; lockPath: string }
   /** How long to wait for a lock before reporting the file. */
@@ -116,13 +116,9 @@ export interface AddInput {
 }
 
 /** What `update` and `supersede` need: the record to act on, and the new content. */
-export interface TargetedInput {
-  /** The record being rewritten. */
-  id: string
+export interface TargetedInput extends RecordTarget {
   /** The content that replaces it. */
   content: string
-  /** The project that record lives in, inherited from the reviewed target. */
-  projectId?: string | null | undefined
   /** The citation to accumulate. */
   evidence?: EvidenceEntry | undefined
   /** Untruncated text the citation came from, screened again at the write. */
@@ -132,16 +128,25 @@ export interface TargetedInput {
 }
 
 /**
+ * What an action that names one existing record needs.
+ *
+ * A project id is optional because a user-scoped record has none; the layout
+ * resolver refuses a project scope without one, which is where that is enforced.
+ */
+export interface RecordTarget {
+  /** The record being acted on. */
+  id: string
+  /** The project that record lives in, when it is a project record. */
+  projectId?: string | null | undefined
+}
+
+/**
  * What `archive` needs: the record to retire.
  *
  * Its own shape rather than the targeted one: archiving keeps the content it
  * retires, and the shape says so by not offering a field for it.
  */
-export interface ArchiveInput {
-  /** The record being retired. */
-  id: string
-  /** The project that record lives in, when it is a project record. */
-  projectId?: string | null | undefined
+export interface ArchiveInput extends RecordTarget {
   /** The citation to accumulate. */
   evidence?: EvidenceEntry | undefined
   /** Untruncated text the citation came from, screened again at the write. */

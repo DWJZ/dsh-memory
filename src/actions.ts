@@ -22,7 +22,7 @@ import { withLock } from './lock.js'
 import { mutateAndRefreshView } from './views.js'
 import { findSecretIn } from './redact.js'
 import { MAX_CONTENT_CHARS, charLength, newMemoryId, normalizeContent, validateMemory } from './schema.js'
-import type { ActionInput, ActionOptions, AddInput, ArchiveInput, MemoryRecord, MemoryStore, ScopeLayout, TargetedInput } from './types/memory.js'
+import type { ActionInput, ActionOptions, AddInput, ArchiveInput, MemoryRecord, MemoryStore, RecordTarget, ScopeLayout, TargetedInput, TombstoneEntry } from './types/memory.js'
 import { failureMessage } from './errors.js'
 
 /**
@@ -223,7 +223,7 @@ export async function archiveMemory(options: ActionOptions, input: ArchiveInput)
  * @param input.projectId - the current project, used to decide visibility.
  * @returns the applied action and the deleted id.
  */
-export async function forgetMemory(options: ActionOptions, input: ActionInput) {
+export async function forgetMemory(options: ActionOptions, input: RecordTarget) {
   const located = locateVisible(options, input.id, input.projectId)
   const outcome = await apply(options, located.layout, (store: MemoryStore) => {
     const doomed = store.records.find((entry: MemoryRecord) => entry.id === input.id)
@@ -325,7 +325,7 @@ export class MemoryNotVisibleError extends Error {
  * @returns the record, its scope, and that scope's layout.
  * @throws {MemoryNotVisibleError} when no visible scope holds the record.
  */
-export function locateVisible(options: ActionOptions, id: string, projectId: string) {
+export function locateVisible(options: ActionOptions, id: string, projectId: string | null | undefined) {
   for (const candidate of visibleScopes(options, projectId)) {
     const record = readStore(candidate.layout.storePath).records.find((entry: MemoryRecord) => entry.id === id)
     if (record !== undefined) return { scope: candidate.scope, layout: candidate.layout, record }
@@ -343,7 +343,7 @@ export function locateVisible(options: ActionOptions, id: string, projectId: str
  * @param entry - the tombstone record.
  * @returns fulfillment once the line is durable.
  */
-export async function appendTombstone(options: ActionOptions, entry: MemoryRecord) {
+export async function appendTombstone(options: ActionOptions, entry: TombstoneEntry) {
   const target = options.tombstones
   if (target === undefined) throw new Error('dsh-memory: no tombstone location is configured')
   mkdirSync(dirname(target.path), { recursive: true })
@@ -373,7 +373,7 @@ export async function appendTombstone(options: ActionOptions, entry: MemoryRecor
  * @returns whether the tombstone reached the log, so a caller can word its
  *   report truthfully instead of promising a trace it does not have.
  */
-async function recordTombstone(options: ActionOptions, entry: MemoryRecord) {
+async function recordTombstone(options: ActionOptions, entry: TombstoneEntry) {
   try {
     await appendTombstone(options, entry)
     return true
@@ -465,7 +465,7 @@ function requireLayout(options: ActionOptions, scope: MemoryScope, projectId: st
  * @param projectId - the caller's current project, when it has one.
  * @returns the user scope, then the current project's scope when it has one.
  */
-function visibleScopes(options: ActionOptions, projectId: string) {
+function visibleScopes(options: ActionOptions, projectId: string | null | undefined) {
   const scopes = [{ scope: 'user', layout: options.scopes.user }]
   if (projectId !== undefined && projectId !== null) {
     const layout = options.scopes.project(projectId)

@@ -106,7 +106,7 @@ export function consolidationLayout(memoryDir: string) {
  * @returns the store, lock, and view paths for that project.
  * @throws {TypeError} when the id is not a project id.
  */
-export function projectLayout(memoryDir: string, projectId) {
+export function projectLayout(memoryDir: string, projectId: string | null | undefined) {
   if (!isProjectId(projectId)) {
     throw new TypeError(`dsh-memory: project id must be a project id, got ${JSON.stringify(projectId)}`)
   }
