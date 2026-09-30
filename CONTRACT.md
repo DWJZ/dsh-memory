@@ -977,6 +977,14 @@ headless 一次性运行          → 任务轮次 idle 后进程随即退出并
 
 要让它成立需要两样本版本没有的东西：一个独立于写入进度的**评估游标**，以及一份可恢复的**待评估轨迹**（5000 条内存缓冲保证不了）。与其半做成一个既烧钱又看不到新内容的模式，不如不要它：**自动学习要么开着，要么关着；想按需评估就用 `/memory consolidate --dry-run`。**
 
+## 构建产物与开发回路
+
+**规范来源是 `src/**/*.ts`，运行的是 `lib/`。** 入口（`main` 与 `exports["."]`）指向 `lib/index.mjs`，profile 通过 `link:` 加载它；`lib/` 不入库，由 `prepare` 在安装时构建。
+
+分工：`tsdown` 转译并打包运行时，`tsc --emitDeclarationOnly` 产出声明，`typecheck` 报告类型债。`tsc` 无法"只产出不检查"，所以运行时不能交给它 —— 否则一个尚未类型化的模块会让构建失败，而构建失败在 `link:` 安装下意味着插件加载不了。这与 harness 自身的构建方式一致。
+
+因此**开发回路是"改完先 build 再重启"**；测试不受影响，它们通过 tsx 直接跑 `src/` 的源码，不需要 build。
+
 ## P2-7. 不修改的部分
 
 `jsonstore.js`、`registry.js`、`retrieval.js`、Phase 1 锁设计、canonical schema、project identity、`MEMORY.md` 派生、`memory_search` / `memory_get` / `memory_remember` 的既有语义。

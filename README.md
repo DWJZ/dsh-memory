@@ -193,6 +193,29 @@ npm run test:all         # test, then integration
 
 The integration suite mounts this plugin and a scripted model adapter straight from the checkout by absolute path, so nothing is installed into a profile. Its four scenarios write Memory in one Session and read it in the next, prove one project cannot see another's Memory, show user Memory crossing projects, and retire a record through an explicit supersede.
 
+### Development loop
+
+The sources are TypeScript and the profile loads built JavaScript, so an edit needs
+a build before a restart can see it:
+
+```sh
+npm run build        # tsdown bundles the runtime into lib/index.mjs
+npm run declarations # tsc emits the .d.ts files beside it
+npm run typecheck    # reports the type debt; it does not gate anything
+npm run test:unit    # runs the suites, through tsx, with no build
+```
+
+`tsc` cannot both emit and ignore type errors, so the runtime output comes from a
+transpiler and `tsc` owns types alone, which is how the harness builds its own
+packages. That split is what lets the sources be typed module by module: an
+unfinished module reports errors in `typecheck` without blocking a build or a
+restart. `npm run prepare` builds on install, so a `link:` dependency produces
+`lib/` before anything loads it.
+
+The suites import the TypeScript sources directly and run through tsx, so the
+edit-test loop never needs a build. A module a fixture spawns as a child process
+needs the same treatment: those spawns pass `--import tsx/esm` too.
+
 ### Checking the automatic path by hand
 
 The one behaviour no scripted run can show is the debounce, because it waits

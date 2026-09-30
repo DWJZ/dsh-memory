@@ -193,6 +193,21 @@ npm run test:all         # test，之后 integration
 
 集成套件用绝对路径直接从本 checkout 挂载插件与 scripted model adapter，因此不需要往任何 profile 里装东西。它的四个 scenario 分别在：一个 Session 写入、下一个 Session 读到；一个项目看不到另一个项目的 Memory；user Memory 跨项目可见；以及通过显式 supersede 让一条记录退役。
 
+### 开发回路
+
+源码是 TypeScript，而 profile 加载的是编译后的 JavaScript —— 所以**改完要先 build，重启才看得到**：
+
+```sh
+npm run build        # tsdown 把运行时打包成 lib/index.mjs
+npm run declarations # tsc 在旁边产出 .d.ts
+npm run typecheck    # 报告类型债；它不拦任何东西
+npm run test:unit    # 跑套件，走 tsx，不需要 build
+```
+
+`tsc` 做不到"既产出又忽略类型错误"，所以运行时交给转译器、`tsc` 只管类型 —— harness 自己也是这么构建的。正是这个分工让源码可以**逐模块**类型化：没做完的模块会在 `typecheck` 里报错，但不会挡住构建或重启。`npm run prepare` 会在安装时构建，因此 `link:` 依赖在被加载之前就已经有 `lib/` 了。
+
+套件直接 import TypeScript 源码、通过 tsx 运行，所以**编辑-测试回路永远不需要 build**。被 fixture 当子进程启动的模块需要同样处理：那些 `spawn` 也要带 `--import tsx/esm`。
+
 ### 手工验证自动路径
 
 有一种行为任何脚本化运行都展示不了：debounce。它按设计等在 agent 的 maintenance 之外，而一次性运行会先退出。要观察它，需要一个长驻 profile、一条真实账号路由，以及一个除了等待什么都不做的进程：
