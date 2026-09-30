@@ -259,7 +259,7 @@ function requireNonEmptyString(value: unknown, field: string): void {
  * @param field - field name, named in the failure.
  */
 function requireMember(value: unknown, allowed: readonly string[], field: string): void {
-  if (!allowed.includes(value)) {
+  if (typeof value !== 'string' || !allowed.includes(value)) {
     throw new TypeError(`dsh-memory: ${field} must be one of ${allowed.join(', ')}, got ${JSON.stringify(value)}`)
   }
 }
@@ -270,7 +270,7 @@ function requireMember(value: unknown, allowed: readonly string[], field: string
  * @param memoryId - owning Memory id, named in the failure.
  * @param field - field name, named in the failure.
  */
-function requireTimestamp(value, memoryId, field: string) {
+function requireTimestamp(value: unknown, memoryId: string, field: string): void {
   if (!isTimestamp(value)) {
     throw new TypeError(`dsh-memory: memory ${memoryId}: ${field} must be an ISO-8601 UTC timestamp, got ${JSON.stringify(value)}`)
   }
