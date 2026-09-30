@@ -471,7 +471,7 @@ function tokenize(rawInput: string) {
       started = true
       continue
     }
-    if (/\s/u.test(char)) {
+    if (/\s/u.test(char ?? '')) {
       if (started) tokens.push(current)
       current = ''
       started = false
