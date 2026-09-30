@@ -435,11 +435,12 @@ async function apply<T = Record<string, unknown>>(
   options: ActionOptions,
   layout: ScopeLayout,
   operation: (store: MemoryStore) => StoreMutation<T> | undefined,
-) {
+): Promise<T & { revision: number; viewStale: boolean }> {
   const outcome = await mutateAndRefreshView(scopeOptions(options, layout), operation)
-  // A mutation that changed nothing carries no result; spreading nothing is what
-  // the previous shape did, and it keeps the result's own fields visible.
-  return { ...(outcome.result ?? {}), revision: outcome.revision, viewStale: outcome.viewStale }
+  // A mutation that changed nothing carries no result. The empty case contributes
+  // no fields, which is what spreading `undefined` did before the type said so.
+  const result = (outcome.result ?? {}) as T
+  return { ...result, revision: outcome.revision, viewStale: outcome.viewStale }
 }
 
 /**
