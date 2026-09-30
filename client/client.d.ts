@@ -135,8 +135,11 @@ interface DshMemoryClientExports {
 
 /** What the ledger hands a row while it folds or renders one node. */
 interface DshLedgerNode {
-  /** The state this row folded so far. */
-  state: unknown
+  /**
+   * The state this row folded so far: what its fold produced, or undefined
+   * before the first event matched.
+   */
+  state: { seq: number; time: number; payload: unknown } | undefined
   /** The row's key in the ledger. */
   key: string
   /** The row kind. */

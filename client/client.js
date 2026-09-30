@@ -388,7 +388,7 @@ window.__ModuleLoader__.load({
 						id: context.id,
 						target: "trajectory",
 						anchorSeq: current.seq,
-						location: context.start !== undefined && context.start.location !== undefined
+						location: context.start != null && context.start.location !== undefined
 							? context.start.location
 							: { kind: "unresolved" },
 						data: {
@@ -398,9 +398,11 @@ window.__ModuleLoader__.load({
 								seq: current.seq,
 								time: current.time,
 								key: eventType,
-								text: summarize(current.payload, translate),
+								// The row folds only this plugin's own two event types, whose payload the host
+								// writes as an object.
+								text: summarize(/** @type {Record<string, unknown>} */ (current.payload), translate),
 								value: current.payload,
-								tone: toneOf(current.payload)
+								tone: toneOf(/** @type {Record<string, unknown>} */ (current.payload))
 							}
 						}
 					};
