@@ -18,6 +18,8 @@ import { readStore } from './jsonstore.js'
 import { MemoryNotVisibleError, locateVisible, addMemory, supersedeMemory, updateMemory } from './actions.js'
 import { searchRecords } from './retrieval.js'
 import { CATEGORIES } from './schema.js'
+import type { ProjectEntry } from './types/identity.js'
+import type { Context } from '@deepseek-ai/cordis'
 
 /** Modes `memory_remember` accepts. */
 const MODES = Object.freeze(['add', 'update', 'supersede'])
@@ -67,7 +69,7 @@ const REMEMBER_DESCRIPTION = [
  * @param deps.evidenceFor - host-built provenance for one agent.
  * @returns a disposer removing every registration.
  */
-export function registerMemoryTools(ctx, deps) {
+export function registerMemoryTools(ctx: Context, deps) {
   const disposers = [
     ctx.tools.register(searchTool(deps)),
     ctx.tools.register(getTool(deps)),
@@ -106,7 +108,7 @@ function searchTool(deps) {
       additionalProperties: false,
     },
     output: { ...JSON_OUTPUT, schema: { type: 'object' } },
-    execute(args, exec) {
+    execute(args: Record<string, unknown>, exec) {
       const project = deps.projectFor(exec.agent)
       const found = searchRecords(visibleRecords(deps, project), {
         query: args.query,
@@ -119,7 +121,7 @@ function searchTool(deps) {
       })
       return { results: found.results.map(stripScore), total: found.total }
     },
-    presentCall: args => ({ card: 'generic', title: 'Search memory', kind: 'read', rawInput: args }),
+    presentCall: (args: Record<string, unknown>) => ({ card: 'generic', title: 'Search memory', kind: 'read', rawInput: args }),
   }
 }
 
@@ -139,7 +141,7 @@ function getTool(deps) {
       additionalProperties: false,
     },
     output: { ...JSON_OUTPUT, schema: { type: 'object' } },
-    execute(args, exec) {
+    execute(args: Record<string, unknown>, exec) {
       const project = deps.projectFor(exec.agent)
       try {
         const located = locateVisible(scopeOptions(deps, project), args.id, project?.project_id ?? null)
@@ -154,7 +156,7 @@ function getTool(deps) {
         throw failure
       }
     },
-    presentCall: args => ({ card: 'generic', title: 'Read memory', kind: 'read', rawInput: args }),
+    presentCall: (args: Record<string, unknown>) => ({ card: 'generic', title: 'Read memory', kind: 'read', rawInput: args }),
   }
 }
 
@@ -180,7 +182,7 @@ function rememberTool(deps) {
       additionalProperties: false,
     },
     output: { ...JSON_OUTPUT, schema: { type: 'object' } },
-    async execute(args, exec) {
+    async execute(args: Record<string, unknown>, exec) {
       requireParameterSet(args)
       const project = deps.projectFor(exec.agent)
       const options = scopeOptions(deps, project)
@@ -201,7 +203,7 @@ function rememberTool(deps) {
       if (args.mode === 'update') return updateMemory(options, { ...common, id: args.target_id, projectId: project?.project_id })
       return supersedeMemory(options, { ...common, id: args.target_id, projectId: project?.project_id })
     },
-    presentCall: args => ({
+    presentCall: (args: Record<string, unknown>) => ({
       card: 'generic',
       title: 'Remember',
       kind: 'other',
@@ -220,7 +222,7 @@ function rememberTool(deps) {
  * @param args - the model's arguments.
  * @throws {TypeError} when a mode carries arguments it may not.
  */
-function requireParameterSet(args) {
+function requireParameterSet(args: Record<string, unknown>) {
   if (args.mode === 'add') {
     if (args.target_id !== undefined) {
       throw new TypeError('dsh-memory: memory_remember with mode=add must not carry target_id')
@@ -244,7 +246,7 @@ function requireParameterSet(args) {
  * @param project - the current project, when there is one.
  * @returns user records followed by the current project's records.
  */
-function visibleRecords(deps, project) {
+function visibleRecords(deps, project: ProjectEntry) {
   const user = readStore(deps.scopes.user.storePath).records
   if (project === null || project === undefined) return user
   return [...user, ...readStore(deps.scopes.project(project.project_id).storePath).records]
@@ -266,7 +268,7 @@ function stripScore(hit) {
  * @param project - the current project, when there is one.
  * @returns options for the action layer.
  */
-function scopeOptions(deps, project) {
+function scopeOptions(deps, project: ProjectEntry) {
   return {
     scopes: deps.scopes,
     tombstones: deps.tombstones,
