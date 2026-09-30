@@ -149,7 +149,7 @@ export function isHumanTurn(event: ObservedEvent): boolean {
  * @param payload - event data, or one of its message fields.
  * @returns the concatenated text, or an empty string.
  */
-export function textOf(payload) {
+export function textOf(payload: EventPayload | undefined): string {
   const blocks = Array.isArray(payload?.content) ? payload.content : payload?.message?.content
   if (!Array.isArray(blocks)) return ''
   return blocks
