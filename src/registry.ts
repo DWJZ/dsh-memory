@@ -20,6 +20,7 @@ import { isAbsolute, join, relative, resolve } from 'node:path'
 import { writeAtomic } from './jsonstore.js'
 import { withLock } from './lock.js'
 import { newProjectId, isProjectId, isTimestamp } from './schema.js'
+import type { ProjectEntry, ProjectRegistry } from './types/identity.js'
 
 /** Registry format version this build writes; an unknown version is refused. */
 export const REGISTRY_SCHEMA_VERSION = 1
@@ -42,7 +43,7 @@ export function emptyRegistry() {
  * @returns the stored registry, or an empty one when the file is absent.
  * @throws when the file is unreadable, malformed, or violates the entry schema.
  */
-export function readRegistry(registryPath) {
+export function readRegistry(registryPath: string) {
   if (!existsSync(registryPath)) return emptyRegistry()
   let parsed
   try {
@@ -75,7 +76,7 @@ export function readRegistry(registryPath) {
  * @param registry - the parsed registry document.
  * @throws {TypeError} when any entry is invalid or two entries claim one path.
  */
-export function validateRegistry(registry) {
+export function validateRegistry(registry: ProjectRegistry) {
   const ids = new Set()
   const roots = new Map()
   const identities = new Map()
@@ -135,7 +136,7 @@ export function validateRegistry(registry) {
  * @param entry - one registry entry.
  * @returns the canonical root followed by its aliases.
  */
-export function projectRoots(entry) {
+export function projectRoots(entry: ProjectEntry) {
   return [entry.canonical_root, ...entry.aliases]
 }
 
@@ -145,7 +146,7 @@ export function projectRoots(entry) {
  * @param deps - filesystem seams, injectable for tests.
  * @returns the real path, or undefined when the path does not exist.
  */
-export function realIdentity(path, deps = {}) {
+export function realIdentity(path: string, deps = {}) {
   const realpath = deps.realpath ?? realpathSync
   try {
     return realpath(path)
@@ -166,7 +167,7 @@ export function realIdentity(path, deps = {}) {
  * @param deps - filesystem seams, injectable for tests.
  * @returns the owning entry, or undefined when no project owns the path.
  */
-export function ownerOf(projects, candidate, deps = {}) {
+export function ownerOf(projects: ProjectEntry[], candidate, deps = {}) {
   const lexical = resolve(candidate)
   const real = realIdentity(candidate, deps)
   for (const entry of projects) {
@@ -192,7 +193,7 @@ export function ownerOf(projects, candidate, deps = {}) {
  * @param deps - filesystem seams, injectable for tests.
  * @returns the matching entry, or undefined when no project contains the directory.
  */
-export function matchProject(projects, cwd, deps = {}) {
+export function matchProject(projects: ProjectEntry[], cwd: string, deps = {}) {
   const exists = deps.exists ?? existsSync
   const cwdReal = realIdentity(cwd, deps)
   if (cwdReal === undefined) return undefined
@@ -224,7 +225,7 @@ export function matchProject(projects, cwd, deps = {}) {
  * @param deps - filesystem seams, injectable for tests.
  * @returns the marker directory, or undefined when none is found.
  */
-export function findProjectRoot(cwd, markers, deps = {}) {
+export function findProjectRoot(cwd: string, markers, deps = {}) {
   const exists = deps.exists ?? existsSync
   let current = resolve(cwd)
   for (;;) {
@@ -251,7 +252,7 @@ export function findProjectRoot(cwd, markers, deps = {}) {
  * @returns the owning project and whether this call created it.
  * @throws when the directory does not exist and no project owns it.
  */
-export async function resolveOrRegisterProject(options, root, workspaceId) {
+export async function resolveOrRegisterProject(options, root, workspaceId: string) {
   const requested = resolve(root)
   return withLock(options, () => {
     const registry = readRegistry(options.registryPath)
@@ -259,7 +260,7 @@ export async function resolveOrRegisterProject(options, root, workspaceId) {
     if (existing !== undefined) {
       const adopted = adoptWorkspace(existing, workspaceId, options)
       if (adopted !== existing) {
-        commit(options, registry, registry.projects.map(entry => entry.project_id === existing.project_id ? adopted : entry))
+        commit(options, registry, registry.projects.map((entry: ProjectEntry) => entry.project_id === existing.project_id ? adopted : entry))
       }
       return { project: describeProject(adopted, options), created: false }
     }
@@ -317,7 +318,7 @@ export async function resolveProject(options, request) {
  * @param path - the directory to bind.
  * @returns the bound project and whether this call created it.
  */
-export async function bindProject(options, path) {
+export async function bindProject(options, path: string) {
   return resolveOrRegisterProject(options, path)
 }
 
@@ -354,7 +355,7 @@ export async function relinkProject(options, oldPath, newPath) {
 
     const aliases = [...new Set([...found.aliases, previous])].filter(alias => alias !== next)
     const updated = { ...found, canonical_root: next, aliases, updated_at: nowIso(options) }
-    commit(options, registry, registry.projects.map(entry => entry.project_id === found.project_id ? updated : entry))
+    commit(options, registry, registry.projects.map((entry: ProjectEntry) => entry.project_id === found.project_id ? updated : entry))
     return { project: describeProject(updated, options), changed: true }
   })
 }
@@ -365,10 +366,10 @@ export async function relinkProject(options, oldPath, newPath) {
  * @param deps - filesystem seams, injectable for tests.
  * @returns each project with its roots and which of them are still present.
  */
-export function listProjects(registryPath, deps = {}) {
+export function listProjects(registryPath: string, deps = {}) {
   const exists = deps.exists ?? existsSync
   const registry = readRegistry(registryPath)
-  return registry.projects.map(entry => ({
+  return registry.projects.map((entry: ProjectEntry) => ({
     ...describeProject(entry, deps),
     missing_roots: projectRoots(entry).filter(root => !exists(root)),
   }))
@@ -380,7 +381,7 @@ export function listProjects(registryPath, deps = {}) {
  * @param registry - the registry as read.
  * @param projects - the projects to store.
  */
-function commit(options, registry, projects) {
+function commit(options, registry: ProjectRegistry, projects: ProjectEntry[]) {
   writeAtomic(options.registryPath, `${JSON.stringify({
     schema_version: REGISTRY_SCHEMA_VERSION,
     revision: registry.revision + 1,
@@ -395,7 +396,7 @@ function commit(options, registry, projects) {
  * @param options - clock source.
  * @returns the same entry, or an updated copy.
  */
-function adoptWorkspace(entry, workspaceId, options) {
+function adoptWorkspace(entry: ProjectEntry, workspaceId: string, options) {
   if (workspaceId === undefined || entry.workspace_ids.includes(workspaceId)) return entry
   return { ...entry, workspace_ids: [...entry.workspace_ids, workspaceId], updated_at: nowIso(options) }
 }
@@ -407,8 +408,8 @@ function adoptWorkspace(entry, workspaceId, options) {
  * @param deps - filesystem seams, injectable for tests.
  * @returns the owning entry, or undefined.
  */
-function locateForRelink(projects, previous, deps) {
-  const exact = projects.find(entry => projectRoots(entry).some(root => resolve(root) === previous))
+function locateForRelink(projects: ProjectEntry[], previous, deps) {
+  const exact = projects.find((entry: ProjectEntry) => projectRoots(entry).some(root => resolve(root) === previous))
   if (exact !== undefined) return exact
   // When the old directory still exists, a symlinked spelling of it also counts.
   return ownerOf(projects, previous, deps)
@@ -420,7 +421,7 @@ function locateForRelink(projects, previous, deps) {
  * @param deps - filesystem seams, injectable for tests.
  * @returns the entry's identity and current roots.
  */
-function describeProject(entry, deps) {
+function describeProject(entry: ProjectEntry, deps) {
   const exists = deps.exists ?? existsSync
   return {
     project_id: entry.project_id,

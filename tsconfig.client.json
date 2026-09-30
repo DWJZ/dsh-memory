@@ -1,0 +1,12 @@
+{
+  // The client half is browser code: it registers trajectory rows in the Web UI.
+  // It gets its own compiler face so the server side never sees DOM globals —
+  // `src/` using `window` would be a defect, and one shared `lib` setting would
+  // hide it. The harness splits Host and Client the same way.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM"],
+    "types": []
+  },
+  "include": ["client/**/*.js"]
+}
