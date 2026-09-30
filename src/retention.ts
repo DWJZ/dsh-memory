@@ -181,6 +181,6 @@ function contendedScope(userLines, projectLines, split) {
  * @param text - the text to measure.
  * @returns its length in UTF-8 bytes.
  */
-export function byteLength(text) {
+export function byteLength(text: string) {
   return Buffer.byteLength(text, 'utf8')
 }

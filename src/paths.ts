@@ -69,7 +69,7 @@ export function scopeLayout(scopeDir) {
  * @param memoryDir - the Memory root.
  * @returns the registry path and its lock path.
  */
-export function registryLayout(memoryDir) {
+export function registryLayout(memoryDir: string) {
   const dir = resolve(expandHome(memoryDir))
   return {
     dir,
@@ -86,7 +86,7 @@ export function registryLayout(memoryDir) {
  * @param memoryDir - the Memory root.
  * @returns the state path and its lock path.
  */
-export function consolidationLayout(memoryDir) {
+export function consolidationLayout(memoryDir: string) {
   const dir = resolve(expandHome(memoryDir))
   return {
     dir,
@@ -106,7 +106,7 @@ export function consolidationLayout(memoryDir) {
  * @returns the store, lock, and view paths for that project.
  * @throws {TypeError} when the id is not a project id.
  */
-export function projectLayout(memoryDir, projectId) {
+export function projectLayout(memoryDir: string, projectId) {
   if (!isProjectId(projectId)) {
     throw new TypeError(`dsh-memory: project id must be a project id, got ${JSON.stringify(projectId)}`)
   }
@@ -118,7 +118,7 @@ export function projectLayout(memoryDir, projectId) {
  * @param memoryDir - the Memory root.
  * @returns the store, lock, and view paths for user Memory.
  */
-export function userLayout(memoryDir) {
+export function userLayout(memoryDir: string) {
   return scopeLayout(join(resolve(expandHome(memoryDir)), 'user'))
 }
 
@@ -127,7 +127,7 @@ export function userLayout(memoryDir) {
  * @param memoryDir - the Memory root.
  * @returns the tombstone log path and its lock path.
  */
-export function tombstoneLayout(memoryDir) {
+export function tombstoneLayout(memoryDir: string) {
   const dir = resolve(expandHome(memoryDir))
   return {
     path: join(dir, 'tombstones.jsonl'),
@@ -140,7 +140,7 @@ export function tombstoneLayout(memoryDir) {
  * @param memoryDir - the Memory root.
  * @returns the absolute path of the plugin's configuration file.
  */
-export function pluginConfigPath(memoryDir) {
+export function pluginConfigPath(memoryDir: string) {
   return join(resolve(expandHome(memoryDir)), 'config.json')
 }
 

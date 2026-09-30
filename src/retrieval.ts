@@ -13,6 +13,7 @@
  * @module dsh-memory/retrieval
  */
 
+import type { MemoryRecord } from './types/memory.js'
 /** Score contributed by each matching signal. */
 export const SCORE = Object.freeze({
   /** The whole query appears in the content. */
@@ -40,7 +41,7 @@ const CJK_RUN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud
  * @param text - the text to normalize.
  * @returns NFC-normalized, whitespace-collapsed, lowercased text.
  */
-export function foldForSearch(text) {
+export function foldForSearch(text: string) {
   return String(text ?? '').normalize('NFC').replace(/\s+/gu, ' ').trim().toLowerCase()
 }
 
@@ -75,7 +76,7 @@ export function queryBigrams(query) {
  * @param query - the folded query.
  * @returns the relevance score; zero when nothing matches.
  */
-export function scoreRecord(record, query) {
+export function scoreRecord(record: MemoryRecord, query) {
   if (query === '') return 0
   const content = foldForSearch(record.content)
   let score = 0
@@ -106,13 +107,13 @@ export function scoreRecord(record, query) {
 export function searchRecords(records, request) {
   const query = foldForSearch(request.query)
   const scope = request.scope ?? 'all'
-  const visible = records.filter(record => record.status === 'active'
+  const visible = records.filter((record: MemoryRecord) => record.status === 'active'
     && (request.projectId === undefined || record.scope === 'user' || record.project_id === request.projectId)
     && (scope === 'all' || record.scope === scope)
     && (request.category === undefined || record.category === request.category))
 
   const matches = visible
-    .map(record => ({ record, score: scoreRecord(record, query) }))
+    .map((record: MemoryRecord) => ({ record, score: scoreRecord(record, query) }))
     .filter(match => match.score > 0)
     .sort((left, right) => right.score - left.score
       || (left.record.updated_at === right.record.updated_at ? 0 : left.record.updated_at < right.record.updated_at ? 1 : -1)
@@ -137,6 +138,6 @@ export function searchRecords(records, request) {
  * @param text - the text to inspect.
  * @returns true when any character is CJK.
  */
-export function hasCjk(text) {
+export function hasCjk(text: string) {
   return CJK.test(String(text ?? ''))
 }

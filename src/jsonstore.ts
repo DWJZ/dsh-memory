@@ -90,7 +90,7 @@ function parseStore(storePath) {
  * @param text - the complete new content.
  * @throws when the content cannot be committed.
  */
-export function writeAtomic(targetPath, text) {
+export function writeAtomic(targetPath, text: string) {
   const dir = dirname(targetPath)
   mkdirSync(dir, { recursive: true })
   const tmpPath = join(dir, `${randomUUID()}${TEMP_MARKER}${basename(targetPath)}`)

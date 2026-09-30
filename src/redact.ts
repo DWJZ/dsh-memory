@@ -35,7 +35,7 @@ const ENTROPY_MIN_LENGTH = 40
  * @param text - the text to inspect.
  * @returns the matching rule's name, or undefined when the text is clean.
  */
-export function findSecret(text) {
+export function findSecret(text: string) {
   if (typeof text !== 'string' || text === '') return undefined
   for (const rule of RULES) {
     rule.pattern.lastIndex = 0
@@ -66,7 +66,7 @@ export function findSecretIn(texts) {
  * @param text - the text to sanitize.
  * @returns text safe to log.
  */
-export function redactText(text) {
+export function redactText(text: string) {
   if (typeof text !== 'string' || text === '') return text ?? ''
   let result = text
   for (const rule of RULES) {
@@ -85,7 +85,7 @@ export function redactText(text) {
  * @param text - the text to inspect.
  * @returns true when some token looks like a high-entropy blob.
  */
-function looksLikeHighEntropyBlob(text) {
+function looksLikeHighEntropyBlob(text: string) {
   for (const token of text.split(/[\s"'`,;()[\]{}<>]+/u)) {
     if (token.length < ENTROPY_MIN_LENGTH) continue
     if (!/^[A-Za-z0-9+/=_-]+$/u.test(token)) continue

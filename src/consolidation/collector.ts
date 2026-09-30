@@ -37,7 +37,7 @@ export function createCollector(options = {}) {
    * @param sessionId - the Session.
    * @returns its buffer.
    */
-  const bufferFor = (sessionId) => {
+  const bufferFor = (sessionId: string) => {
     let buffer = bySession.get(sessionId)
     if (buffer === undefined) {
       buffer = { events: [], droppedThrough: -1 }
@@ -74,7 +74,7 @@ export function createCollector(options = {}) {
      * @param sessionId - the Session.
      * @returns its events, in seq order.
      */
-    eventsFor(sessionId) {
+    eventsFor(sessionId: string) {
       return bySession.get(sessionId)?.events ?? []
     },
 
@@ -83,7 +83,7 @@ export function createCollector(options = {}) {
      * @param sessionId - the Session.
      * @returns the first retained seq, or undefined when nothing is buffered.
      */
-    firstSeq(sessionId) {
+    firstSeq(sessionId: string) {
       return bySession.get(sessionId)?.events[0]?.seq
     },
 
@@ -92,7 +92,7 @@ export function createCollector(options = {}) {
      * @param sessionId - the Session.
      * @returns the seq, or -1 when nothing was dropped.
      */
-    droppedThrough(sessionId) {
+    droppedThrough(sessionId: string) {
       return bySession.get(sessionId)?.droppedThrough ?? -1
     },
 
@@ -105,7 +105,7 @@ export function createCollector(options = {}) {
      * @param throughSeq - the highest consumed seq.
      * @returns the number of events dropped.
      */
-    dropConsumed(sessionId, throughSeq) {
+    dropConsumed(sessionId: string, throughSeq) {
       const buffer = bySession.get(sessionId)
       if (buffer === undefined) return 0
       const retained = buffer.events.filter(event => event.seq > throughSeq)
@@ -119,7 +119,7 @@ export function createCollector(options = {}) {
      * @param sessionId - the Session.
      * @returns nothing.
      */
-    forget(sessionId) {
+    forget(sessionId: string) {
       bySession.delete(sessionId)
     },
 

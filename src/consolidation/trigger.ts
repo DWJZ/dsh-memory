@@ -39,7 +39,7 @@ export function createTrigger(options) {
   const debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS
   const schedule = options.schedule ?? ((run, ms) => setTimeout(run, ms))
   const cancelSchedule = options.cancelSchedule ?? (handle => { clearTimeout(handle) })
-  const isIdle = options.isIdle ?? (agent => agent?.status === 'idle')
+  const isIdle = options.isIdle ?? ((agent: MemoryAgent) => agent?.status === 'idle')
   const pending = new Map()
   const running = new Set()
 
@@ -48,7 +48,7 @@ export function createTrigger(options) {
    * @param agent - the agent.
    * @returns its Session id, or undefined when it has none.
    */
-  const keyOf = (agent) => {
+  const keyOf = (agent: MemoryAgent) => {
     const id = agent?.session?.id
     return typeof id === 'string' && id !== '' ? id : undefined
   }
@@ -75,7 +75,7 @@ export function createTrigger(options) {
    * @param key - the agent's Session id.
    * @returns fulfillment once the task has settled.
    */
-  const expire = async (agent, key) => {
+  const expire = async (agent: MemoryAgent, key) => {
     pending.delete(key)
     if (running.has(key)) return
     if (!isIdle(agent)) return
@@ -98,7 +98,7 @@ export function createTrigger(options) {
      * @param status - its new status.
      * @returns nothing.
      */
-    statusChanged(agent, status) {
+    statusChanged(agent: MemoryAgent, status) {
       const key = keyOf(agent)
       if (key === undefined) return
       if (status !== 'idle') {
@@ -116,7 +116,7 @@ export function createTrigger(options) {
      * @param agent - the agent.
      * @returns true when a timer is pending.
      */
-    isPending(agent) {
+    isPending(agent: MemoryAgent) {
       const key = keyOf(agent)
       return key !== undefined && pending.has(key)
     },
@@ -126,7 +126,7 @@ export function createTrigger(options) {
      * @param agent - the agent.
      * @returns true when a run is in flight.
      */
-    isRunning(agent) {
+    isRunning(agent: MemoryAgent) {
       const key = keyOf(agent)
       return key !== undefined && running.has(key)
     },

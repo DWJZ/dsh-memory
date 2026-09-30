@@ -23,6 +23,7 @@ import { isAbsolute, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { CommandInvocation, MemoryDeps } from './types/deps.js'
 import { failureMessage } from './errors.js'
+import type { MemoryRecord } from './types/memory.js'
 
 /** Largest number of rows `list` prints before it says how many remain. */
 const LIST_PAGE = 100
@@ -80,7 +81,7 @@ async function run(deps: MemoryDeps, invocation: CommandInvocation) {
  * @param flags - parsed flags.
  * @returns the rendered list.
  */
-async function listCommand(deps: MemoryDeps, invocation: CommandInvocation, flags) {
+async function listCommand(deps: MemoryDeps, invocation: CommandInvocation, flags: Map<string, string>) {
   const status = typeof flags.get('status') === 'string' ? flags.get('status') : 'active'
   if (status !== 'all' && !STATUSES.includes(status)) {
     return error(`dsh-memory: --status must be one of ${[...STATUSES, 'all'].join(', ')}`)
@@ -110,7 +111,7 @@ async function listCommand(deps: MemoryDeps, invocation: CommandInvocation, flag
  * @param flags - parsed flags.
  * @returns the ranked matches.
  */
-async function searchCommand(deps: MemoryDeps, invocation: CommandInvocation, rest, flags) {
+async function searchCommand(deps: MemoryDeps, invocation: CommandInvocation, rest: string[], flags: Map<string, string>) {
   const query = rest.join(' ')
   if (query === '') return error('usage: /memory search <query> [--top <n>] [--user|--project]')
   const scope = flags.has('user') ? 'user' : flags.has('project') ? 'project' : 'all'
@@ -132,7 +133,7 @@ async function searchCommand(deps: MemoryDeps, invocation: CommandInvocation, re
  * @param rest - positional arguments after `inspect`.
  * @returns the record, or an error.
  */
-async function inspectCommand(deps: MemoryDeps, invocation: CommandInvocation, rest) {
+async function inspectCommand(deps: MemoryDeps, invocation: CommandInvocation, rest: string[]) {
   const [id] = rest
   if (id === undefined) return error('usage: /memory inspect <id>')
   const found = findVisible(deps, invocation, id)
@@ -147,7 +148,7 @@ async function inspectCommand(deps: MemoryDeps, invocation: CommandInvocation, r
  * @param rest - positional arguments after `archive`.
  * @returns the outcome.
  */
-async function archiveCommand(deps: MemoryDeps, invocation: CommandInvocation, rest) {
+async function archiveCommand(deps: MemoryDeps, invocation: CommandInvocation, rest: string[]) {
   const [id] = rest
   if (id === undefined) return error('usage: /memory archive <id>')
   const outcome = await archiveMemory(actionOptions(deps, invocation), {
@@ -164,7 +165,7 @@ async function archiveCommand(deps: MemoryDeps, invocation: CommandInvocation, r
  * @param rest - positional arguments after `forget`.
  * @returns the outcome.
  */
-async function forgetCommand(deps: MemoryDeps, invocation: CommandInvocation, rest) {
+async function forgetCommand(deps: MemoryDeps, invocation: CommandInvocation, rest: string[]) {
   const [id] = rest
   if (id === undefined) return error('usage: /memory forget <id>')
   const outcome = await forgetMemory(actionOptions(deps, invocation), {
@@ -191,7 +192,7 @@ async function forgetCommand(deps: MemoryDeps, invocation: CommandInvocation, re
  * @param flags - parsed flags.
  * @returns the outcome, or a refusal when the switch is off.
  */
-async function consolidateCommand(deps: MemoryDeps, invocation: CommandInvocation, flags) {
+async function consolidateCommand(deps: MemoryDeps, invocation: CommandInvocation, flags: Map<string, string>) {
   if (deps.isEnabled() === false) return error('dsh-memory is disabled; run /memory enable first')
   if (deps.consolidationEnabled?.() === false) {
     return error('dsh-memory: automatic consolidation is turned off in this profile (consolidation.enabled)')
@@ -214,7 +215,7 @@ async function consolidateCommand(deps: MemoryDeps, invocation: CommandInvocatio
  * @param flags - parsed flags.
  * @returns the outcome, or a refusal when `--yes` is missing.
  */
-async function clearCommand(deps: MemoryDeps, invocation: CommandInvocation, flags) {
+async function clearCommand(deps: MemoryDeps, invocation: CommandInvocation, flags: Map<string, string>) {
   const scope = flags.has('user') ? 'user' : flags.has('project') ? 'project' : undefined
   if (scope === undefined) return error('usage: /memory clear --user|--project --yes')
   const project = deps.projectFor(invocation.agent)
@@ -237,7 +238,7 @@ async function clearCommand(deps: MemoryDeps, invocation: CommandInvocation, fla
  * @param flags - parsed flags.
  * @returns the export, or an error when it cannot be shown in one answer.
  */
-async function exportCommand(deps: MemoryDeps, invocation: CommandInvocation, flags) {
+async function exportCommand(deps: MemoryDeps, invocation: CommandInvocation, flags: Map<string, string>) {
   const format = typeof flags.get('format') === 'string' ? flags.get('format') : 'md'
   if (format !== 'md' && format !== 'json') return error('dsh-memory: --format must be md or json')
   const rows = selectedScopes(deps, invocation, flags)
@@ -278,7 +279,7 @@ async function enableCommand(deps: MemoryDeps, enabled) {
  * @param rest - positional arguments after `project`.
  * @returns the outcome.
  */
-async function projectCommand(deps: MemoryDeps, invocation: CommandInvocation, rest) {
+async function projectCommand(deps: MemoryDeps, invocation: CommandInvocation, rest: string[]) {
   const [action, ...args] = rest
   const registryOptions = { ...deps.registry, projectRootMarkers: deps.config.projectRootMarkers }
   if (action === 'show' || action === undefined) {
@@ -345,7 +346,7 @@ function usageText(deps: MemoryDeps) {
  * @param flags - parsed flags.
  * @returns user-scope and project-scope rows.
  */
-function selectedScopes(deps: MemoryDeps, invocation: CommandInvocation, flags) {
+function selectedScopes(deps: MemoryDeps, invocation: CommandInvocation, flags: Map<string, string>) {
   const wantUser = flags.has('user') || !flags.has('project')
   const wantProject = flags.has('project') || !flags.has('user')
   const rows = []
@@ -378,9 +379,9 @@ function projectRecords(deps: MemoryDeps, project) {
  */
 function findVisible(deps: MemoryDeps, invocation: CommandInvocation, id) {
   const project = deps.projectFor(invocation.agent)
-  const user = readStore(deps.scopes.user.storePath).records.find(record => record.id === id)
+  const user = readStore(deps.scopes.user.storePath).records.find((record: MemoryRecord) => record.id === id)
   if (user !== undefined) return user
-  return projectRecords(deps, project).find(record => record.id === id)
+  return projectRecords(deps, project).find((record: MemoryRecord) => record.id === id)
 }
 
 /**
@@ -526,7 +527,7 @@ function parseArguments(rawInput) {
  * @param text - the text to show.
  * @returns the command result.
  */
-function ok(text) {
+function ok(text: string) {
   return { kind: 'success', text }
 }
 
@@ -535,6 +536,6 @@ function ok(text) {
  * @param text - the text to show.
  * @returns the command result.
  */
-function error(text) {
+function error(text: string) {
   return { kind: 'error', text }
 }

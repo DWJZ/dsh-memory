@@ -93,7 +93,7 @@ export function buildRequest(request) {
  * @returns the parsed plan.
  * @throws when no JSON object can be read.
  */
-export function parsePlan(text) {
+export function parsePlan(text: string) {
   const raw = String(text ?? '').trim()
   if (raw === '') throw new Error('dsh-memory: the consolidation model returned nothing')
   const start = raw.indexOf('{')

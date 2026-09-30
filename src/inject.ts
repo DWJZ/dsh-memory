@@ -109,7 +109,7 @@ export function registerMemoryIndex(ctx: Context, render) {
 export function createTurnTracker(ctx: Context) {
   const bySession = new Map()
 
-  const stateOf = (sessionId) => {
+  const stateOf = (sessionId: string) => {
     const existing = bySession.get(sessionId)
     if (existing !== undefined) return existing
     const created = { lastHuman: undefined, turnInput: undefined }
@@ -139,7 +139,7 @@ export function createTurnTracker(ctx: Context) {
      * @param sessionId - the session to describe.
      * @returns the message and sequence number, or undefined when none is known.
      */
-    inputFor(sessionId) {
+    inputFor(sessionId: string) {
       const state = bySession.get(sessionId)
       return state?.turnInput ?? state?.lastHuman
     },
