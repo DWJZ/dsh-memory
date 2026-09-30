@@ -106,7 +106,9 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
   let runtimeFiber: { dispose(): Promise<void> } | null = null
   let llmScope: Context | null = null
   /** Built in `start()`, but referenced by the switch, which outlives mounting. */
-  let consolidation: ReturnType<typeof createConsolidation> | null = null
+  // Assigned in `start()` before anything reads it; the switch that flips the
+  // plugin back on runs later, so the compiler cannot see the assignment.
+  let consolidation!: ReturnType<typeof createConsolidation>
 
   const deps = {
     config: settings,
