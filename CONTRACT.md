@@ -1037,3 +1037,31 @@ Phase 1 的 secret writer-policy 同样适用于 Phase 2：新增文本（新 co
 - [ ] 有界输入；超大单事件仍能推进
 - [ ] 审计事件带计数、标 ignorable、不泄漏内容、写入失败不回退 mark
 - [ ] 下一个 Session 能检索到自动学到的 Memory
+
+## 插件改名：dsh-memory → dsh-reflection
+
+DSH STORE 的固定 Commit 检查（Issue #1245）判定的两条确定原因是：包名 `dsh-memory` 与商城已有条目
+（`FuRongJun-1999/dsh-memory`）冲突，以及 manifest 缺少逐版本 `dsh.compatibility.dshReleases` 声明。
+插件因此改名为 **dsh-reflection**（查过商城索引 746 条，该名未被占用）。
+
+**改名范围与故意不改的部分：**
+
+- 改：`package.json` 的 `name`、`cordis.patch.yml` 的 Bundle entry `id`/`name`、README/契约文档中的插件名、
+  以及本机 desktop profile 的依赖键、bundle 列表与 patch entry id。
+- **不改：Session 事件类型名 `dsh-memory/consolidation`、`dsh-memory/project`。** 它们是已写入 Session
+  日志的持久数据键，改名会让历史会话无法被识别；仓库规则禁止移动或覆盖已提交的代际。
+- 不改：仓库目录名与 GitHub 仓库名（它们是路径与远端名称，不是包标识）。
+- 暂未改：诊断消息前缀 `dsh-memory:`（纯文案；改它需同步 `test/views.spec.mjs` 的三处断言）。
+
+## 剩余类型错误为何不能靠标注收敛
+
+`lock.ts`、`consolidation/index.ts`、`validate.ts` 共 23 个错误（其余模块为 0，客户端为 0）。对
+`lock.ts` 做过 13 次已验证实验（统一具名形状 6 次、使用点补默认值 3 次、行内局部类型 1 次、
+`resolved` 唯一入口 + `KillProbe` 别名 1 次、分散单点 2 次），每次都确保改动全部命中、零跳过，
+每次都以错误数上升告终。
+
+原因是**跨模块的选项形态没有对齐**，而不是单个函数缺标注：`withLock` 的调用方
+（`views.ts`、`registry.ts`、`jsonstore.ts`、`consolidation/state.ts`）各自声明了选项类型，其中
+`lockTimeoutMs`/`staleLockMs` 被写成可选；`ActionOptions.kill` 的类型也与 `process.kill` 的签名不一致；
+`commands.ts` 因此连带报出 `bound` 的未知类型。要收敛必须先统一这一组声明（阈值改为必需、探针类型
+统一为一个别名），再改各内部函数的契约 —— 这是一次约 6 个文件的结构改动，不是标注工作。
