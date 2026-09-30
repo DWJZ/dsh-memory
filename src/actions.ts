@@ -22,7 +22,7 @@ import { withLock } from './lock.js'
 import { mutateAndRefreshView } from './views.js'
 import { findSecretIn } from './redact.js'
 import { MAX_CONTENT_CHARS, charLength, newMemoryId, normalizeContent, validateMemory } from './schema.js'
-import type { ActionInput, ActionOptions, AddInput, ArchiveInput, MemoryRecord, MemoryStore, RecordTarget, ScopeInput, ScopeLayout, TargetedInput, TombstoneEntry } from './types/memory.js'
+import type { ActionInput, ActionOptions, AddInput, ArchiveInput, EvidenceEntry, MemoryRecord, MemoryScope, MemoryStore, RecordTarget, ScopeInput, ScopeLayout, TargetedInput, TombstoneEntry } from './types/memory.js'
 import { failureMessage } from './errors.js'
 
 /**
@@ -305,6 +305,8 @@ export async function clearScope(options: ActionOptions, input: ScopeInput) {
  * the two apart.
  */
 export class MemoryNotVisibleError extends Error {
+  /** The id that could not be found. */
+  readonly id: string
   /**
    * Describe one invisible record.
    * @param id - the record the caller asked for.
@@ -378,7 +380,7 @@ async function recordTombstone(options: ActionOptions, entry: TombstoneEntry) {
     await appendTombstone(options, entry)
     return true
   } catch (error) {
-    options.logger?.warn(`dsh-memory: could not append the tombstone for ${String(entry.id ?? entry.op)}: ${failureMessage(error)}`)
+    options.logger?.warn(`dsh-memory: could not append the tombstone for ${String('id' in entry ? entry.id : entry.op)}: ${failureMessage(error)}`)
     return false
   }
 }
@@ -394,7 +396,7 @@ async function recordTombstone(options: ActionOptions, entry: TombstoneEntry) {
  * @param persistedQuote - the truncated quote that will be stored.
  * @returns the matching rule name, or undefined when everything is clean.
  */
-function screen(fullTexts: unknown, persistedQuote: unknown) {
+function screen(fullTexts: readonly string[], persistedQuote: string | undefined): string | undefined {
   const beforeTruncation = findSecretIn(fullTexts.map((text: string) => String(text ?? '')))
   if (beforeTruncation !== undefined) return beforeTruncation.name
   if (persistedQuote === undefined) return undefined
@@ -408,7 +410,11 @@ function screen(fullTexts: unknown, persistedQuote: unknown) {
  * @param limit - the largest accepted list.
  * @returns the accumulated list.
  */
-function accumulate(existing: unknown, addition: unknown, limit: unknown) {
+function accumulate(
+  existing: readonly EvidenceEntry[],
+  addition: EvidenceEntry | undefined,
+  limit: number,
+): EvidenceEntry[] {
   const combined = addition === undefined ? [...existing] : [...existing, addition]
   return combined.slice(-limit)
 }
