@@ -21,8 +21,11 @@ export interface ObservedEvent {
   seq: number
   /** The event type, as the Session recorded it. */
   type: string
-  /** The event payload, read through the fields declared in `EventPayload`. */
-  data?: EventPayload | undefined
+  /**
+   * The event payload. Required: the events this plugin folds always carry one, and
+   * reading it is how an entry is built.
+   */
+  data: EventPayload
   /**
    * The envelope's marker for a type a reader may not know. This plugin writes its
    * own rows with it, which is why a build that lacks the type still accepts them.
@@ -69,4 +72,6 @@ export interface WindowOptions {
   afterSeq: number
   /** Largest serialized entry, in UTF-8 bytes. */
   maxBytes?: number | undefined
+  /** Largest number of events to consider. */
+  maxEvents?: number | undefined
 }

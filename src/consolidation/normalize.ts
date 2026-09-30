@@ -16,7 +16,7 @@
  * Usage: `import { classify, batchWindow } from './normalize.js'`.
  */
 
-import type { EventPayload, ObservedEvent } from '../types/trajectory.js'
+import type { EventPayload, ObservedEvent, TrajectoryEntry, WindowOptions } from '../types/trajectory.js'
 /** Namespace reserved for this plugin's own Session events. */
 export const INTERNAL_EVENT_PREFIX = 'dsh-memory/'
 
@@ -166,7 +166,7 @@ export function textOf(payload: EventPayload | undefined): string {
  * @param event - one relevant Session event.
  * @returns the normalized entry, or undefined when nothing was carried.
  */
-export function normalizeEvent(event) {
+export function normalizeEvent(event: ObservedEvent): TrajectoryEntry | undefined {
   const base = { seq: event.seq, type: event.type }
   switch (event.type) {
     case 'user/message': {
@@ -214,7 +214,7 @@ export function normalizeEvent(event) {
  * @param options.maxBytes - largest byte size of the rendered trajectory.
  * @returns the selected entries, the window end, and what was passed over.
  */
-export function batchWindow(events, options) {
+export function batchWindow(events: readonly ObservedEvent[], options: WindowOptions) {
   const afterSeq = options.afterSeq ?? -1
   const maxEvents = options.maxEvents ?? Number.POSITIVE_INFINITY
   const maxBytes = options.maxBytes ?? Number.POSITIVE_INFINITY
