@@ -62,6 +62,12 @@ declare module '@deepseek-ai/cordis' {
     inject(deps: string[], callback: (scope: Context) => unknown): { dispose(): Promise<void> }
 
     /**
+     * Read one service by name, as Cordis's reflect surface spells it. The vendored
+     * signature returns `any`, because a service is whatever its provider bound.
+     */
+    get(name: string, strict?: boolean): any
+
+    /**
      * Register a disposable contribution. Returns the disposer, and the runtime
      * also runs it when the owning fiber is disposed.
      */

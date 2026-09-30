@@ -88,7 +88,7 @@ export function apply(ctx: Context, config: PluginConfig) {
 function createController(ctx: Context, settings: MemorySettings) {
   const scopes = {
     user: userLayout(settings.memoryDir),
-    project: (projectId: string) => projectLayout(settings.memoryDir, projectId),
+    project: (projectId: string | null | undefined) => projectLayout(settings.memoryDir, projectId),
   }
   const registry = registryLayout(settings.memoryDir)
   const tombstones = tombstoneLayout(settings.memoryDir)
