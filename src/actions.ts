@@ -22,7 +22,7 @@ import { withLock } from './lock.js'
 import { mutateAndRefreshView } from './views.js'
 import { findSecretIn } from './redact.js'
 import { MAX_CONTENT_CHARS, charLength, newMemoryId, normalizeContent, validateMemory } from './schema.js'
-import type { ActionOptions, AddInput, MemoryRecord, MemoryStore, TargetedInput } from './types/memory.js'
+import type { ActionInput, ActionOptions, AddInput, MemoryRecord, MemoryStore, ScopeLayout, TargetedInput } from './types/memory.js'
 import { failureMessage } from './errors.js'
 
 /**
