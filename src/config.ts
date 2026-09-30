@@ -101,18 +101,20 @@ function consolidationSetting(value: unknown): MemoryConsolidationSettings {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new TypeError(`dsh-memory: config consolidation must be an object, got ${JSON.stringify(value)}`)
   }
-  const minConfidence = numberSetting(value.minConfidence, fallback.minConfidence, 'consolidation.minConfidence', 0)
+  // Configuration arrives unvalidated; each field is narrowed where it is read.
+  const source = value as Record<string, unknown>
+  const minConfidence = numberSetting(source.minConfidence, fallback.minConfidence, 'consolidation.minConfidence', 0)
   if (minConfidence > 1) {
-    throw new TypeError(`dsh-memory: config consolidation.minConfidence must be at most 1, got ${JSON.stringify(value.minConfidence)}`)
+    throw new TypeError(`dsh-memory: config consolidation.minConfidence must be at most 1, got ${JSON.stringify(source.minConfidence)}`)
   }
   return {
-    enabled: booleanSetting(value.enabled, fallback.enabled, 'consolidation.enabled'),
-    autoCommit: booleanSetting(value.autoCommit, fallback.autoCommit, 'consolidation.autoCommit'),
-    debounceMs: integerSetting(value.debounceMs, fallback.debounceMs, 'consolidation.debounceMs', 0),
+    enabled: booleanSetting(source.enabled, fallback.enabled, 'consolidation.enabled'),
+    autoCommit: booleanSetting(source.autoCommit, fallback.autoCommit, 'consolidation.autoCommit'),
+    debounceMs: integerSetting(source.debounceMs, fallback.debounceMs, 'consolidation.debounceMs', 0),
     minConfidence,
-    maxRelevantEventsPerBatch: integerSetting(value.maxRelevantEventsPerBatch, fallback.maxRelevantEventsPerBatch, 'consolidation.maxRelevantEventsPerBatch', 1),
-    maxTrajectoryBytesPerBatch: integerSetting(value.maxTrajectoryBytesPerBatch, fallback.maxTrajectoryBytesPerBatch, 'consolidation.maxTrajectoryBytesPerBatch', MIN_TRAJECTORY_BYTES_PER_BATCH),
-    maxOutputTokens: integerSetting(value.maxOutputTokens, fallback.maxOutputTokens, 'consolidation.maxOutputTokens', 1),
+    maxRelevantEventsPerBatch: integerSetting(source.maxRelevantEventsPerBatch, fallback.maxRelevantEventsPerBatch, 'consolidation.maxRelevantEventsPerBatch', 1),
+    maxTrajectoryBytesPerBatch: integerSetting(source.maxTrajectoryBytesPerBatch, fallback.maxTrajectoryBytesPerBatch, 'consolidation.maxTrajectoryBytesPerBatch', MIN_TRAJECTORY_BYTES_PER_BATCH),
+    maxOutputTokens: integerSetting(source.maxOutputTokens, fallback.maxOutputTokens, 'consolidation.maxOutputTokens', 1),
   }
 }
 
