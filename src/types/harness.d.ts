@@ -96,7 +96,14 @@ declare module '@deepseek-ai/cordis' {
 
     /** The command surface `/memory` registers into. */
     commands: {
-      register(definition: { name: string; description?: string; inputHint?: string; handler(invocation: unknown): unknown }): () => void
+      register(definition: {
+        name: string
+        /** Shown in the command list; the harness requires it. */
+        description: string
+        /** Free-form input descriptor, as `CommandInputDescriptor` spells it. */
+        input?: { hint: string; attachments?: boolean } | undefined
+        handler(invocation: unknown): unknown
+      }): () => void
       /** Present when the harness mounted a command registry; the plugin guards it. */
       run?: (agent: MemoryAgent, text: string) => Promise<unknown>
     }

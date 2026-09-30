@@ -40,7 +40,7 @@ export function registerMemoryCommands(ctx: Context, deps: MemoryDeps) {
     name: 'memory',
     description: 'Inspect and control persistent Memory',
     input: { hint: 'list | search | inspect | archive | forget | clear | export | consolidate | enable | disable | project' },
-    handler: invocation => run(deps, invocation),
+    handler: (invocation: CommandInvocation) => run(deps, invocation),
   })
 }
 
@@ -83,7 +83,9 @@ async function run(deps: MemoryDeps, invocation: CommandInvocation) {
  * @returns the rendered list.
  */
 async function listCommand(deps: MemoryDeps, invocation: CommandInvocation, flags: Map<string, string>) {
-  const status = typeof flags.get('status') === 'string' ? flags.get('status') : 'active'
+  // Read once: two calls do not narrow, and the map is not mutated in between.
+  const requested = flags.get('status')
+  const status = typeof requested === 'string' ? requested : 'active'
   if (status !== 'all' && !STATUSES.includes(status)) {
     return error(`dsh-memory: --status must be one of ${[...STATUSES, 'all'].join(', ')}`)
   }
@@ -262,7 +264,7 @@ async function exportCommand(deps: MemoryDeps, invocation: CommandInvocation, fl
  * @param enabled - the requested state.
  * @returns the outcome.
  */
-async function enableCommand(deps: MemoryDeps, enabled) {
+async function enableCommand(deps: MemoryDeps, enabled: boolean) {
   try {
     await deps.setEnabled(enabled)
   } catch (failure) {
@@ -366,7 +368,7 @@ function selectedScopes(deps: MemoryDeps, invocation: CommandInvocation, flags: 
  * @param project - the current project, when there is one.
  * @returns its records, or none.
  */
-function projectRecords(deps: MemoryDeps, project: ProjectEntry) {
+function projectRecords(deps: MemoryDeps, project: ProjectEntry | null | undefined) {
   if (project === null || project === undefined) return []
   return readStore(deps.scopes.project(project.project_id).storePath).records
 }
