@@ -27,6 +27,14 @@ export interface MemoryConsolidationSettings {
   maxOutputTokens: number
 }
 
+/** The diagnostic sink a deployment injects. */
+export interface MemoryLogger {
+  /** Report something that went wrong but did not stop the plugin. */
+  warn(message: string | Error): void
+  /** Report something worth knowing. */
+  info?(message: string): void
+}
+
 /** Everything this plugin resolves from its own configuration and the deployment. */
 export interface MemorySettings {
   /** The runtime switch, after the persisted file wins over `cordis.yml`. */
@@ -55,6 +63,22 @@ export interface MemorySettings {
   exportInlineMaxBytes: number
   /** Longest citation quote, in characters. */
   evidenceQuoteMaxChars: number
+  /**
+   * The host name written into lock records and tombstones.
+   *
+   * Taken from the plugin configuration when a deployment names one, and from the
+   * machine otherwise, so a shared Memory root still records who wrote what.
+   */
+  host: string
+  /**
+   * Whether a recorded process is still alive.
+   *
+   * `process.kill` by default; a deployment or a test may pass its own, which is the
+   * only way this can be exercised without real processes.
+   */
+  kill: typeof process.kill
+  /** The diagnostic sink the runtime injected, when it did. */
+  logger?: MemoryLogger | undefined
   /** Phase 2's settings. */
   consolidation: MemoryConsolidationSettings
 }

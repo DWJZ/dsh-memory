@@ -15,7 +15,8 @@
 import { MIN_TRAJECTORY_BYTES_PER_BATCH } from './consolidation/normalize.js'
 import { resolveDshHome, resolveMemoryDir } from './paths.js'
 import type { PluginConfig } from './settings.js'
-import type { MemoryConsolidationSettings, MemorySettings } from './types/config.js'
+import type { MemoryConsolidationSettings, MemoryLogger, MemorySettings } from './types/config.js'
+import { hostname } from 'node:os'
 
 /** Every setting a deployment may override, with its default. */
 export const DEFAULTS = Object.freeze({
@@ -64,7 +65,11 @@ const SPLIT_TOLERANCE = 1e-9
  * @param env - environment used to resolve `$DSH_HOME`.
  * @returns the settings this plugin runs with, including the derived locations.
  */
-export function resolveConfig(config: PluginConfig, env: NodeJS.ProcessEnv = process.env): MemorySettings {
+export function resolveConfig(
+  config: PluginConfig,
+  env: NodeJS.ProcessEnv = process.env,
+  logger?: MemoryLogger,
+): MemorySettings {
   const raw = config ?? {}
   const dshHome = resolveDshHome(raw.dshHome, env)
   return {
@@ -82,7 +87,23 @@ export function resolveConfig(config: PluginConfig, env: NodeJS.ProcessEnv = pro
     exportInlineMaxBytes: integerSetting(raw.exportInlineMaxBytes, DEFAULTS.exportInlineMaxBytes, 'exportInlineMaxBytes', 1),
     evidenceQuoteMaxChars: integerSetting(raw.evidenceQuoteMaxChars, DEFAULTS.evidenceQuoteMaxChars, 'evidenceQuoteMaxChars', 0),
     consolidation: consolidationSetting(raw.consolidation),
+    host: hostSetting(raw.host),
+    kill: process.kill,
+    logger,
   }
+}
+
+/**
+ * The host name to record.
+ *
+ * A deployment that shares a Memory root names its hosts; anything else is the
+ * machine's own name.
+ * @param value - the configured value, if any.
+ * @returns the name to record.
+ */
+function hostSetting(value: unknown): string {
+  if (typeof value === 'string' && value.trim() !== '') return value.trim()
+  return hostname()
 }
 
 /**

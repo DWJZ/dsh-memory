@@ -985,11 +985,15 @@ headless 一次性运行          → 任务轮次 idle 后进程随即退出并
 
 因此**开发回路是"改完先 build 再重启"**；测试不受影响，它们通过 tsx 直接跑 `src/` 的源码，不需要 build。
 
-## 已知缺口：settings.host / settings.kill 是死读
+## resolveConfig 产出 host、kill 与 logger
 
-`index.ts` 在拼装 action options 时读 `settings.host` 与 `settings.kill`，但 `resolveConfig` 从不产出这两个字段，所以它们**永远是 undefined**。行为上没有出问题 —— `ActionOptions` 里这两项可选，内部各有默认值（主机名、`process.kill`）—— 但这两行读的是不存在的属性。
+`resolveConfig` 现在产出 `index.ts` 一直在读的三个字段：
 
-**给下一个读者的提醒**：这里有一个需要决定的问题，不是类型问题。要么把 `host`（以及 `kill`）做成经校验的配置字段并让 `resolveConfig` 透传（符合"部署相关的选择应当是配置"的约定），要么删掉这两行死读。类型上我保持原样，因为两种改法都会改变行为或意图。
+- **`host`** —— 部署在插件配置里命名主机时用配置值，否则取 `hostname()`；写进锁记录与墓碑，用于在共享 Memory 根下分辨是谁写的。
+- **`kill`** —— 默认 `process.kill`；只有在没有真实进程可用的测试里才需要替换它。
+- **`logger`** —— 由运行时注入（`resolveConfig(config, env, ctx.logger)`），因为诊断出口不属于配置文件。
+
+此前这三处是"读不存在的属性"（永远 undefined，行为上被各选项的默认值掩盖）。配置的路径值（`dshHome`）与这三者一样来自未校验的配置，因此 `resolveDshHome` 接受 `unknown`，由内部的 `nonEmpty` 判断。
 
 ## 已知缺口：lock.ts 的 withLock 签名与它的六个调用方
 

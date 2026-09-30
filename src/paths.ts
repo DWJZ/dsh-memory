@@ -33,7 +33,7 @@ export function expandHome(value: string): string {
  * @param env - environment to read `DSH_HOME` from.
  * @returns an absolute harness home.
  */
-export function resolveDshHome(configured: string | undefined, env: NodeJS.ProcessEnv = process.env): string {
+export function resolveDshHome(configured: unknown, env: NodeJS.ProcessEnv = process.env): string {
   const explicit = nonEmpty(configured)
   if (explicit !== undefined) return resolve(expandHome(explicit))
   const fromEnv = nonEmpty(env.DSH_HOME)

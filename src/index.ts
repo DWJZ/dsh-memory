@@ -73,7 +73,7 @@ export const inject = ['commands']
  * @param config - raw plugin configuration from cordis.yml, possibly absent.
  */
 export function apply(ctx: Context, config: PluginConfig) {
-  const settings = resolveConfig(config)
+  const settings = resolveConfig(config, process.env, ctx.logger)
   const controller = createController(ctx, settings)
   ctx.effect(() => () => controller.dispose(), 'dsh-memory.lifecycle')
   controller.start()
