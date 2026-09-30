@@ -32,6 +32,8 @@ import { reviewPlan } from './validate.js'
 import { commitOperations } from './commit.js'
 import { advanceHwm, lastProcessedSeq, NO_PROGRESS, progressFor, readState, recordGap, withState } from './state.js'
 import { failureMessage } from '../errors.js'
+import type { ConsolidationRequest } from './model.js'
+import type { ObservedEvent } from '../types/trajectory.js'
 
 /** Session event type carrying this plugin's consolidation audit. */
 export const AUDIT_EVENT_TYPE = 'dsh-memory/consolidation'
@@ -102,7 +104,7 @@ export function createConsolidation(options) {
     return tracked
   }
   const now = options.now ?? Date.now
-  const callModel = options.callModel ?? ((request) => {
+  const callModel = options.callModel ?? ((request: ConsolidationRequest) => {
     const scope = typeof options.llmScope === 'function' ? options.llmScope() : options.llmScope
     if (scope === undefined || scope === null) {
       throw new Error('dsh-memory: no model service is mounted, so consolidation has nothing to ask')
@@ -298,7 +300,7 @@ export function createConsolidation(options) {
       fromSeq: afterSeq + 1,
       toSeq: window.toSeq,
       visibleSeqs: new Set(window.entries.map(entry => entry.seq)),
-      eventsBySeq: new Map(collector.eventsFor(sessionId).map(event => [event.seq, event])),
+      eventsBySeq: new Map(collector.eventsFor(sessionId).map((event: ObservedEvent) => [event.seq, event])),
       existing,
       projectId,
       sessionId,
@@ -474,7 +476,7 @@ export function createConsolidation(options) {
  * @param rejected - the rejections recorded during review.
  * @returns `{ rejected_reasons }` when there were any, otherwise an empty object.
  */
-function countRejections(rejected) {
+function countRejections(rejected: readonly { code?: unknown }[]): Record<string, number> {
   if (rejected.length === 0) return {}
   const counts: Record<string, number> = {}
   for (const entry of rejected) {
