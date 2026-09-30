@@ -437,7 +437,9 @@ async function apply<T = Record<string, unknown>>(
   operation: (store: MemoryStore) => StoreMutation<T> | undefined,
 ) {
   const outcome = await mutateAndRefreshView(scopeOptions(options, layout), operation)
-  return { ...outcome.result, revision: outcome.revision, viewStale: outcome.viewStale }
+  // A mutation that changed nothing carries no result; spreading nothing is what
+  // the previous shape did, and it keeps the result's own fields visible.
+  return { ...(outcome.result ?? {}), revision: outcome.revision, viewStale: outcome.viewStale }
 }
 
 /**
