@@ -40,5 +40,11 @@ export interface ProjectRegistry {
   projects: ProjectEntry[]
 }
 
+/** A project together with how this Session's directory was recognized as it. */
+export interface ResolvedProject extends ProjectEntry {
+  /** Which lookup decided it, for the attribution record. */
+  matched_by: ProjectMatch
+}
+
 /** Which lookup decided a project, for the attribution record. */
 export type ProjectMatch = 'registry' | 'workspace' | 'marker'

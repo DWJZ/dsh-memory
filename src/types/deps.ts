@@ -28,8 +28,8 @@ export interface MemoryDeps {
   scopes: ActionOptions['scopes']
   /** The tombstone ledger and its lock. */
   tombstones: ActionOptions['tombstones']
-  /** The registry file and its lock. */
-  registry: { path: string; lockPath: string }
+  /** The registry file, its directory and its lock, as `registryLayout` resolves them. */
+  registry: { dir: string; registryPath: string; lockPath: string }
   /** Diagnostic sink. */
   logger: { warn(message: string | Error): void; info?(message: string): void }
   /** The project a Session's directory belongs to, or null when none is known. */

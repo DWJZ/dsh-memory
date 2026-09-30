@@ -32,13 +32,14 @@ import { registerMemoryTools } from './tools.js'
 import { registerMemoryCommands } from './commands.js'
 import { renderMemoryIndex } from './retention.js'
 import { resolveEnabled, writeEnabled } from './settings.js'
+import type { PluginConfig } from './settings.js'
 import { createCollector } from './consolidation/collector.js'
 import { createConsolidation } from './consolidation/index.js'
 import { isAbsolute, relative } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { MemoryDeps } from './types/deps.js'
 import type { MemorySettings } from './types/config.js'
-import type { ProjectEntry } from './types/identity.js'
+import type { ProjectEntry, ResolvedProject } from './types/identity.js'
 
 /** Stable Cordis plugin name. */
 
@@ -71,7 +72,7 @@ export const inject = ['commands']
  * @param ctx - Cordis context of this plugin's fiber.
  * @param config - raw plugin configuration from cordis.yml, possibly absent.
  */
-export function apply(ctx: Context, config: MemorySettings) {
+export function apply(ctx: Context, config: PluginConfig) {
   const settings = resolveConfig(config)
   const controller = createController(ctx, settings)
   ctx.effect(() => () => controller.dispose(), 'dsh-memory.lifecycle')
@@ -126,7 +127,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
     projectFor: (agent: MemoryAgent) => projectsByCwd.get(cwdOf(agent)) ?? null,
     evidenceFor: (agent: MemoryAgent) => buildProvenance(agent, tracker, { evidenceQuoteMaxChars: settings.evidenceQuoteMaxChars }),
     setEnabled: (next: boolean) => setEnabled(next),
-    isEnabled: () => enabled,
+    isEnabled: () => enabled === true,
     // A command that rebinds a directory must be able to refresh the session's
     // cached project, or the next command would still see the old one.
     resolveProjectFor: (agent: MemoryAgent) => resolveForAgent(agent),
@@ -219,7 +220,11 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
    * @param project - the resolved project.
    * @param workspace - the harness workspace that contains the directory, if any.
    */
-  const announceProject = (agent: MemoryAgent, project: ProjectEntry, workspace) => {
+  const announceProject = (
+    agent: MemoryAgent,
+    project: ResolvedProject,
+    workspace: { id: string } | null | undefined,
+  ) => {
     if (settings.sessionEvents !== true) return
     const session = agent?.session
     if (session === undefined || typeof session.append !== 'function') return
