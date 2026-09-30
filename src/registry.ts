@@ -145,7 +145,7 @@ export function validateRegistry(registry: ProjectRegistry) {
       }
       identities.set(identity, { project_id: entry.project_id, root })
     }
-    for (const field of ['created_at', 'updated_at']) {
+    for (const field of ['created_at', 'updated_at'] as const) {
       if (!isTimestamp(entry[field])) {
         throw new TypeError(`dsh-memory: project ${entry.project_id} ${field} must be an ISO-8601 UTC timestamp`)
       }

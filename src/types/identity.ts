@@ -27,6 +27,10 @@ export interface ProjectEntry {
   aliases: string[]
   /** Harness workspace ids seen for this project, when the host has one. */
   workspace_ids: string[]
+  /** When the entry was created, ISO-8601 UTC. The registry validates it. */
+  created_at: string
+  /** When the entry last changed, ISO-8601 UTC. The registry validates it. */
+  updated_at: string
 }
 
 /** The registry file's contents. */
