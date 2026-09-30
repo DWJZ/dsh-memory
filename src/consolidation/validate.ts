@@ -22,7 +22,7 @@
 
 import { CATEGORIES, MAX_CONTENT_CHARS, charLength } from '../schema.js'
 import { findSecretIn } from '../redact.js'
-import type { MemoryRecord, number, string } from '../types/memory.js'
+import type { MemoryRecord } from '../types/memory.js'
 
 /** Actions automatic consolidation may take. */
 export const AUTO_ACTIONS = Object.freeze(['add', 'update', 'supersede', 'noop'])

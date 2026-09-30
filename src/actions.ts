@@ -22,7 +22,7 @@ import { withLock } from './lock.js'
 import { mutateAndRefreshView } from './views.js'
 import { findSecretIn } from './redact.js'
 import { MAX_CONTENT_CHARS, charLength, newMemoryId, normalizeContent, validateMemory } from './schema.js'
-import type { ActionInput, ActionOptions, AddInput, ArchiveInput, MemoryRecord, MemoryStore, RecordTarget, ScopeLayout, TargetedInput, TombstoneEntry } from './types/memory.js'
+import type { ActionInput, ActionOptions, AddInput, ArchiveInput, MemoryRecord, MemoryStore, RecordTarget, ScopeInput, ScopeLayout, TargetedInput, TombstoneEntry } from './types/memory.js'
 import { failureMessage } from './errors.js'
 
 /**
@@ -272,7 +272,7 @@ export async function forgetMemory(options: ActionOptions, input: RecordTarget) 
  * @param input.projectId - the project, required for project scope.
  * @returns the applied action and how many records were deleted.
  */
-export async function clearScope(options: ActionOptions, input: ActionInput) {
+export async function clearScope(options: ActionOptions, input: ScopeInput) {
   const layout = requireLayout(options, input.scope, input.projectId)
   const outcome = await apply(options, layout, (store: MemoryStore) => {
     if (store.records.length === 0) {
@@ -449,7 +449,7 @@ function requireActive(store: MemoryStore, id: string) {
  * @returns that scope's layout.
  * @throws when the caller has no project scope.
  */
-function requireLayout(options: ActionOptions, scope: MemoryScope, projectId: string) {
+function requireLayout(options: ActionOptions, scope: MemoryScope, projectId: string | null | undefined): ScopeLayout {
   if (scope === 'user') return options.scopes.user
   if (projectId === undefined || projectId === null) {
     throw new Error('dsh-memory: project scope requires a project; this session has none')

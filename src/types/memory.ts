@@ -156,6 +156,14 @@ export interface ArchiveInput extends RecordTarget {
 /** Any input one of the three actions takes. */
 export type ActionInput = AddInput | TargetedInput
 
+/** The citation handed to a write, and the text it was taken from. */
+export interface Provenance {
+  /** The citation, absent when the Session has nothing to cite. */
+  evidence: EvidenceEntry | undefined
+  /** Untruncated text the citation came from, screened again at the write. */
+  sourceTexts: string[]
+}
+
 /**
  * One operation a reviewed plan may carry.
  *
@@ -199,4 +207,41 @@ export interface TargetedOperation {
   sourceTexts?: string[] | undefined
   /** The confidence the review assigned. */
   confidence?: number | undefined
+}
+
+/** What one tombstone records, by the operation that wrote it. */
+export type TombstoneEntry = ForgetTombstone | ClearTombstone
+
+/** A record that was forgotten. */
+export interface ForgetTombstone {
+  op: 'forget'
+  /** The removed record. */
+  id: string
+  /** The store it lived in. */
+  scope: MemoryScope
+  /** The project it belonged to, when it was a project record. */
+  project_id?: string | null | undefined
+  /** When it was removed, ISO-8601. */
+  deleted_at: string
+}
+
+/** A scope that was cleared. */
+export interface ClearTombstone {
+  op: 'clear'
+  /** The store that was cleared. */
+  scope: MemoryScope
+  /** The project it belonged to, when it was the project store. */
+  project_id?: string | null | undefined
+  /** How many records were removed. */
+  count: number
+  /** When it was cleared, ISO-8601. */
+  deleted_at: string
+}
+
+/** What an action that names a whole store needs. */
+export interface ScopeInput {
+  /** Which store to act on. */
+  scope: MemoryScope
+  /** The project, required for the project store. */
+  projectId?: string | null | undefined
 }
