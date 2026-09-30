@@ -22,7 +22,7 @@
 
 import { CATEGORIES, MAX_CONTENT_CHARS, charLength } from '../schema.js'
 import { findSecretIn } from '../redact.js'
-import type { MemoryRecord } from '../types/memory.js'
+import type { AutoOperation, MemoryRecord } from '../types/memory.js'
 import type { ObservedEvent } from '../types/trajectory.js'
 
 /** Actions automatic consolidation may take. */
@@ -71,6 +71,23 @@ export interface ReviewContext {
   now(): number
 }
 
+/** What reviewing one proposal produced. */
+export type ReviewOutcome =
+  | { kind: 'accepted'; operation: AutoOperation }
+  | { kind: 'noop'; reason: string }
+  | { kind: 'rejected'; reason: string; code: string }
+
+/**
+ * View a model-supplied value as a record of unknowns.
+ * @param value - the value the model returned.
+ * @returns the record, or undefined when it is not one.
+ */
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined
+}
+
 export function reviewPlan(plan: { operations?: unknown[] } | null | undefined, context: ReviewContext) {
   if (!Array.isArray(plan?.operations)) {
     throw new TypeError('dsh-memory: a consolidation plan must carry an operations array')
@@ -101,13 +118,16 @@ export function reviewPlan(plan: { operations?: unknown[] } | null | undefined, 
  * @returns `{ kind: 'accepted', operation }`, `{ kind: 'noop', reason }`, or
  *   `{ kind: 'rejected', reason }`.
  */
-export function reviewOperation(operation, context: ReviewContext) {
-  if (typeof operation !== 'object' || operation === null || Array.isArray(operation)) {
+export function reviewOperation(operation: unknown, context: ReviewContext): ReviewOutcome {
+  const proposal = asRecord(operation)
+  if (proposal === undefined) {
     return { kind: 'rejected', reason: 'operation is not an object', code: 'not-an-object' }
   }
-  const action = String(operation.action ?? '')
+  // The check below refuses anything outside AUTO_ACTIONS, so the accepted branch
+  // only ever carries one of the automatic actions.
+  const action = String(proposal.action ?? '') as AutoOperation['action']
   if (action === 'noop') {
-    return { kind: 'noop', reason: typeof operation.reason === 'string' ? operation.reason : 'no reason given' }
+    return { kind: 'noop', reason: typeof proposal.reason === 'string' ? proposal.reason : 'no reason given' }
   }
   if (!AUTO_ACTIONS.includes(action)) {
     return { kind: 'rejected', code: FORBIDDEN_ACTIONS.includes(action) ? 'action-forbidden' : 'unknown-action', reason: FORBIDDEN_ACTIONS.includes(action)
@@ -115,14 +135,14 @@ export function reviewOperation(operation, context: ReviewContext) {
       : `unknown action "${action}"` }
   }
 
-  const content = typeof operation.content === 'string' ? operation.content.trim() : ''
+  const content = typeof proposal.content === 'string' ? proposal.content.trim() : ''
   if (content === '') return { kind: 'rejected', reason: 'content is empty', code: 'empty-content' }
   if (charLength(content) > MAX_CONTENT_CHARS) {
     return { kind: 'rejected', reason: `content is longer than ${String(MAX_CONTENT_CHARS)} characters`, code: 'content-too-long' }
   }
   if (/[\n\r\u2028\u2029]/u.test(content)) return { kind: 'rejected', reason: 'content is not a single line', code: 'content-not-single-line' }
 
-  const confidence = operation.confidence
+  const confidence = proposal.confidence
   if (typeof confidence !== 'number' || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
     return { kind: 'rejected', reason: 'confidence must be a number in [0, 1]', code: 'confidence-not-a-number' }
   }
@@ -130,22 +150,22 @@ export function reviewOperation(operation, context: ReviewContext) {
     return { kind: 'rejected', reason: `confidence ${String(confidence)} is below the floor ${String(context.minConfidence)}`, code: 'confidence-below-floor' }
   }
 
-  const target = action === 'add' ? undefined : findTarget(operation.target_id, context)
+  const target = action === 'add' ? undefined : findTarget(proposal.target_id, context)
   if (action !== 'add' && target === undefined) {
-    return { kind: 'rejected', reason: `target_id ${JSON.stringify(operation.target_id ?? null)} is not an active Memory this Session can see`, code: 'target-not-visible' }
+    return { kind: 'rejected', reason: `target_id ${JSON.stringify(proposal.target_id ?? null)} is not an active Memory this Session can see`, code: 'target-not-visible' }
   }
 
   // `update` and `supersede` take their scope and category from the record they
   // act on, so a proposal cannot move a fact to another project by restating it.
-  const scope = target?.scope ?? operation.scope
-  const category = target?.category ?? operation.category
-  if (!WRITE_SCOPES.includes(scope)) return { kind: 'rejected', reason: `unknown scope ${JSON.stringify(scope ?? null)}`, code: 'unknown-scope' }
-  if (!CATEGORIES.includes(category)) return { kind: 'rejected', reason: `unknown category ${JSON.stringify(category ?? null)}`, code: 'unknown-category' }
+  const scope = target?.scope ?? proposal.scope
+  const category = target?.category ?? proposal.category
+  if (typeof scope !== 'string' || !WRITE_SCOPES.includes(scope)) return { kind: 'rejected', reason: `unknown scope ${JSON.stringify(scope ?? null)}`, code: 'unknown-scope' }
+  if (typeof category !== 'string' || !CATEGORIES.includes(category)) return { kind: 'rejected', reason: `unknown category ${JSON.stringify(category ?? null)}`, code: 'unknown-category' }
   if (scope === 'project' && (context.projectId === undefined || context.projectId === null)) {
     return { kind: 'rejected', reason: 'project-scope Memory needs a resolved project for this Session', code: 'no-resolved-project' }
   }
 
-  const evidence = buildEvidence(operation.evidence_event_seqs, { ...context, content })
+  const evidence = buildEvidence(proposal.evidence_event_seqs, { ...context, content })
   if (evidence.kind === 'rejected') return evidence
 
   return {
@@ -172,7 +192,7 @@ export function reviewOperation(operation, context: ReviewContext) {
  * @param context - the judging context.
  * @returns the record, or undefined when it is not visible and active.
  */
-function findTarget(targetId: string, context: ReviewContext) {
+function findTarget(targetId: unknown, context: ReviewContext) {
   if (typeof targetId !== 'string' || targetId === '') return undefined
   return context.existing.find((record: MemoryRecord) => record.id === targetId && record.status === 'active')
 }
@@ -189,7 +209,7 @@ function findTarget(targetId: string, context: ReviewContext) {
  * @param context - the judging context, plus the content being stored.
  * @returns `{ kind: 'accepted', entry }` or `{ kind: 'rejected', reason }`.
  */
-function buildEvidence(seqs: number[], context: ReviewContext) {
+function buildEvidence(seqs: unknown, context: ReviewContext) {
   if (!Array.isArray(seqs) || seqs.length === 0) {
     return { kind: 'rejected', reason: 'evidence_event_seqs must be a non-empty array', code: 'evidence-missing' }
   }
