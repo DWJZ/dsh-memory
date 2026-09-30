@@ -23,6 +23,7 @@ import { withLock } from './lock.js'
 import { validateStoreRecords } from './schema.js'
 import { failureMessage } from './errors.js'
 import type { SweepOptions } from './types/seams.js'
+import type { MemoryRecord, MemoryStore } from './types/memory.js'
 
 /** Format version this build writes; an unknown version is refused, never guessed. */
 export const STORE_SCHEMA_VERSION = 1
@@ -197,7 +198,40 @@ function findTemps(dir: string) {
  * @param operation - receives the latest store, returns `{ result, changed }`.
  * @returns the operation's result and the store now on disk.
  */
-export async function withStore(options, operation) {
+/** Where one store lives, and the lock that guards it. */
+export interface StoreLockOptions {
+  /** The store file. */
+  storePath: string
+  /** Its lock file. */
+  lockPath: string
+  /** How long to wait for the lock before reporting the file. */
+  lockTimeoutMs?: number
+  /** Age at which an existing lock is treated as abandoned. */
+  staleLockMs?: number
+  /** Clock in epoch milliseconds. */
+  now?(): number
+  /** The host name written into the lock record. */
+  host?: string
+  /** Whether a recorded process is still alive. */
+  kill?(pid: number, signal?: number | string): boolean
+  /** Diagnostic sink. */
+  logger?: { warn(message: string | Error): void; info?(message: string): void } | undefined
+}
+
+/** What one store mutation produces. */
+export interface StoreMutation {
+  /** Whether anything changed; a mutation that changes nothing skips the write. */
+  changed?: boolean | undefined
+  /** What the caller gets back. */
+  result?: unknown
+  /** The records to write, when it did change. */
+  records?: MemoryRecord[] | undefined
+}
+
+export async function withStore(
+  options: StoreLockOptions,
+  operation: (store: MemoryStore) => StoreMutation | undefined,
+) {
   return withLock(options, () => {
     const store = parseStore(options.storePath)
     // Validate what is already on disk before the mutation runs. An operation
