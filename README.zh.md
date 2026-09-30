@@ -3,13 +3,13 @@ description: "DeepSeek Harness 的持久记忆插件：记住什么、存在哪�
 kind: "plugin-reference"
 ---
 
-# dsh-memory
+# dsh-reflection
 
 [English](README.md) | 中文
 
 ## 摘要
 
-`dsh-memory` 让 Harness agent 拥有跨 Session 的长期 Memory。它保存用户明确要求记住的内容，把用户级与项目级事实分开，在每个新 Session 注入一小段 active 事实的索引，并通过 `/memory` 暴露整个存储。
+`dsh-reflection` 让 Harness agent 拥有跨 Session 的长期 Memory。它保存用户明确要求记住的内容，把用户级与项目级事实分开，在每个新 Session 注入一小段 active 事实的索引，并通过 `/memory` 暴露整个存储。
 
 一条事实进入 Memory 有两条路径：用户要求记住，或者插件自己学到。后者发生在 Session 空闲且持续空闲之后 —— 自上次 consolidation 以来的轨迹会被读取一次，由模型判断其中哪些值得长期保留。但"能不能存"由插件决定：它会逐条核验引用、应用置信度门槛、扫描 secret，并走与显式请求**完全相同**的落盘路径。自动 consolidation **从不删除任何东西**。
 
@@ -213,7 +213,7 @@ npm run test:unit    # 跑套件，走 tsx，不需要 build
 有一种行为任何脚本化运行都展示不了：debounce。它按设计等在 agent 的 maintenance 之外，而一次性运行会先退出。要观察它，需要一个长驻 profile、一条真实账号路由，以及一个除了等待什么都不做的进程：
 
 ```sh
-dsh --profile <装有 dsh-memory 的 web 类 profile> --patch <overlay> --no-open
+dsh --profile <装有 dsh-reflection 的 web 类 profile> --patch <overlay> --no-open
 ```
 
 `test/fixtures/real-trigger-probe.ts` 就是这个进程。在它的 config 里给出任务文本与报告路径后，它会驱动一轮、等过 debounce 而不调用任何东西、关闭 Memory、再驱动第二轮，并把每一步写进报告。该看两处：

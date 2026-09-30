@@ -1,6 +1,6 @@
-# dsh-memory 契约
+# dsh-reflection 契约
 
-本文件是 `dsh-memory` 的**唯一规范权威**，覆盖当前全部实现：Phase 1 的存储与显式操作，以及 Phase 2 的同步自动 consolidation。它规定存储位置、数据模型、操作语义、并发保证与验收标准；测试按它编写，实现按它验收；两者冲突时以本文件为准。
+本文件是 `dsh-reflection` 的**唯一规范权威**，覆盖当前全部实现：Phase 1 的存储与显式操作，以及 Phase 2 的同步自动 consolidation。它规定存储位置、数据模型、操作语义、并发保证与验收标准；测试按它编写，实现按它验收；两者冲突时以本文件为准。
 
 两半各自解决一组问题：
 
@@ -297,7 +297,7 @@ AWS AKIA[0-9A-Z]{16}
 
 ### 7.3 保证范围
 
-**保证**：`dsh-memory` 不会把 detected secret 写入 **Memory subsystem 自己拥有的**持久化数据、返回值、warning、tombstone 或生成 view：
+**保证**：`dsh-reflection` 不会把 detected secret 写入 **Memory subsystem 自己拥有的**持久化数据、返回值、warning、tombstone 或生成 view：
 
 ```text
 memories.json

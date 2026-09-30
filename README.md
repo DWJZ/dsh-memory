@@ -3,13 +3,13 @@ description: "Persistent user and project memory for DeepSeek Harness: what is r
 kind: "plugin-reference"
 ---
 
-# dsh-memory
+# dsh-reflection
 
 English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-memory` gives a Harness agent long-term Memory that survives across Sessions. It stores what the user explicitly asks it to remember, keeps user-wide and project-scoped facts apart, injects a small index of the active facts into every new Session, and exposes the whole store through `/memory`.
+`dsh-reflection` gives a Harness agent long-term Memory that survives across Sessions. It stores what the user explicitly asks it to remember, keeps user-wide and project-scoped facts apart, injects a small index of the active facts into every new Session, and exposes the whole store through `/memory`.
 
 A fact enters Memory in one of two ways. The user asks for it, or the plugin learns it: after a Session goes idle and stays idle, the trajectory since the last consolidation is read once, and a model decides what in it is worth keeping. The plugin decides what *may* be stored — it verifies every citation, applies the confidence floor, screens for secrets, and commits through the same path an explicit request takes. Automatic consolidation never deletes anything.
 
@@ -224,7 +224,7 @@ it needs a long-lived profile, a real account route, and a process that does
 nothing but wait:
 
 ```sh
-dsh --profile <a web-based profile with dsh-memory> --patch <overlay> --no-open
+dsh --profile <a web-based profile with dsh-reflection> --patch <overlay> --no-open
 ```
 
 `test/fixtures/real-trigger-probe.ts` is that process. Given the task text and a

@@ -9,5 +9,5 @@
 #       indexBudgetBytes: 6000
 #       indexBudgetSplit: { user: 0.4, project: 0.6 }
 - insert:
-    - id: dsh-memory
-      name: dsh-memory
+    - id: dsh-reflection
+      name: dsh-reflection
