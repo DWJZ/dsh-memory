@@ -64,7 +64,7 @@ export interface ReviewContext {
   visibleSeqs: Set<number>
   eventsBySeq: Map<number, ObservedEvent>
   existing: MemoryRecord[]
-  content: string
+  content?: string | undefined
   minConfidence: number
   maxEvidencePerMemory: number
   quoteMaxChars: number

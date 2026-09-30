@@ -107,7 +107,9 @@ export function createCollector(options: { maxBufferedEvents?: number | undefine
      * @param throughSeq - the highest consumed seq.
      * @returns the number of events dropped.
      */
-    dropConsumed(sessionId: string, throughSeq: number) {
+    dropConsumed(sessionId: string, throughSeq: number | undefined) {
+      // An empty window consumed nothing, so there is nothing to drop.
+      if (throughSeq === undefined) return 0
       const buffer = bySession.get(sessionId)
       if (buffer === undefined) return 0
       const retained = buffer.events.filter((event: ObservedEvent) => event.seq > throughSeq)

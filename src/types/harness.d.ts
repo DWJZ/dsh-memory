@@ -17,7 +17,15 @@
  */
 
 /** The Session members this plugin reads and writes. */
+/** The route a Session's next request would take, as the harness resolves it. */
+interface SessionRoute {
+  readonly provider?: string | undefined
+  readonly model?: string | undefined
+}
+
 interface MemorySession {
+  /** The route this Session's next request would take, when one is resolved. */
+  requestHeader(): { readonly config?: SessionRoute | undefined } | undefined
   readonly id: string
   /** As `SessionHeader`: the id mirrors the Session's, and the cwd is where it runs. Required, as the harness declares it. */
   readonly header: { readonly id: string; readonly cwd?: string }

@@ -34,6 +34,12 @@ import { advanceHwm, lastProcessedSeq, NO_PROGRESS, progressFor, readState, reco
 import { failureMessage } from '../errors.js'
 import type { ConsolidationRequest } from './model.js'
 import type { ObservedEvent } from '../types/trajectory.js'
+import { createCollector } from './collector.js'
+import type { Context } from '@deepseek-ai/cordis'
+import type { StateLockOptions } from './state.js'
+import type { ProjectEntry } from '../types/identity.js'
+import type { MemoryConsolidationSettings } from '../types/config.js'
+import type { ActionOptions, KillProbe } from '../types/memory.js'
 
 /** Session event type carrying this plugin's consolidation audit. */
 export const AUDIT_EVENT_TYPE = 'dsh-memory/consolidation'
@@ -53,7 +59,60 @@ export const AUDIT_EVENT_TYPE = 'dsh-memory/consolidation'
  * @param options.callModel - the model call seam, injectable for tests.
  * @returns the orchestrator.
  */
-export function createConsolidation(options) {
+/** The compact result of one run, as it is recorded on the Session and rendered. */
+export interface RunAudit {
+  /** How the run ended. */
+  status: string
+  /** What asked for the run. */
+  trigger?: string | undefined
+  /** Proposed, performed and skipped operations, by action. */
+  operations?: { add: number; update: number; supersede: number; noop: number; skipped?: number; failed?: number } | undefined
+  /** Why they were refused, by code. */
+  rejected_reasons?: Record<string, number> | undefined
+  /** The window the run covered, as the audit records it. */
+  from_seq?: number | undefined
+  to_seq?: number | undefined
+  /** How many events the window held, by disposition. */
+  relevant_events?: number | undefined
+  ignored_events?: number | undefined
+  /** The operations the review accepted, as the model proposed them. */
+  accepted?: readonly Record<string, unknown>[] | undefined
+  /** The proposals the review refused. */
+  rejected?: readonly Record<string, unknown>[] | undefined
+  /** Why accepted proposals became no-ops. */
+  noopReasons?: readonly string[] | undefined
+  /** Anything else the run recorded. */
+  [key: string]: unknown
+}
+
+/** The policy one run follows, plus the thresholds it locks and cites with. */
+export interface RunConfig extends MemoryConsolidationSettings {
+  lockTimeoutMs: number
+  staleLockMs: number
+  maxEvidencePerMemory: number
+  quoteMaxChars: number
+}
+
+/** What one consolidation orchestrator is given. */
+export interface ConsolidationOptions {
+  llmScope: Context | (() => Context | undefined)
+  collector: ReturnType<typeof createCollector>
+  scopes: ActionOptions['scopes']
+  state: StateLockOptions
+  actionOptions: ActionOptions
+  config: RunConfig
+  logger?: { warn(message: string | Error): void; info?(message: string): void; debug?(message: string): void } | undefined
+  now?(): number
+  host: string
+  kill?: KillProbe | undefined
+  sessionEvents: boolean
+  projectFor(agent: MemoryAgent): ProjectEntry | null
+  callModel?(request: ConsolidationRequest): Promise<string>
+  schedule?(run: () => void, ms: number): ReturnType<typeof setTimeout>
+  cancelSchedule?(handle: ReturnType<typeof setTimeout>): void
+}
+
+export function createConsolidation(options: ConsolidationOptions) {
   const { collector, scopes, logger, config } = options
   /**
    * Every consolidation run still executing, automatic or driven by a command.
@@ -174,7 +233,7 @@ export function createConsolidation(options) {
    * @param audit - the compact result.
    * @returns nothing.
    */
-  const recordAudit = (session: MemorySession, audit) => {
+  const recordAudit = (session: MemorySession, audit: RunAudit): void => {
     // The plugin's single switch for writing rows into the Session log. It is off
     // by default because appending is not a supported interface for a plugin: this
     // relies on an unknown type carrying the `ignorable` marker.
@@ -206,7 +265,10 @@ export function createConsolidation(options) {
    * @param runOptions.dryRun - review the plan without committing or advancing.
    * @returns a compact outcome.
    */
-  const consolidate = async (agent: MemoryAgent, runOptions = {}) => {
+  const consolidate = async (
+    agent: MemoryAgent,
+    runOptions: { dryRun?: boolean; trigger?: string; signal?: AbortSignal } = {},
+  ) => {
     const sessionId = agent?.session?.id
     if (typeof sessionId !== 'string') return { status: 'no-session' }
     // The maintenance claim is taken when the run actually starts, not while it
@@ -221,7 +283,7 @@ export function createConsolidation(options) {
    * @param runOptions - run options, including the maintenance signal.
    * @returns a compact outcome.
    */
-  const runOnce = async (agent: MemoryAgent, runOptions: { dryRun?: boolean | undefined; trigger?: string | undefined }) => {
+  const runOnce = async (agent: MemoryAgent, runOptions: { dryRun?: boolean | undefined; trigger?: string | undefined; signal?: AbortSignal | undefined }) => {
     const session = agent?.session
     const sessionId = session?.id
     if (typeof sessionId !== 'string') return { status: 'no-session' }
@@ -244,9 +306,11 @@ export function createConsolidation(options) {
       throw new Error(`dsh-memory: consolidation cannot read ${String(window.unsupported.type)} events (seq ${String(window.unsupported.seq)})`)
     }
     if (window.toSeq === undefined) return { status: 'nothing-pending' }
+    // Captured here: the guard's narrowing does not survive into the callbacks below.
+    const toSeq = window.toSeq
     const auditBase = {
       from_seq: afterSeq + 1,
-      to_seq: window.toSeq,
+      to_seq: toSeq,
       relevant_events: window.counts.relevant,
       ignored_events: window.counts.ignored + window.counts.internal + window.counts.skipped,
       trigger: runOptions.trigger ?? 'direct',
@@ -260,9 +324,9 @@ export function createConsolidation(options) {
     const consume = async (status: string) => {
       await withState(stateOptions, current => ({
         changed: true,
-        state: advanceHwm(current, sessionId, window.toSeq, new Date(now()).toISOString()),
+        state: advanceHwm(current, sessionId, toSeq, new Date(now()).toISOString()),
       }))
-      collector.dropConsumed(sessionId, window.toSeq)
+      collector.dropConsumed(sessionId, toSeq)
       // A window with nothing relevant in it taught nothing, and writing an audit
       // for it would be self-defeating: an audit is appended to the Session, which
       // publishes it back to this collector, so auditing an empty window puts the
@@ -284,7 +348,7 @@ export function createConsolidation(options) {
       session,
       sessionId,
       fromSeq: afterSeq + 1,
-      toSeq: window.toSeq,
+      toSeq: toSeq,
       entries: window.entries,
       existing: existing.map(record => ({
         id: record.id,
@@ -298,7 +362,7 @@ export function createConsolidation(options) {
     const plan = parsePlan(text)
     const reviewed = reviewPlan(plan, {
       fromSeq: afterSeq + 1,
-      toSeq: window.toSeq,
+      toSeq: toSeq,
       visibleSeqs: new Set(window.entries.map(entry => entry.seq)),
       eventsBySeq: new Map(collector.eventsFor(sessionId).map((event: ObservedEvent) => [event.seq, event])),
       existing,
@@ -366,9 +430,9 @@ export function createConsolidation(options) {
 
     await withState(stateOptions, current => ({
       changed: true,
-      state: advanceHwm(current, sessionId, window.toSeq, new Date(now()).toISOString()),
+      state: advanceHwm(current, sessionId, toSeq, new Date(now()).toISOString()),
     }))
-    collector.dropConsumed(sessionId, window.toSeq)
+    collector.dropConsumed(sessionId, toSeq)
     const written = { ...operations, ...outcome.committed, skipped: outcome.skipped.length }
     recordAudit(session, { ...auditBase, status: 'success', operations: written, rejected: rejectedCount, ...rejected })
     const wrote = written.add + written.update + written.supersede
@@ -491,7 +555,7 @@ function countRejections(rejected: readonly { code?: unknown }[]): Record<string
  * @param outcome - the outcome from {@link createConsolidation}.
  * @returns the text to show.
  */
-export function describeOutcome(outcome) {
+export function describeOutcome(outcome: RunAudit): string {
   if (outcome.status === 'dry-run') {
     const lines = [
       `Dry run over seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)} (${String(outcome.relevant_events)} relevant, ${String(outcome.ignored_events)} ignored).`,
