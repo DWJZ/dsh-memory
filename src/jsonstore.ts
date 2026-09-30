@@ -218,15 +218,16 @@ export interface StoreLockOptions {
   logger?: { warn(message: string | Error): void; info?(message: string): void } | undefined
 }
 
-/** What one store mutation produces. */
-export interface StoreMutation {
-  /** Whether anything changed; a mutation that changes nothing skips the write. */
-  changed?: boolean | undefined
-  /** What the caller gets back. */
-  result?: unknown
-  /** The records to write, when it did change. */
-  records?: MemoryRecord[] | undefined
-}
+/**
+ * What one store mutation produces.
+ *
+ * A mutation that reports a change must supply the records to write; one that does
+ * not is skipped and carries none, which is what lets the writer read them without
+ * a second check.
+ */
+export type StoreMutation =
+  | { changed: true; records: MemoryRecord[]; result?: unknown }
+  | { changed?: false | undefined; records?: undefined; result?: unknown }
 
 export async function withStore(
   options: StoreLockOptions,
@@ -239,7 +240,11 @@ export async function withStore(
     // schema, and every operation is then allowed to build on a store that holds.
     validateStoreRecords(store.records)
     const outcome = operation(store)
-    if (outcome?.changed !== true) return { result: outcome?.result, revision: store.revision, store }
+    // Checked without optional chaining so the compiler keeps the answer narrowed
+    // to the one that reported a change.
+    if (outcome === undefined || outcome.changed !== true) {
+      return { result: outcome?.result, revision: store.revision, store }
+    }
     const next = {
       schema_version: STORE_SCHEMA_VERSION,
       revision: store.revision + 1,
