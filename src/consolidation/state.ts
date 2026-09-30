@@ -32,7 +32,32 @@ export const NO_PROGRESS = -1
  * An empty consolidation state.
  * @returns the state document.
  */
-export function emptyState() {
+/** One range of sequence numbers nobody observed. */
+export interface ProgressGap {
+  /** First seq in the gap. */
+  from_seq: number
+  /** Last seq in the gap. */
+  to_seq: number
+  /** When the gap was recorded, ISO-8601. */
+  at: string
+}
+
+/** One Session's consolidation progress. */
+export interface ConsolidationProgress {
+  /** Highest seq whose window was fully consumed; -1 before the first run. */
+  last_processed_seq: number
+  /** Ranges the collector noticed were never observed. */
+  gaps: ProgressGap[]
+}
+
+/** The consolidation state document. */
+export interface ConsolidationState {
+  schema_version: number
+  /** Per-Session progress, keyed by Session id. */
+  sessions: Record<string, ConsolidationProgress>
+}
+
+export function emptyState(): ConsolidationState {
   return { schema_version: CONSOLIDATION_SCHEMA_VERSION, sessions: {} }
 }
 
@@ -44,7 +69,7 @@ export function emptyState() {
  * @returns the state document.
  * @throws when the file is unreadable, malformed, or violates the schema.
  */
-export function readState(statePath) {
+export function readState(statePath: string): ConsolidationState {
   if (!existsSync(statePath)) return emptyState()
   let parsed
   try {
@@ -62,17 +87,19 @@ export function readState(statePath) {
  * @param where - path named in failures.
  * @throws {TypeError} when the document violates the schema.
  */
-export function validateState(state, where = 'consolidation state') {
+export function validateState(state: unknown, where: string = 'consolidation state'): void {
+  // Parsed from a durable file: read field by field after the checks below.
+  const document = state as Record<string, unknown>
   if (typeof state !== 'object' || state === null || Array.isArray(state)) {
     throw new TypeError(`dsh-memory: ${where} must hold a JSON object`)
   }
-  if (state.schema_version !== CONSOLIDATION_SCHEMA_VERSION) {
-    throw new TypeError(`dsh-memory: ${where} has schema_version ${JSON.stringify(state.schema_version)}, this build writes ${String(CONSOLIDATION_SCHEMA_VERSION)}`)
+  if (document.schema_version !== CONSOLIDATION_SCHEMA_VERSION) {
+    throw new TypeError(`dsh-memory: ${where} has schema_version ${JSON.stringify(document.schema_version)}, this build writes ${String(CONSOLIDATION_SCHEMA_VERSION)}`)
   }
-  if (typeof state.sessions !== 'object' || state.sessions === null || Array.isArray(state.sessions)) {
+  if (typeof document.sessions !== 'object' || document.sessions === null || Array.isArray(document.sessions)) {
     throw new TypeError(`dsh-memory: ${where} must hold a sessions object`)
   }
-  for (const [sessionId, progress] of Object.entries(state.sessions)) {
+  for (const [sessionId, progress] of Object.entries(document.sessions as Record<string, unknown>)) {
     validateProgress(progress, `${where} session ${sessionId}`)
   }
 }
@@ -83,17 +110,20 @@ export function validateState(state, where = 'consolidation state') {
  * @param where - description named in failures.
  * @throws {TypeError} when the record violates the schema.
  */
-function validateProgress(progress, where) {
+function validateProgress(progress: unknown, where: string): void {
+  // Same boundary as `validateState`: field by field, after the checks.
+  const record = progress as Record<string, unknown>
   if (typeof progress !== 'object' || progress === null || Array.isArray(progress)) {
     throw new TypeError(`dsh-memory: ${where} must be an object`)
   }
-  if (!Number.isInteger(progress.last_processed_seq) || progress.last_processed_seq < NO_PROGRESS) {
-    throw new TypeError(`dsh-memory: ${where} needs an integer last_processed_seq >= ${String(NO_PROGRESS)}, got ${JSON.stringify(progress.last_processed_seq)}`)
+  const last = record.last_processed_seq
+  if (typeof last !== 'number' || !Number.isInteger(last) || last < NO_PROGRESS) {
+    throw new TypeError(`dsh-memory: ${where} needs an integer last_processed_seq >= ${String(NO_PROGRESS)}, got ${JSON.stringify(last)}`)
   }
-  if (!Array.isArray(progress.gaps)) {
+  if (!Array.isArray(record.gaps)) {
     throw new TypeError(`dsh-memory: ${where} needs a gaps array`)
   }
-  for (const gap of progress.gaps) {
+  for (const gap of record.gaps) {
     if (typeof gap !== 'object' || gap === null || Array.isArray(gap)) {
       throw new TypeError(`dsh-memory: ${where} has a non-object gap`)
     }
@@ -114,7 +144,7 @@ function validateProgress(progress, where) {
  * @param sessionId - the Session to look up.
  * @returns its record, or undefined when the Session has never been observed.
  */
-export function progressFor(state, sessionId: string) {
+export function progressFor(state: ConsolidationState, sessionId: string): ConsolidationProgress | undefined {
   return state.sessions[sessionId]
 }
 
@@ -124,7 +154,7 @@ export function progressFor(state, sessionId: string) {
  * @param sessionId - the Session to look up.
  * @returns the last consumed seq, or {@link NO_PROGRESS} when nothing is recorded.
  */
-export function lastProcessedSeq(state, sessionId: string) {
+export function lastProcessedSeq(state: ConsolidationState, sessionId: string): number {
   return progressFor(state, sessionId)?.last_processed_seq ?? NO_PROGRESS
 }
 
@@ -139,7 +169,7 @@ export function lastProcessedSeq(state, sessionId: string) {
  * @param at - ISO-8601 timestamp of the update.
  * @returns the next state document.
  */
-export function advanceHwm(state, sessionId: string, seq: number, at: string) {
+export function advanceHwm(state: ConsolidationState, sessionId: string, seq: number, at: string): ConsolidationState {
   const current = progressFor(state, sessionId)
   if (current !== undefined && seq <= current.last_processed_seq) return state
   return withSession(state, sessionId, {
@@ -164,7 +194,12 @@ export function advanceHwm(state, sessionId: string, seq: number, at: string) {
  * @param at - ISO-8601 timestamp of the update.
  * @returns the next state document.
  */
-export function recordGap(state, sessionId: string, range, at: string) {
+export function recordGap(
+  state: ConsolidationState,
+  sessionId: string,
+  range: { from_seq: number; to_seq: number },
+  at: string,
+): ConsolidationState {
   const current = progressFor(state, sessionId)
   const gaps = [...current?.gaps ?? [], { from_seq: range.from_seq, to_seq: range.to_seq, at }]
   return withSession(state, sessionId, {
