@@ -329,7 +329,10 @@ export function createConsolidation(options: ConsolidationOptions) {
    * @param runOptions - run options, including the maintenance signal.
    * @returns a compact outcome.
    */
-  const runOnce = async (agent: MemoryAgent, runOptions: { dryRun?: boolean | undefined; trigger?: string | undefined; signal?: AbortSignal | undefined }) => {
+  const runOnce = async (
+    agent: MemoryAgent,
+    runOptions: { dryRun?: boolean | undefined; trigger?: string | undefined; signal?: AbortSignal | undefined },
+  ): Promise<RunAudit> => {
     const session = agent?.session
     const sessionId = session?.id
     if (typeof sessionId !== 'string') return { status: 'no-session' }
