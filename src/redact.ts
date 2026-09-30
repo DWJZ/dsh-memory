@@ -52,7 +52,7 @@ export function findSecret(text: string) {
  * @param texts - the texts to inspect.
  * @returns the offending field index and rule name, or undefined when all are clean.
  */
-export function findSecretIn(texts) {
+export function findSecretIn(texts: unknown) {
   const list = Array.isArray(texts) ? texts : [texts]
   for (const [index, text] of list.entries()) {
     const name = findSecret(text)

@@ -18,6 +18,7 @@
 import { closeSync, fsyncSync, mkdirSync, openSync, writeSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { readStore, withStore } from './jsonstore.js'
+import type { StoreMutation } from './jsonstore.js'
 import { withLock } from './lock.js'
 import { mutateAndRefreshView } from './views.js'
 import { findSecretIn } from './redact.js'
@@ -426,7 +427,11 @@ function accumulate(
  * @param operation - receives the latest store, returns `{ result, changed, records }`.
  * @returns the operation's result plus the committed revision and view state.
  */
-async function apply(options: ActionOptions, layout: ScopeLayout, operation: unknown) {
+async function apply(
+  options: ActionOptions,
+  layout: ScopeLayout,
+  operation: (store: MemoryStore) => StoreMutation | undefined,
+) {
   const outcome = await mutateAndRefreshView(scopeOptions(options, layout), operation)
   return { ...outcome.result, revision: outcome.revision, viewStale: outcome.viewStale }
 }
@@ -504,7 +509,7 @@ function scopeOptions(options: ActionOptions, layout: ScopeLayout) {
  * @returns the normalized content.
  * @throws when the content is unusable.
  */
-function requireContent(content: unknown) {
+function requireContent(content: string | undefined): string {
   const normalized = normalizeContent(content ?? '')
   if (normalized === '') throw new Error('dsh-memory: content must not be empty')
   if (charLength(normalized) > MAX_CONTENT_CHARS) {
