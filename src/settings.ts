@@ -17,25 +17,31 @@ import { existsSync, readFileSync } from 'node:fs'
 import { writeAtomic } from './jsonstore.js'
 import { pluginConfigPath } from './paths.js'
 
+/** What this plugin persists for itself. Unknown keys are preserved on write. */
+export type PluginConfig = Record<string, unknown>
+
 /**
  * Read this plugin's own configuration file.
  * @param memoryDir - the Memory root.
  * @returns the stored object, or an empty object when the file is absent.
  * @throws when the file exists but is not a JSON object.
  */
-export function readPluginConfig(memoryDir) {
+export function readPluginConfig(memoryDir: string): PluginConfig {
   const path = pluginConfigPath(memoryDir)
   if (!existsSync(path)) return {}
-  let parsed
+  let parsed: unknown
   try {
     parsed = JSON.parse(readFileSync(path, 'utf8'))
   } catch (error) {
-    throw new Error(`dsh-memory: ${path} is not valid JSON: ${String(error?.message ?? error)}`)
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(`dsh-memory: ${path} is not valid JSON: ${reason}`)
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error(`dsh-memory: ${path} must hold a JSON object`)
   }
-  return parsed
+  // The check above established an object; the cast names the shape rather than
+  // letting a durable file read stay an unchecked value.
+  return parsed as PluginConfig
 }
 
 /**
@@ -43,7 +49,7 @@ export function readPluginConfig(memoryDir) {
  * @param memoryDir - the Memory root.
  * @returns the stored value, or undefined when nothing has been stored yet.
  */
-export function readStoredEnabled(memoryDir) {
+export function readStoredEnabled(memoryDir: string): boolean | undefined {
   const stored = readPluginConfig(memoryDir).enabled
   return typeof stored === 'boolean' ? stored : undefined
 }
@@ -54,7 +60,7 @@ export function readStoredEnabled(memoryDir) {
  * @param configured - the value from `cordis.yml`.
  * @returns the stored value when there is one, otherwise the configured value.
  */
-export function resolveEnabled(memoryDir, configured) {
+export function resolveEnabled(memoryDir: string, configured: boolean | undefined): boolean | undefined {
   return readStoredEnabled(memoryDir) ?? configured
 }
 
@@ -64,7 +70,7 @@ export function resolveEnabled(memoryDir, configured) {
  * @param enabled - the value to store.
  * @throws when the file cannot be written.
  */
-export function writeEnabled(memoryDir, enabled) {
+export function writeEnabled(memoryDir: string, enabled: boolean): void {
   const existing = readPluginConfig(memoryDir)
   writeAtomic(pluginConfigPath(memoryDir), `${JSON.stringify({ ...existing, enabled }, null, 2)}\n`)
 }
