@@ -48,6 +48,38 @@ export interface ConsolidationProgress {
   last_processed_seq: number
   /** Ranges the collector noticed were never observed. */
   gaps: ProgressGap[]
+  /** When the record last advanced, ISO-8601. */
+  updated_at?: string | undefined
+}
+
+/** Where the state document lives, and the lock that guards it. */
+export interface StateLockOptions {
+  /** The state file. */
+  statePath: string
+  /** Its lock file. */
+  lockPath: string
+  /** How long to wait for the lock before reporting the file. */
+  lockTimeoutMs?: number
+  /** Age at which an existing lock is treated as abandoned. */
+  staleLockMs?: number
+  /** Clock in epoch milliseconds. */
+  now?(): number
+  /** The host name written into the lock record. */
+  host?: string
+  /** Whether a recorded process is still alive. */
+  kill?(pid: number, signal?: number | string): boolean
+  /** Diagnostic sink. */
+  logger?: { warn(message: string | Error): void; info?(message: string): void } | undefined
+}
+
+/** What one state mutation produces. */
+export interface StateMutation {
+  /** Whether anything changed; a mutation that changes nothing skips the write. */
+  changed?: boolean | undefined
+  /** The next document. */
+  state: ConsolidationState
+  /** What the caller gets back. */
+  result?: unknown
 }
 
 /** The consolidation state document. */
@@ -216,7 +248,7 @@ export function recordGap(
  * @param progress - its new progress record.
  * @returns the next state document.
  */
-function withSession(state, sessionId: string, progress) {
+function withSession(state: ConsolidationState, sessionId: string, progress: ConsolidationProgress): ConsolidationState {
   return {
     schema_version: CONSOLIDATION_SCHEMA_VERSION,
     sessions: { ...state.sessions, [sessionId]: progress },
@@ -240,7 +272,10 @@ function withSession(state, sessionId: string, progress) {
  * @param operation - receives the latest state, returns the next state.
  * @returns the operation's result and the state now on disk.
  */
-export async function withState(options, operation) {
+export async function withState(
+  options: StateLockOptions,
+  operation: (state: ConsolidationState) => StateMutation,
+): Promise<{ result: unknown; state: ConsolidationState }> {
   return withLock(options, () => {
     const state = readState(options.statePath)
     const outcome = operation(state)
