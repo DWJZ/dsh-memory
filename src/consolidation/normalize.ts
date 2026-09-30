@@ -16,7 +16,7 @@
  * Usage: `import { classify, batchWindow } from './normalize.js'`.
  */
 
-import type { ObservedEvent } from '../types/trajectory.js'
+import type { EventPayload, ObservedEvent } from '../types/trajectory.js'
 /** Namespace reserved for this plugin's own Session events. */
 export const INTERNAL_EVENT_PREFIX = 'dsh-memory/'
 
@@ -135,7 +135,7 @@ export function classify(event: ObservedEvent): Classification {
  * @param event - one Session event.
  * @returns true when a person wrote this message.
  */
-export function isHumanTurn(event) {
+export function isHumanTurn(event: ObservedEvent): boolean {
   return event?.type === 'user/message' && event?.data?.source?.kind === HUMAN_SOURCE_KIND
 }
 

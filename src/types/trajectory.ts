@@ -21,13 +21,30 @@ export interface ObservedEvent {
   seq: number
   /** The event type, as the Session recorded it. */
   type: string
-  /** The event payload, unread until the type says what to expect. */
-  data?: unknown
+  /** The event payload, read through the fields declared in `EventPayload`. */
+  data?: EventPayload | undefined
   /**
    * The envelope's marker for a type a reader may not know. This plugin writes its
    * own rows with it, which is why a build that lacks the type still accepts them.
    */
   ignorable?: boolean | undefined
+}
+
+/**
+ * The payload fields this plugin reads from a Session event.
+ *
+ * A Session event may carry anything; these are the places this plugin looks, and
+ * the index signature keeps the rest available to code that knows more.
+ */
+export interface EventPayload {
+  /** Where a message came from, on the harness's user messages. */
+  source?: { kind?: string } | undefined
+  /** Message content blocks, for message events. */
+  content?: unknown
+  /** The message some events wrap. */
+  message?: { content?: unknown } | undefined
+  /** Anything else the event carries. */
+  [key: string]: unknown
 }
 
 /** One entry of the bounded window a model is asked about. */
