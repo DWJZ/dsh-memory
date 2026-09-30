@@ -48,7 +48,7 @@ export function emptyStore() {
  * @returns the stored document, or an empty store when the file is absent.
  * @throws when the file is unreadable, malformed, or violates the record schema.
  */
-export function readStore(storePath) {
+export function readStore(storePath: string) {
   const document = parseStore(storePath)
   validateStoreRecords(document.records)
   return document
@@ -60,7 +60,7 @@ export function readStore(storePath) {
  * @returns the stored document, or an empty store when the file is absent.
  * @throws when the file is unreadable, malformed, or written by another format version.
  */
-function parseStore(storePath) {
+function parseStore(storePath: string) {
   if (!existsSync(storePath)) return emptyStore()
   const text = readFileSync(storePath, 'utf8')
   let parsed
@@ -90,7 +90,7 @@ function parseStore(storePath) {
  * @param text - the complete new content.
  * @throws when the content cannot be committed.
  */
-export function writeAtomic(targetPath, text: string) {
+export function writeAtomic(targetPath: string, text: string) {
   const dir = dirname(targetPath)
   mkdirSync(dir, { recursive: true })
   const tmpPath = join(dir, `${randomUUID()}${TEMP_MARKER}${basename(targetPath)}`)
@@ -161,7 +161,7 @@ export function cleanupStaleTemps(dir: string, options: SweepOptions = {}) {
  * @param dir - the directory to walk.
  * @returns absolute paths, deepest last.
  */
-function findTemps(dir) {
+function findTemps(dir: string) {
   const found: string[] = []
   let entries
   try {
@@ -225,7 +225,7 @@ export async function withStore(options, operation) {
  * @param dir - the directory to remove.
  * @returns fulfillment once the directory is gone.
  */
-export async function removeStoreDir(dir) {
+export async function removeStoreDir(dir: string) {
   await rm(dir, { recursive: true, force: true })
 }
 
@@ -233,7 +233,7 @@ export async function removeStoreDir(dir) {
  * Flush one directory entry so the rename survives a crash.
  * @param dir - the directory that received the rename.
  */
-function fsyncDirectory(dir) {
+function fsyncDirectory(dir: string) {
   try {
     const fd = openSync(dir, 'r')
     try {
