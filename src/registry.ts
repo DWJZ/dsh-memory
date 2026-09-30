@@ -20,7 +20,7 @@ import { isAbsolute, join, relative, resolve } from 'node:path'
 import { writeAtomic } from './jsonstore.js'
 import { withLock } from './lock.js'
 import { newProjectId, isProjectId, isTimestamp } from './schema.js'
-import type { ProjectEntry, ProjectRegistry } from './types/identity.js'
+import type { ProjectEntry, ProjectRegistry, ResolvedProject } from './types/identity.js'
 import { failureMessage } from './errors.js'
 import type { FileProbe } from './types/seams.js'
 
@@ -329,7 +329,10 @@ export async function resolveOrRegisterProject(
  * @param request.workspaceId - that workspace's id, when known.
  * @returns the project, or null when the session has no project scope.
  */
-export async function resolveProject(options: RegistryOptions, request: ResolveRequest) {
+export async function resolveProject(
+  options: RegistryOptions,
+  request: ResolveRequest,
+): Promise<ResolvedProject | null> {
   const cwd = resolve(request.cwd)
   const registry = readRegistry(options.registryPath)
   const known = matchProject(registry.projects, cwd, options)
