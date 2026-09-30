@@ -367,7 +367,7 @@ export function createConsolidation(options: ConsolidationOptions) {
      * @param status - why nothing was asked.
      * @returns the outcome.
      */
-    const consume = async (status: string) => {
+    const consume = async (status: SettledStatus) => {
       await withState(stateOptions, current => ({
         changed: true,
         state: advanceHwm(current, sessionId, toSeq, new Date(now()).toISOString()),
