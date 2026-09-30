@@ -11,6 +11,7 @@
 import type { MemorySettings } from './config.js'
 import type { ProjectEntry } from './identity.js'
 import type { ActionOptions, EvidenceEntry, Provenance } from './memory.js'
+import type { RunAudit } from '../consolidation/index.js'
 
 /** What one command invocation carries. */
 export interface CommandInvocation {
@@ -47,5 +48,5 @@ export interface MemoryDeps {
   /** The citation for the turn in flight, when the Session has one to cite. */
   evidenceFor(agent: MemoryAgent): Provenance
   /** Run one consolidation for an agent, as `/memory consolidate` does. */
-  consolidate(agent: MemoryAgent, runOptions?: { dryRun?: boolean; trigger?: string }): Promise<unknown>
+  consolidate(agent: MemoryAgent, runOptions?: { dryRun?: boolean; trigger?: string }): Promise<RunAudit>
 }
