@@ -187,10 +187,10 @@ export function createConsolidation(options: ConsolidationOptions) {
    * @param work - the work to run.
    * @returns the work's own outcome.
    */
-  const inSessionOrder = (sessionId: string, work: () => unknown) => {
+  const inSessionOrder = <T>(sessionId: string, work: () => T | Promise<T>): Promise<T> => {
     const previous = queues.get(sessionId) ?? Promise.resolve()
     const next = previous.then(work, work)
-    let tail: Promise<unknown> | undefined
+    let tail: Promise<T> | undefined
     const done = () => { if (queues.get(sessionId) === tail) queues.delete(sessionId) }
     tail = next.then(done, done)
     queues.set(sessionId, tail)
