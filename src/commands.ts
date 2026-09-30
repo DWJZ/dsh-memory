@@ -21,6 +21,7 @@ import { CATEGORIES, STATUSES } from './schema.js'
 import { describeOutcome as describeConsolidation } from './consolidation/index.js'
 import { isAbsolute, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
+import type { CommandInvocation, MemoryDeps } from './types/deps.js'
 
 /** Largest number of rows `list` prints before it says how many remain. */
 const LIST_PAGE = 100
@@ -31,7 +32,7 @@ const LIST_PAGE = 100
  * @param deps - what the command reads, writes, and controls.
  * @returns the exact disposer that removes the command.
  */
-export function registerMemoryCommands(ctx: Context, deps) {
+export function registerMemoryCommands(ctx: Context, deps: MemoryDeps) {
   return ctx.commands.register({
     name: 'memory',
     description: 'Inspect and control persistent Memory',
@@ -46,7 +47,7 @@ export function registerMemoryCommands(ctx: Context, deps) {
  * @param invocation - the command invocation.
  * @returns the text to show, or an error.
  */
-async function run(deps, invocation) {
+async function run(deps: MemoryDeps, invocation: CommandInvocation) {
   const { positional, flags, error: argumentError } = parseArguments(invocation.rawInput)
   if (argumentError !== undefined) return error(`Invalid command arguments: ${argumentError}`)
   const [group, ...rest] = positional
@@ -78,7 +79,7 @@ async function run(deps, invocation) {
  * @param flags - parsed flags.
  * @returns the rendered list.
  */
-async function listCommand(deps, invocation, flags) {
+async function listCommand(deps: MemoryDeps, invocation: CommandInvocation, flags) {
   const status = typeof flags.get('status') === 'string' ? flags.get('status') : 'active'
   if (status !== 'all' && !STATUSES.includes(status)) {
     return error(`dsh-memory: --status must be one of ${[...STATUSES, 'all'].join(', ')}`)
@@ -108,7 +109,7 @@ async function listCommand(deps, invocation, flags) {
  * @param flags - parsed flags.
  * @returns the ranked matches.
  */
-async function searchCommand(deps, invocation, rest, flags) {
+async function searchCommand(deps: MemoryDeps, invocation: CommandInvocation, rest, flags) {
   const query = rest.join(' ')
   if (query === '') return error('usage: /memory search <query> [--top <n>] [--user|--project]')
   const scope = flags.has('user') ? 'user' : flags.has('project') ? 'project' : 'all'
@@ -130,7 +131,7 @@ async function searchCommand(deps, invocation, rest, flags) {
  * @param rest - positional arguments after `inspect`.
  * @returns the record, or an error.
  */
-async function inspectCommand(deps, invocation, rest) {
+async function inspectCommand(deps: MemoryDeps, invocation: CommandInvocation, rest) {
   const [id] = rest
   if (id === undefined) return error('usage: /memory inspect <id>')
   const found = findVisible(deps, invocation, id)
@@ -145,7 +146,7 @@ async function inspectCommand(deps, invocation, rest) {
  * @param rest - positional arguments after `archive`.
  * @returns the outcome.
  */
-async function archiveCommand(deps, invocation, rest) {
+async function archiveCommand(deps: MemoryDeps, invocation: CommandInvocation, rest) {
   const [id] = rest
   if (id === undefined) return error('usage: /memory archive <id>')
   const outcome = await archiveMemory(actionOptions(deps, invocation), {
@@ -162,7 +163,7 @@ async function archiveCommand(deps, invocation, rest) {
  * @param rest - positional arguments after `forget`.
  * @returns the outcome.
  */
-async function forgetCommand(deps, invocation, rest) {
+async function forgetCommand(deps: MemoryDeps, invocation: CommandInvocation, rest) {
   const [id] = rest
   if (id === undefined) return error('usage: /memory forget <id>')
   const outcome = await forgetMemory(actionOptions(deps, invocation), {
@@ -189,7 +190,7 @@ async function forgetCommand(deps, invocation, rest) {
  * @param flags - parsed flags.
  * @returns the outcome, or a refusal when the switch is off.
  */
-async function consolidateCommand(deps, invocation, flags) {
+async function consolidateCommand(deps: MemoryDeps, invocation: CommandInvocation, flags) {
   if (deps.isEnabled() === false) return error('dsh-memory is disabled; run /memory enable first')
   if (deps.consolidationEnabled?.() === false) {
     return error('dsh-memory: automatic consolidation is turned off in this profile (consolidation.enabled)')
@@ -212,7 +213,7 @@ async function consolidateCommand(deps, invocation, flags) {
  * @param flags - parsed flags.
  * @returns the outcome, or a refusal when `--yes` is missing.
  */
-async function clearCommand(deps, invocation, flags) {
+async function clearCommand(deps: MemoryDeps, invocation: CommandInvocation, flags) {
   const scope = flags.has('user') ? 'user' : flags.has('project') ? 'project' : undefined
   if (scope === undefined) return error('usage: /memory clear --user|--project --yes')
   const project = deps.projectFor(invocation.agent)
@@ -235,7 +236,7 @@ async function clearCommand(deps, invocation, flags) {
  * @param flags - parsed flags.
  * @returns the export, or an error when it cannot be shown in one answer.
  */
-async function exportCommand(deps, invocation, flags) {
+async function exportCommand(deps: MemoryDeps, invocation: CommandInvocation, flags) {
   const format = typeof flags.get('format') === 'string' ? flags.get('format') : 'md'
   if (format !== 'md' && format !== 'json') return error('dsh-memory: --format must be md or json')
   const rows = selectedScopes(deps, invocation, flags)
@@ -258,7 +259,7 @@ async function exportCommand(deps, invocation, flags) {
  * @param enabled - the requested state.
  * @returns the outcome.
  */
-async function enableCommand(deps, enabled) {
+async function enableCommand(deps: MemoryDeps, enabled) {
   try {
     await deps.setEnabled(enabled)
   } catch (failure) {
@@ -276,7 +277,7 @@ async function enableCommand(deps, enabled) {
  * @param rest - positional arguments after `project`.
  * @returns the outcome.
  */
-async function projectCommand(deps, invocation, rest) {
+async function projectCommand(deps: MemoryDeps, invocation: CommandInvocation, rest) {
   const [action, ...args] = rest
   const registryOptions = { ...deps.registry, projectRootMarkers: deps.config.projectRootMarkers }
   if (action === 'show' || action === undefined) {
@@ -319,7 +320,7 @@ async function projectCommand(deps, invocation, rest) {
  * @param deps - what the command controls, for the current switch state.
  * @returns the usage text.
  */
-function usageText(deps) {
+function usageText(deps: MemoryDeps) {
   return [
     `dsh-memory (${deps.isEnabled() ? 'enabled' : 'disabled'}) — Memory lives in ${deps.config.memoryDir}`,
     '',
@@ -343,7 +344,7 @@ function usageText(deps) {
  * @param flags - parsed flags.
  * @returns user-scope and project-scope rows.
  */
-function selectedScopes(deps, invocation, flags) {
+function selectedScopes(deps: MemoryDeps, invocation: CommandInvocation, flags) {
   const wantUser = flags.has('user') || !flags.has('project')
   const wantProject = flags.has('project') || !flags.has('user')
   const rows = []
@@ -362,7 +363,7 @@ function selectedScopes(deps, invocation, flags) {
  * @param project - the current project, when there is one.
  * @returns its records, or none.
  */
-function projectRecords(deps, project) {
+function projectRecords(deps: MemoryDeps, project) {
   if (project === null || project === undefined) return []
   return readStore(deps.scopes.project(project.project_id).storePath).records
 }
@@ -374,7 +375,7 @@ function projectRecords(deps, project) {
  * @param id - the record id.
  * @returns the record, or undefined.
  */
-function findVisible(deps, invocation, id) {
+function findVisible(deps: MemoryDeps, invocation: CommandInvocation, id) {
   const project = deps.projectFor(invocation.agent)
   const user = readStore(deps.scopes.user.storePath).records.find(record => record.id === id)
   if (user !== undefined) return user
@@ -387,7 +388,7 @@ function findVisible(deps, invocation, id) {
  * @param invocation - the command invocation.
  * @returns options for the action layer.
  */
-function actionOptions(deps, invocation) {
+function actionOptions(deps: MemoryDeps, invocation: CommandInvocation) {
   return {
     scopes: deps.scopes,
     tombstones: deps.tombstones,
