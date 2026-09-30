@@ -1065,3 +1065,34 @@ DSH STORE 的固定 Commit 检查（Issue #1245）判定的两条确定原因是
 `lockTimeoutMs`/`staleLockMs` 被写成可选；`ActionOptions.kill` 的类型也与 `process.kill` 的签名不一致；
 `commands.ts` 因此连带报出 `bound` 的未知类型。要收敛必须先统一这一组声明（阈值改为必需、探针类型
 统一为一个别名），再改各内部函数的契约 —— 这是一次约 6 个文件的结构改动，不是标注工作。
+
+## 剩余 16 个类型错误：逐个的改法（已验证到"只剩执行"）
+
+服务端 16 / 客户端 0。下面每一项的改法都已由实验确定；`lock.ts` 已清零（9 → 0），其经验是：
+**别名取宽的一侧**（`type KillProbe = (pid: number, signal?: number) => boolean`，不要用
+`typeof process.kill`——它返回字面量 `true`），**跨文件声明必须整套对齐**，**每次替换都要断言命中**。
+
+已在多次尝试中写好并通过检查、需要与新改动一起重放的项：
+
+- `consolidation/index.ts`：`RunConfig`（含 `quoteMaxChars: number`）、`RunAudit`（含索引签名，
+  `operations` 还要 `skipped?`/`failed?`）、`ConsolidationOptions`（`callModel?(request: ConsolidationRequest)`）、
+  `createConsolidation(options: ConsolidationOptions)`、`recordAudit(session: MemorySession, audit: RunAudit): void`、
+  `describeOutcome(outcome: RunAudit): string`、`consolidate(agent, runOptions: { dryRun?; trigger?; signal? })`。
+- `consolidation/collector.ts`：`dropConsumed(sessionId, throughSeq: number | undefined)` + 体内
+  `if (throughSeq === undefined) return 0`。
+- `consolidation/validate.ts`：`ReviewContext.content` 改为可选（那条调用由被调方覆盖它）。
+- `src/types/harness.d.ts`：把 `SessionRoute`（`{ readonly provider?: string; readonly model?: string }`）
+  内联后给 `MemorySession` 补 `requestHeader()`；`model.ts` 里的同名接口是模块内的，不冲突。
+- 运行选项类型补 `signal?: AbortSignal`（错误文本里引用的原文是
+  `{ dryRun?: boolean | undefined; trigger?: string | undefined }`，可据此定位）。
+
+仍未处理的项：
+
+- `consolidation/index.ts`：315 / 421 两处 `number | undefined`（对应函数参数加 `| undefined`）；
+  538 `Record<string, number>` 不能赋给 `number`（`countRejections` 的用法）；550 `outcome.accepted`
+  是 `unknown`（`RunAudit` 补 `accepted`）。
+- `consolidation/validate.ts`：显式 `ReviewOutcome` 返回并据此收窄 88/91 的 `code`/`operation`；
+  217 / 229 的参数接受 `undefined`。
+- `src/index.ts`(205)：`matched_by: string` 收窄为 `ProjectMatch`。
+- `src/actions.ts`(436)：`mutateAndRefreshView` 的 `result` 需为对象类型（现在 spread 的是 unknown）。
+- `src/commands.ts`(208)：把 `unknown` 传入 `RunAudit` 参数。
