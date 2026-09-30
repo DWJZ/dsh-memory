@@ -15,6 +15,7 @@
  */
 
 import { truncateChars } from './schema.js'
+import type { Context } from '@deepseek-ai/cordis'
 
 /** Context contribution name, unique across the harness. */
 export const MEMORY_INDEX_NAME = 'memory:index'
@@ -69,7 +70,7 @@ export const MEMORY_POLICY_TEXT = [
  * @param ctx - the injection scope that owns the runtime.
  * @returns the disposer that removes the section.
  */
-export function registerMemoryPolicy(ctx) {
+export function registerMemoryPolicy(ctx: Context) {
   return ctx.systemPrompt.section({
     name: MEMORY_POLICY_NAME,
     order: MEMORY_POLICY_ORDER,
@@ -83,7 +84,7 @@ export function registerMemoryPolicy(ctx) {
  * @param render - builds the index text for one agent; must be synchronous.
  * @returns the exact disposer that removes the contribution.
  */
-export function registerMemoryIndex(ctx, render) {
+export function registerMemoryIndex(ctx: Context, render) {
   return ctx.systemPrompt.context({
     name: MEMORY_INDEX_NAME,
     order: MEMORY_INDEX_ORDER,
@@ -105,7 +106,7 @@ export function registerMemoryIndex(ctx, render) {
  * @param ctx - Cordis context of this plugin's fiber.
  * @returns an observer with lookup by session and a disposer.
  */
-export function createTurnTracker(ctx) {
+export function createTurnTracker(ctx: Context) {
   const bySession = new Map()
 
   const stateOf = (sessionId) => {
@@ -171,7 +172,7 @@ export function createTurnTracker(ctx) {
  * @param options.now - clock source.
  * @returns the evidence entry and the complete texts to screen.
  */
-export function buildProvenance(agent, tracker, options) {
+export function buildProvenance(agent: MemoryAgent, tracker, options) {
   const sessionId = agent?.session?.header?.id
   if (typeof sessionId !== 'string' || sessionId === '') {
     return { evidence: undefined, sourceTexts: [] }
