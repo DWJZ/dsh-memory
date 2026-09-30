@@ -14,13 +14,14 @@
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { isProjectId } from './schema.js'
+import type { ScopeLayout } from './types/memory.js'
 
 /**
  * Expand a leading `~` against the current user's home directory.
  * @param value - a path, possibly starting with `~`.
  * @returns the path with `~` and `~/` expanded; other paths are unchanged.
  */
-export function expandHome(value) {
+export function expandHome(value: string): string {
   if (value === '~') return homedir()
   if (value.startsWith('~/') || value.startsWith('~\\')) return join(homedir(), value.slice(2))
   return value
@@ -32,7 +33,7 @@ export function expandHome(value) {
  * @param env - environment to read `DSH_HOME` from.
  * @returns an absolute harness home.
  */
-export function resolveDshHome(configured, env = process.env) {
+export function resolveDshHome(configured: string | undefined, env: NodeJS.ProcessEnv = process.env): string {
   const explicit = nonEmpty(configured)
   if (explicit !== undefined) return resolve(expandHome(explicit))
   const fromEnv = nonEmpty(env.DSH_HOME)
@@ -45,7 +46,7 @@ export function resolveDshHome(configured, env = process.env) {
  * @param dshHome - an absolute harness home, as returned by {@link resolveDshHome}.
  * @returns the absolute path of the Memory root, always below `dshHome`.
  */
-export function resolveMemoryDir(dshHome) {
+export function resolveMemoryDir(dshHome: string): string {
   return join(resolve(expandHome(dshHome)), 'memory')
 }
 
@@ -54,7 +55,7 @@ export function resolveMemoryDir(dshHome) {
  * @param scopeDir - the directory holding one scope's Memory.
  * @returns the canonical store, its lock, and the generated view.
  */
-export function scopeLayout(scopeDir) {
+export function scopeLayout(scopeDir: string): ScopeLayout {
   const dir = resolve(expandHome(scopeDir))
   return {
     dir,
@@ -149,7 +150,7 @@ export function pluginConfigPath(memoryDir: string) {
  * @param value - the raw setting.
  * @returns the trimmed value, or undefined when unset or blank.
  */
-function nonEmpty(value) {
+function nonEmpty(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
   return trimmed === '' ? undefined : trimmed

@@ -55,7 +55,7 @@ export const PROJECT_ID_PATTERN = /^proj_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
  * @param value - the value to test.
  * @returns true when the value is a `mem_` id this plugin could have minted.
  */
-export function isMemoryId(value: unknown): boolean {
+export function isMemoryId(value: unknown): value is string {
   return typeof value === 'string' && MEMORY_ID_PATTERN.test(value)
 }
 
@@ -67,7 +67,7 @@ export function isMemoryId(value: unknown): boolean {
  * @param value - the value to test.
  * @returns true when the value is a `proj_` id this plugin could have minted.
  */
-export function isProjectId(value: unknown): boolean {
+export function isProjectId(value: unknown): value is string {
   return typeof value === 'string' && PROJECT_ID_PATTERN.test(value)
 }
 
