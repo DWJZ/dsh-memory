@@ -476,7 +476,7 @@ export function createConsolidation(options) {
  */
 function countRejections(rejected) {
   if (rejected.length === 0) return {}
-  const counts = {}
+  const counts: Record<string, number> = {}
   for (const entry of rejected) {
     const code = typeof entry.code === 'string' ? entry.code : 'other'
     counts[code] = (counts[code] ?? 0) + 1

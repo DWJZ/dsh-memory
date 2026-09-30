@@ -499,6 +499,7 @@ function parseArguments(rawInput) {
   const flags = new Map()
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index]
+    if (token === undefined) continue
     if (!token.startsWith('--')) {
       positional.push(token)
       continue
