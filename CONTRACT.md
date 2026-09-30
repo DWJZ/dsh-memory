@@ -995,14 +995,15 @@ headless 一次性运行          → 任务轮次 idle 后进程随即退出并
 
 此前这三处是"读不存在的属性"（永远 undefined，行为上被各选项的默认值掩盖）。配置的路径值（`dshHome`）与这三者一样来自未校验的配置，因此 `resolveDshHome` 接受 `unknown`，由内部的 `nonEmpty` 判断。
 
-## 已知缺口：lock.ts 的 withLock 签名与它的六个调用方
+## 已知缺口：lock.ts 的两种选项形态混用
 
-`lock.ts` 的三次尝试都失败过，原因现已查清并**拆开**：
+`lock.ts` 的四次尝试都失败过，原因逐步查清：
 
-1. `withoutUndefined(options)` 的返回类型原先被推断成空对象，于是 `resolved.lockPath`、两个阈值全部报"属性不存在"（6 个错误）。**单独修这一处是净改善**（64 → 58，已提交）。
-2. 给 `withLock(options: LockRequest)` 加上签名则**必须同时改六个调用方**（`actions`、`jsonstore`、`registry`×2、`views`、`consolidation/state`）—— 只改签名会从 58 涨到 74。
+1. `withoutUndefined(options)` 的返回类型原先被推断成空对象，`resolved.lockPath` 等 6 处报"属性不存在"。**这一处已单独修好**（64 → 58）。
+2. 只给 `withLock` 加签名不够：模块**内部**还有几个未标注的函数（`reclaimIfStale`、`observeLock`、`acquire`）会报出来。
+3. 把它们统一成"已解析"形态（`ResolvedLock`，阈值必有）也不成立：**有些内部调用点传的是"请求"（阈值可选）**，函数体却按"已解析"读阈值。
 
-**给下一个读者的提醒**：先做第 1 步（已完成），第 2 步要和那六个调用方一次改完；两次分开做都会变差。
+**给下一个读者的提醒**：这个模块混用了两种形态，而**哪个调用点传哪一种，只能逐个读**（`withLock` 里构造出 `resolved`，其它位置可能只有请求）。先做一张"调用点 → 拿到哪种"的清单，再决定拆成两个函数还是让内部自行补默认值 —— 任何"一次全标上"的尝试都会二三十个错误地变差（试过四次）。
 
 ## 已知缺口：project 作用域缺 projectId 的探测路径
 
