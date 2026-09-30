@@ -35,7 +35,7 @@ const SEARCH_SCOPES = Object.freeze(['user', 'project', 'all'])
 /** Shared output declaration: the model reads one compact JSON value. */
 const JSON_OUTPUT = Object.freeze({
   schema: { type: 'object' },
-  render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+  render: (_args: unknown, value: unknown) => [{ type: 'text', text: JSON.stringify(value) }],
 })
 
 const SEARCH_DESCRIPTION = [
@@ -263,7 +263,16 @@ function rememberTool(deps: MemoryDeps) {
  * @param args - the model's arguments.
  * @throws {TypeError} when a mode carries arguments it may not.
  */
-function requireParameterSet(args: Record<string, unknown>) {
+/**
+ * What `memory_remember`'s arguments are once its mode has been checked: an `add`
+ * carries the scope and category it lands in, a rewrite carries the record it
+ * targets. Declared so the check below can narrow rather than restate itself.
+ */
+type ValidatedRememberArgs =
+  | (RememberArgs & { mode: 'add'; scope: MemoryScope; category: MemoryCategory })
+  | (RememberArgs & { mode: 'update' | 'supersede'; target_id: string })
+
+function requireParameterSet(args: Record<string, unknown>): asserts args is ValidatedRememberArgs {
   if (args.mode === 'add') {
     if (args.target_id !== undefined) {
       throw new TypeError('dsh-memory: memory_remember with mode=add must not carry target_id')
