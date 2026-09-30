@@ -41,9 +41,9 @@ export interface TriggerOptions {
   /** How long an idle agent waits before its turn is consolidated. */
   debounceMs?: number
   /** Injectable scheduler, so a test can fire the debounce without waiting. */
-  schedule?(run: () => void, ms: number): unknown
+  schedule?(run: () => void, ms: number): ReturnType<typeof setTimeout>
   /** Cancels a scheduled run. */
-  cancelSchedule?(handle: unknown): void
+  cancelSchedule?(handle: ReturnType<typeof setTimeout>): void
   /** Whether an agent is idle; injectable for the same reason. */
   isIdle?(agent: MemoryAgent): boolean
   /** Ask one agent for its turn, once the debounce expires. */

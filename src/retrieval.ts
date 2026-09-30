@@ -74,7 +74,7 @@ export function queryTokens(query: string) {
  * @returns the bigrams, without duplicates.
  */
 export function queryBigrams(query: string) {
-  const bigrams = new Set()
+  const bigrams = new Set<string>()
   for (const run of query.match(CJK_RUN) ?? []) {
     const characters = Array.from(run)
     for (let index = 0; index + 2 <= characters.length; index += 1) {
