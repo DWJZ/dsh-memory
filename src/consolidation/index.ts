@@ -79,7 +79,7 @@ export function createConsolidation(options) {
    * @param work - the work to run.
    * @returns the work's own outcome.
    */
-  const inSessionOrder = (sessionId, work) => {
+  const inSessionOrder = (sessionId: string, work) => {
     const previous = queues.get(sessionId) ?? Promise.resolve()
     const next = previous.then(work, work)
     let tail
@@ -132,7 +132,7 @@ export function createConsolidation(options) {
    * @param sessionId - the Session being consolidated.
    * @returns the seq to collect after.
    */
-  const reconcile = async (sessionId) => {
+  const reconcile = async (sessionId: string) => {
     const first = collector.firstSeq(sessionId)
     const state = readState(options.state.statePath)
     const mark = lastProcessedSeq(state, sessionId)
@@ -171,7 +171,7 @@ export function createConsolidation(options) {
    * @param audit - the compact result.
    * @returns nothing.
    */
-  const recordAudit = (session, audit) => {
+  const recordAudit = (session: MemorySession, audit) => {
     // The plugin's single switch for writing rows into the Session log. It is off
     // by default because appending is not a supported interface for a plugin: this
     // relies on an unknown type carrying the `ignorable` marker.
@@ -203,13 +203,13 @@ export function createConsolidation(options) {
    * @param runOptions.dryRun - review the plan without committing or advancing.
    * @returns a compact outcome.
    */
-  const consolidate = async (agent, runOptions = {}) => {
+  const consolidate = async (agent: MemoryAgent, runOptions = {}) => {
     const sessionId = agent?.session?.id
     if (typeof sessionId !== 'string') return { status: 'no-session' }
     // The maintenance claim is taken when the run actually starts, not while it
     // waits its turn, so a queued run does not hold an agent's phase open.
     return track(inSessionOrder(sessionId, () =>
-      agent.runMaintenance(signal => runOnce(agent, { ...runOptions, signal }))))
+      agent.runMaintenance((signal: AbortSignal) => runOnce(agent, { ...runOptions, signal }))))
   }
 
   /**
@@ -218,7 +218,7 @@ export function createConsolidation(options) {
    * @param runOptions - run options, including the maintenance signal.
    * @returns a compact outcome.
    */
-  const runOnce = async (agent, runOptions) => {
+  const runOnce = async (agent: MemoryAgent, runOptions) => {
     const session = agent?.session
     const sessionId = session?.id
     if (typeof sessionId !== 'string') return { status: 'no-session' }
@@ -254,7 +254,7 @@ export function createConsolidation(options) {
      * @param status - why nothing was asked.
      * @returns the outcome.
      */
-    const consume = async (status) => {
+    const consume = async (status: string) => {
       await withState(stateOptions, current => ({
         changed: true,
         state: advanceHwm(current, sessionId, window.toSeq, new Date(now()).toISOString()),
@@ -378,7 +378,7 @@ export function createConsolidation(options) {
     logger,
     ...options.schedule === undefined ? {} : { schedule: options.schedule },
     ...options.cancelSchedule === undefined ? {} : { cancelSchedule: options.cancelSchedule },
-    task: agent => consolidate(agent, { trigger: 'idle-debounce' }),
+    task: (agent: MemoryAgent) => consolidate(agent, { trigger: 'idle-debounce' }),
   })
 
   return {
@@ -388,7 +388,7 @@ export function createConsolidation(options) {
      * @param event - the committed event.
      * @returns nothing.
      */
-    observe(session, event) {
+    observe(session: MemorySession, event) {
       collector.observe(session, event)
     },
 
@@ -398,7 +398,7 @@ export function createConsolidation(options) {
      * @param status - its new status.
      * @returns nothing.
      */
-    statusChanged(agent, status) {
+    statusChanged(agent: MemoryAgent, status: string) {
       trigger.statusChanged(agent, status)
     },
 
@@ -415,7 +415,7 @@ export function createConsolidation(options) {
      * @param sessionId - the Session.
      * @returns its mark and gaps, or undefined.
      */
-    progressFor(sessionId) {
+    progressFor(sessionId: string) {
       return progressFor(readState(options.state.statePath), sessionId)
     },
 
