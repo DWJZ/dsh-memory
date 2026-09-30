@@ -357,7 +357,7 @@ export async function bindProject(options: RegistryOptions, path: string) {
  * @returns the updated project.
  * @throws when no project owns the old path, or another project owns the new one.
  */
-export async function relinkProject(options, oldPath, newPath) {
+export async function relinkProject(options: RegistryOptions, oldPath: string, newPath: string) {
   const previous = resolve(oldPath)
   const next = resolve(newPath)
   return withLock(options, () => {
@@ -403,7 +403,7 @@ export function listProjects(registryPath: string, deps: FileProbe = {}) {
  * @param registry - the registry as read.
  * @param projects - the projects to store.
  */
-function commit(options, registry: ProjectRegistry, projects: ProjectEntry[]) {
+function commit(options: RegistryOptions, registry: ProjectRegistry, projects: ProjectEntry[]) {
   writeAtomic(options.registryPath, `${JSON.stringify({
     schema_version: REGISTRY_SCHEMA_VERSION,
     revision: registry.revision + 1,
@@ -418,7 +418,7 @@ function commit(options, registry: ProjectRegistry, projects: ProjectEntry[]) {
  * @param options - clock source.
  * @returns the same entry, or an updated copy.
  */
-function adoptWorkspace(entry: ProjectEntry, workspaceId: string, options) {
+function adoptWorkspace(entry: ProjectEntry, workspaceId: string, options: RegistryOptions) {
   if (workspaceId === undefined || entry.workspace_ids.includes(workspaceId)) return entry
   return { ...entry, workspace_ids: [...entry.workspace_ids, workspaceId], updated_at: nowIso(options) }
 }
@@ -430,7 +430,7 @@ function adoptWorkspace(entry: ProjectEntry, workspaceId: string, options) {
  * @param deps - filesystem seams, injectable for tests.
  * @returns the owning entry, or undefined.
  */
-function locateForRelink(projects: ProjectEntry[], previous, deps) {
+function locateForRelink(projects: ProjectEntry[], previous, deps: FileProbe) {
   const exact = projects.find((entry: ProjectEntry) => projectRoots(entry).some(root => resolve(root) === previous))
   if (exact !== undefined) return exact
   // When the old directory still exists, a symlinked spelling of it also counts.
@@ -443,7 +443,7 @@ function locateForRelink(projects: ProjectEntry[], previous, deps) {
  * @param deps - filesystem seams, injectable for tests.
  * @returns the entry's identity and current roots.
  */
-function describeProject(entry: ProjectEntry, deps) {
+function describeProject(entry: ProjectEntry, deps: FileProbe) {
   const exists = deps.exists ?? existsSync
   return {
     project_id: entry.project_id,
@@ -462,6 +462,6 @@ function describeProject(entry: ProjectEntry, deps) {
  * @param options - clock source.
  * @returns an ISO-8601 UTC instant with millisecond precision.
  */
-function nowIso(options) {
+function nowIso(options: RegistryOptions) {
   return new Date((options.now ?? Date.now)()).toISOString()
 }
