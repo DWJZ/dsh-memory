@@ -75,7 +75,7 @@ export function createTrigger(options: TriggerOptions) {
    * @param key - the agent's Session id.
    * @returns nothing.
    */
-  const cancelPending = (key) => {
+  const cancelPending = (key: string): void => {
     const handle = pending.get(key)
     if (handle === undefined) return
     pending.delete(key)
@@ -92,7 +92,7 @@ export function createTrigger(options: TriggerOptions) {
    * @param key - the agent's Session id.
    * @returns fulfillment once the task has settled.
    */
-  const expire = async (agent: MemoryAgent, key) => {
+  const expire = async (agent: MemoryAgent, key: string): Promise<void> => {
     pending.delete(key)
     if (running.has(key)) return
     if (!isIdle(agent)) return
@@ -115,7 +115,7 @@ export function createTrigger(options: TriggerOptions) {
      * @param status - its new status.
      * @returns nothing.
      */
-    statusChanged(agent: MemoryAgent, status) {
+    statusChanged(agent: MemoryAgent, status: string) {
       const key = keyOf(agent)
       if (key === undefined) return
       if (status !== 'idle') {
