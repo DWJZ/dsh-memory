@@ -15,6 +15,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { CONSOLIDATION_SYSTEM_PROMPT, buildRequest } from './policy.js'
+import { failureCode, failureMessage } from '../errors.js'
 
 /** The terminal reason a stream reports, as far as this call reads it. */
 interface StreamFinish {
@@ -111,7 +112,7 @@ export async function callConsolidator(ctx: Context, request: ConsolidationReque
   if (reason === undefined) throw new Error('dsh-memory: the consolidation call ended without a finish reason')
   if (reason.kind === 'error' || reason.kind === 'aborted') {
     const failure = reason.failure
-    throw new Error(`dsh-memory: the consolidation call ended as ${reason.kind}: ${String(failure?.code ?? 'unknown')}: ${String(failure?.message ?? 'no message')}`)
+    throw new Error(`dsh-memory: the consolidation call ended as ${reason.kind}: ${failureCode(failure) ?? 'unknown'}: ${failureMessage(failure)}`)
   }
   // Consolidation declares no tools, so `tool-calls` is as unfinished as a
   // truncation. The reason map is merge-extensible, so anything not named here

@@ -15,6 +15,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { writeAtomic } from '../jsonstore.js'
 import { withLock } from '../lock.js'
+import { failureMessage } from '../errors.js'
 
 /** Format version of `consolidation-state.json`. */
 export const CONSOLIDATION_SCHEMA_VERSION = 1
@@ -49,7 +50,7 @@ export function readState(statePath) {
   try {
     parsed = JSON.parse(readFileSync(statePath, 'utf8'))
   } catch (error) {
-    throw new Error(`dsh-memory: ${statePath} is not valid JSON: ${String(error?.message ?? error)}`)
+    throw new Error(`dsh-memory: ${statePath} is not valid JSON: ${failureMessage(error)}`)
   }
   validateState(parsed, statePath)
   return parsed

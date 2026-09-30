@@ -16,6 +16,7 @@
  * Usage: `trigger.statusChanged(agent, 'idle')` from an `agent/status` listener.
  */
 
+import { failureMessage } from '../errors.js'
 /** Debounce before an idle agent is consolidated, in milliseconds. */
 export const DEFAULT_DEBOUNCE_MS = 10_000
 
@@ -84,7 +85,7 @@ export function createTrigger(options) {
     } catch (failure) {
       // A failed consolidation must not escape into the status listener: the
       // mark stays put and the next idle period retries the same window.
-      options.logger?.warn(`dsh-memory: consolidation failed for ${key}: ${String(failure?.message ?? failure)}`)
+      options.logger?.warn(`dsh-memory: consolidation failed for ${key}: ${failureMessage(failure)}`)
     } finally {
       running.delete(key)
     }

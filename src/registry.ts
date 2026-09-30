@@ -21,6 +21,7 @@ import { writeAtomic } from './jsonstore.js'
 import { withLock } from './lock.js'
 import { newProjectId, isProjectId, isTimestamp } from './schema.js'
 import type { ProjectEntry, ProjectRegistry } from './types/identity.js'
+import { failureMessage } from './errors.js'
 
 /** Registry format version this build writes; an unknown version is refused. */
 export const REGISTRY_SCHEMA_VERSION = 1
@@ -49,7 +50,7 @@ export function readRegistry(registryPath: string) {
   try {
     parsed = JSON.parse(readFileSync(registryPath, 'utf8'))
   } catch (error) {
-    throw new Error(`dsh-memory: ${registryPath} is not valid JSON: ${String(error?.message ?? error)}`)
+    throw new Error(`dsh-memory: ${registryPath} is not valid JSON: ${failureMessage(error)}`)
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error(`dsh-memory: ${registryPath} must hold a JSON object`)

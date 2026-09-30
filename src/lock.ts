@@ -19,6 +19,7 @@ import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, st
 import { hostname } from 'node:os'
 import { dirname } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { failureCode } from './errors.js'
 
 /** How long one acquisition attempt waits before retrying. */
 const RETRY_DELAY_MS = 25
@@ -42,7 +43,7 @@ export function isProcessAlive(pid: number, kill = process.kill) {
     kill(pid, 0)
     return true
   } catch (error) {
-    return error?.code !== 'ESRCH'
+    return failureCode(error) !== 'ESRCH'
   }
 }
 
@@ -82,7 +83,7 @@ export function reclaimIfStale(lockPath: string, options) {
     options.onWarn?.(`reclaimed stale lock ${lockPath} (age ${String(Math.round(current.ageMs))}ms, pid ${String(current.record?.pid ?? 'unknown')})`)
     return true
   } catch (error) {
-    if (error?.code === 'ENOENT') return true
+    if (failureCode(error) === 'ENOENT') return true
     return false
   } finally {
     releaseReclaimMutex(mutexPath)
@@ -219,7 +220,7 @@ async function acquire(options, nonce: string) {
       }
       return true
     } catch (error) {
-      if (error?.code !== 'EEXIST') throw error
+      if (failureCode(error) !== 'EEXIST') throw error
     }
 
     const reclaimed = reclaimIfStale(options.lockPath, {
@@ -249,7 +250,7 @@ function releaseLockFile(lockPath: string, nonce: string) {
     if (record?.nonce !== nonce) return
     unlinkSync(lockPath)
   } catch (error) {
-    if (error?.code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
+    if (failureCode(error) !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
   }
 }
 

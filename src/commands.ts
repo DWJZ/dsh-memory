@@ -22,6 +22,7 @@ import { describeOutcome as describeConsolidation } from './consolidation/index.
 import { isAbsolute, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { CommandInvocation, MemoryDeps } from './types/deps.js'
+import { failureMessage } from './errors.js'
 
 /** Largest number of rows `list` prints before it says how many remain. */
 const LIST_PAGE = 100
@@ -68,7 +69,7 @@ async function run(deps: MemoryDeps, invocation: CommandInvocation) {
       default: return error(`unknown /memory subcommand "${String(group)}"\n\n${usageText(deps)}`)
     }
   } catch (failure) {
-    return error(`dsh-memory: ${String(failure?.message ?? failure)}`)
+    return error(`dsh-memory: ${failureMessage(failure)}`)
   }
 }
 
@@ -202,7 +203,7 @@ async function consolidateCommand(deps: MemoryDeps, invocation: CommandInvocatio
     })
     return ok(describeConsolidation(outcome))
   } catch (failure) {
-    return error(`dsh-memory: consolidation failed: ${String(failure?.message ?? failure)}`)
+    return error(`dsh-memory: consolidation failed: ${failureMessage(failure)}`)
   }
 }
 
@@ -263,7 +264,7 @@ async function enableCommand(deps: MemoryDeps, enabled) {
   try {
     await deps.setEnabled(enabled)
   } catch (failure) {
-    return error(`dsh-memory: could not persist the switch: ${String(failure?.message ?? failure)}`)
+    return error(`dsh-memory: could not persist the switch: ${failureMessage(failure)}`)
   }
   return ok(enabled
     ? 'Memory is enabled: the index is injected and the memory tools are available.'

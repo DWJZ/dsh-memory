@@ -21,6 +21,7 @@ import { randomUUID } from 'node:crypto'
 import { basename, dirname, join } from 'node:path'
 import { withLock } from './lock.js'
 import { validateStoreRecords } from './schema.js'
+import { failureMessage } from './errors.js'
 
 /** Format version this build writes; an unknown version is refused, never guessed. */
 export const STORE_SCHEMA_VERSION = 1
@@ -65,7 +66,7 @@ function parseStore(storePath) {
   try {
     parsed = JSON.parse(text)
   } catch (error) {
-    throw new Error(`dsh-memory: ${storePath} is not valid JSON: ${String(error?.message ?? error)}`)
+    throw new Error(`dsh-memory: ${storePath} is not valid JSON: ${failureMessage(error)}`)
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error(`dsh-memory: ${storePath} must hold a JSON object`)

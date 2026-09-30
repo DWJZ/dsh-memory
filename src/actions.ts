@@ -23,6 +23,7 @@ import { mutateAndRefreshView } from './views.js'
 import { findSecretIn } from './redact.js'
 import { MAX_CONTENT_CHARS, charLength, newMemoryId, normalizeContent, validateMemory } from './schema.js'
 import type { ActionInput, ActionOptions, MemoryRecord, MemoryScope, MemoryStore, ScopeLayout } from './types/memory.js'
+import { failureMessage } from './errors.js'
 
 /**
  * Confidence of a record the user asked for directly.
@@ -377,7 +378,7 @@ async function recordTombstone(options: ActionOptions, entry: MemoryRecord) {
     await appendTombstone(options, entry)
     return true
   } catch (error) {
-    options.logger?.warn(`dsh-memory: could not append the tombstone for ${String(entry.id ?? entry.op)}: ${String(error?.message ?? error)}`)
+    options.logger?.warn(`dsh-memory: could not append the tombstone for ${String(entry.id ?? entry.op)}: ${failureMessage(error)}`)
     return false
   }
 }

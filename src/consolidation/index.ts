@@ -31,6 +31,7 @@ import { parsePlan } from './policy.js'
 import { reviewPlan } from './validate.js'
 import { commitOperations } from './commit.js'
 import { advanceHwm, lastProcessedSeq, NO_PROGRESS, progressFor, readState, recordGap, withState } from './state.js'
+import { failureMessage } from '../errors.js'
 
 /** Session event type carrying this plugin's consolidation audit. */
 export const AUDIT_EVENT_TYPE = 'dsh-memory/consolidation'
@@ -182,7 +183,7 @@ export function createConsolidation(options) {
     try {
       session.append(AUDIT_EVENT_TYPE, audit, { ignorable: true })
     } catch (failure) {
-      logger?.warn?.(`dsh-memory: could not record the consolidation audit: ${String(failure?.message ?? failure)}`)
+      logger?.warn?.(`dsh-memory: could not record the consolidation audit: ${failureMessage(failure)}`)
     }
   }
 
