@@ -8,7 +8,7 @@
  * calling it, and follows the same precedence: explicit setting, then
  * `$DSH_HOME`, then `~/.dsh`.
  *
- * @module dsh-memory/paths
+ * @module dsh-reflection/paths
  */
 
 import { homedir } from 'node:os'
@@ -109,7 +109,7 @@ export function consolidationLayout(memoryDir: string) {
  */
 export function projectLayout(memoryDir: string, projectId: string | null | undefined) {
   if (!isProjectId(projectId)) {
-    throw new TypeError(`dsh-memory: project id must be a project id, got ${JSON.stringify(projectId)}`)
+    throw new TypeError(`dsh-reflection: project id must be a project id, got ${JSON.stringify(projectId)}`)
   }
   return scopeLayout(join(resolve(expandHome(memoryDir)), 'projects', projectId))
 }

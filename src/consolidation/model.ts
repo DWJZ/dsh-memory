@@ -80,14 +80,14 @@ export async function callConsolidator(ctx: Context, request: ConsolidationReque
   const provider = route?.provider
   const model = route?.model
   if (typeof provider !== 'string' || typeof model !== 'string') {
-    throw new Error('dsh-memory: this Session has no resolved model route to consolidate with')
+    throw new Error('dsh-reflection: this Session has no resolved model route to consolidate with')
   }
 
   const userMessage = {
     id: randomUUID(),
     role: 'user',
     content: [{ type: 'text', text: buildRequest(request) }],
-    source: { kind: 'dsh-memory-consolidation' },
+    source: { kind: 'dsh-reflection-consolidation' },
   }
 
   let text = ''
@@ -109,17 +109,17 @@ export async function callConsolidator(ctx: Context, request: ConsolidationReque
   // `aborted` finish, and a truncated answer arrives as `max-tokens`. Reading the
   // text without the reason would commit a plan the model never finished making,
   // and then advance the mark over it.
-  if (reason === undefined) throw new Error('dsh-memory: the consolidation call ended without a finish reason')
+  if (reason === undefined) throw new Error('dsh-reflection: the consolidation call ended without a finish reason')
   if (reason.kind === 'error' || reason.kind === 'aborted') {
     const failure = reason.failure
-    throw new Error(`dsh-memory: the consolidation call ended as ${reason.kind}: ${failureCode(failure) ?? 'unknown'}: ${failureMessage(failure)}`)
+    throw new Error(`dsh-reflection: the consolidation call ended as ${reason.kind}: ${failureCode(failure) ?? 'unknown'}: ${failureMessage(failure)}`)
   }
   // Consolidation declares no tools, so `tool-calls` is as unfinished as a
   // truncation. The reason map is merge-extensible, so anything not named here
   // fails the batch rather than being treated as success by default.
   if (reason.kind !== 'stop') {
-    throw new Error(`dsh-memory: the consolidation call ended as ${String(reason.kind)}, which is not a completed answer`)
+    throw new Error(`dsh-reflection: the consolidation call ended as ${String(reason.kind)}, which is not a completed answer`)
   }
-  if (text.trim() === '') throw new Error('dsh-memory: the consolidation model produced no text')
+  if (text.trim() === '') throw new Error('dsh-reflection: the consolidation model produced no text')
   return text
 }

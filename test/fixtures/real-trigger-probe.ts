@@ -23,7 +23,7 @@ import type {} from '@deepseek-ai/dsh-fs'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 
 /** Stable Cordis plugin name. */
-export const name = 'dsh-memory-real-trigger-probe'
+export const name = 'dsh-reflection-real-trigger-probe'
 
 /** Services this probe drives. */
 export const inject = ['loader', 'agents', 'agentDefaultModel', 'sessions', 'fs', 'commands']
@@ -48,7 +48,7 @@ export interface Config {
  * @param config - task text, report path, and waits.
  */
 export function apply(ctx: Context, config: Config = {}): void {
-  const report = config.report ?? '/tmp/dsh-memory-probe.jsonl'
+  const report = config.report ?? '/tmp/dsh-reflection-probe.jsonl'
   const step = (name: string, extra: Record<string, unknown> = {}): void => {
     appendFileSync(report, `${JSON.stringify({ step: name, at: Date.now(), ...extra })}\n`)
   }

@@ -530,7 +530,7 @@ acquire in-process mutex
 ```js
 let tmpPath, committed = false
 try {
-  tmpPath = <同目录，命名匹配 *.dsh-memory-tmp-*>
+  tmpPath = <同目录，命名匹配 *.dsh-reflection-tmp-*>
   create tmp → write → fsync → close → rename
   committed = true
 } finally {
@@ -541,7 +541,7 @@ try {
 
 不带清理的话，`fsync` / `rename` 失败会在 memory 目录里不断残留含旧 Memory 内容的 `.tmp` 文件。
 
-mount 时 best-effort 删除**自己命名规则**的残留 temp（`*.dsh-memory-tmp-*`），**只删这个 pattern**，不扫不删未知 `.tmp`。这不是 journal，也不改变 transaction model。
+mount 时 best-effort 删除**自己命名规则**的残留 temp（`*.dsh-reflection-tmp-*`），**只删这个 pattern**，不扫不删未知 `.tmp`。这不是 journal，也不改变 transaction model。
 
 ### 11.3 Lock
 
@@ -897,7 +897,7 @@ $DSH_HOME/memory/consolidation-state.json
 
 ```text
 ignorable === true   → 忽略：不送模型、不可作 evidence，但必须被 mark 消费
-dsh-memory/*         → 内部事件：同上，另按命名空间排除（纵深防御）
+dsh-reflection/*         → 内部事件：同上，另按命名空间排除（纵深防御）
 已知且承载轮次内容    → 归一化后送模型（user/message、assistant/message、tool/call、tool/result、developer/message）
 已知但只是簿记        → 消费、不送、不失败
 本 build 不认识       → **停止本批次并指名类型**
@@ -936,7 +936,7 @@ failed（写入没发生）                  → mark 不动，窗口重试
 
 成功、仅 NOOP、仅 ignorable、无人类轮次 → **都算成功并前进 mark**（否则同一段无关轨迹会被永远重新检查）。任何失败、以及**部分提交**，mark 都不前进；重试时**重读最新 Memory 状态重新决策**，不重放旧计划。
 
-collector 保留**所有** seq（包括本插件自己写的 audit）：audit 会通过 `session.append()` 同步发布回 `session/event`，所以它确实进入缓冲区。区别在分类与收尾：`dsh-memory/*` 归为 internal，既不进模型输入、也不作为 evidence；**只含 internal/skipped 事件（即 `relevant_events === 0`）的窗口被消费但不写审计** —— 否则一条 audit 会成为下一个窗口的内容，再写出下一条，命令永远到不了 `nothing pending`。
+collector 保留**所有** seq（包括本插件自己写的 audit）：audit 会通过 `session.append()` 同步发布回 `session/event`，所以它确实进入缓冲区。区别在分类与收尾：`dsh-reflection/*` 归为 internal，既不进模型输入、也不作为 evidence；**只含 internal/skipped 事件（即 `relevant_events === 0`）的窗口被消费但不写审计** —— 否则一条 audit 会成为下一个窗口的内容，再写出下一条，命令永远到不了 `nothing pending`。
 
 有界输入：超过 `maxRelevantEventsPerBatch` / `maxTrajectoryBytesPerBatch` 时只消费最旧的有界前缀，mark 只前进到该前缀末尾。单个超大事件仍必须被消费（截断其文本），否则该窗口永远无法前进。
 
@@ -944,7 +944,7 @@ collector 保留**所有** seq（包括本插件自己写的 audit）：audit �
 
 ## P2-6. 审计
 
-每次运行写一条 `dsh-memory/consolidation` Session 事件，**标记 `ignorable: true`**，内容为计数：`from_seq` / `to_seq` / `relevant_events` / `ignored_events` / `operations` / `status`。
+每次运行写一条 `dsh-reflection/consolidation` Session 事件，**标记 `ignorable: true`**，内容为计数：`from_seq` / `to_seq` / `relevant_events` / `ignored_events` / `operations` / `status`。
 
 不得写入：secret、完整轨迹、完整 Memory 内容。审计用于调试与评估，不是第二份 Memory。
 
@@ -1038,20 +1038,20 @@ Phase 1 的 secret writer-policy 同样适用于 Phase 2：新增文本（新 co
 - [ ] 审计事件带计数、标 ignorable、不泄漏内容、写入失败不回退 mark
 - [ ] 下一个 Session 能检索到自动学到的 Memory
 
-## 插件改名：dsh-memory → dsh-reflection
+## 插件改名：dsh-reflection → dsh-reflection
 
-DSH STORE 的固定 Commit 检查（Issue #1245）判定的两条确定原因是：包名 `dsh-memory` 与商城已有条目
-（`FuRongJun-1999/dsh-memory`）冲突，以及 manifest 缺少逐版本 `dsh.compatibility.dshReleases` 声明。
+DSH STORE 的固定 Commit 检查（Issue #1245）判定的两条确定原因是：包名 `dsh-reflection` 与商城已有条目
+（`FuRongJun-1999/dsh-reflection`）冲突，以及 manifest 缺少逐版本 `dsh.compatibility.dshReleases` 声明。
 插件因此改名为 **dsh-reflection**（查过商城索引 746 条，该名未被占用）。
 
 **改名范围与故意不改的部分：**
 
 - 改：`package.json` 的 `name`、`cordis.patch.yml` 的 Bundle entry `id`/`name`、README/契约文档中的插件名、
   以及本机 desktop profile 的依赖键、bundle 列表与 patch entry id。
-- **不改：Session 事件类型名 `dsh-memory/consolidation`、`dsh-memory/project`。** 它们是已写入 Session
+- **不改：Session 事件类型名 `dsh-reflection/consolidation`、`dsh-reflection/project`。** 它们是已写入 Session
   日志的持久数据键，改名会让历史会话无法被识别；仓库规则禁止移动或覆盖已提交的代际。
 - 不改：仓库目录名与 GitHub 仓库名（它们是路径与远端名称，不是包标识）。
-- 暂未改：诊断消息前缀 `dsh-memory:`（纯文案；改它需同步 `test/views.spec.mjs` 的三处断言）。
+- 暂未改：诊断消息前缀 `dsh-reflection:`（纯文案；改它需同步 `test/views.spec.mjs` 的三处断言）。
 
 ## 剩余类型错误为何不能靠标注收敛
 

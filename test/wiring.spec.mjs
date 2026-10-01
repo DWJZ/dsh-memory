@@ -29,7 +29,7 @@ const check = (name, condition, detail = '') => {
   }
 }
 
-const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-wiring-'))
+const ROOT = mkdtempSync(join(tmpdir(), 'dsh-reflection-wiring-'))
 const MEMORY = join(ROOT, 'memory')
 mkdirSync(MEMORY, { recursive: true })
 const PROJECT_DIR = join(ROOT, 'project')
@@ -194,7 +194,7 @@ console.log('the project attribution is recorded once per Session')
   }
   attrCtx.emit('agent/created', { agent: attrAgent })
   await new Promise(resolve => { setImmediate(resolve) })
-  const attribution = written.filter(entry => entry.type === 'dsh-memory/project')
+  const attribution = written.filter(entry => entry.type === 'dsh-reflection/project')
   check('the attribution is recorded', attribution.length === 1, JSON.stringify(written.map(entry => entry.type)))
   check('it names the project and the root',
     typeof attribution[0]?.data?.project_id === 'string'
@@ -382,7 +382,7 @@ console.log('an audit does not seed the next window')
   const loopAgent = { session, runMaintenance: task => task(new AbortController().signal) }
   loopCtx.emit('session/event', session, {
     seq: 0,
-    type: 'dsh-memory/consolidation',
+    type: 'dsh-reflection/consolidation',
     data: { from_seq: 0, to_seq: 0, status: 'success' },
     ignorable: true,
   })

@@ -144,8 +144,8 @@ When `sessionEvents` is on, the Web UI's Trajectory ledger shows what the plugin
 
 | Event | What its row says | Emphasis |
 |---|---|---|
-| `dsh-memory/consolidation` | the run's status and trigger, the sequence range it covered, and what it wrote — added, updated, superseded and no-op counts, plus rejected, skipped and failed when there were any. A gap names the range no process ever observed and carries no counts | `success` green, `partial` amber, `no-human-turn` grey, `gap` red |
-| `dsh-memory/project` | the project root, which lookup decided it — a registered path, a workspace, or a root marker — and the project and workspace ids | none: an attribution is a fact, not an outcome |
+| `dsh-reflection/consolidation` | the run's status and trigger, the sequence range it covered, and what it wrote — added, updated, superseded and no-op counts, plus rejected, skipped and failed when there were any. A gap names the range no process ever observed and carries no counts | `success` green, `partial` amber, `no-human-turn` grey, `gap` red |
+| `dsh-reflection/project` | the project root, which lookup decided it — a registered path, a workspace, or a root marker — and the project and workspace ids | none: an attribution is a fact, not an outcome |
 
 Both events are log-only: they carry the envelope's `ignorable` marker, so they never reach a model request, and a build that does not know the type skips them instead of refusing the session. Each row is an `extension` record — this plugin's own summary, emphasis and raw payload — so the ledger renders it without knowing any of this plugin's field names, and the shared details payload tab shows the audit as it was written. Nothing here is served over HTTP: the rows read the Session's own log.
 

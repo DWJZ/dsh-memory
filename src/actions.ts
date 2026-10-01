@@ -12,7 +12,7 @@
  * overlap this layer recognises is an exact duplicate, compared without folding
  * case, because `Model-X` and `model-x` can be different things.
  *
- * @module dsh-memory/actions
+ * @module dsh-reflection/actions
  */
 
 import { closeSync, fsyncSync, mkdirSync, openSync, writeSync } from 'node:fs'
@@ -55,7 +55,7 @@ export const EXPLICIT_UPDATE_CONFIDENCE = 0.95
 function requireConfidence(value: unknown, fallback: number) {
   if (value === undefined) return fallback
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
-    throw new TypeError(`dsh-memory: confidence must be a number in [0, 1], got ${JSON.stringify(value)}`)
+    throw new TypeError(`dsh-reflection: confidence must be a number in [0, 1], got ${JSON.stringify(value)}`)
   }
   return value
 }
@@ -230,7 +230,7 @@ export async function forgetMemory(options: ActionOptions, input: RecordTarget) 
   const outcome = await apply(options, located.layout, (store: MemoryStore) => {
     const doomed = store.records.find((entry: MemoryRecord) => entry.id === input.id)
     if (doomed === undefined) {
-      throw new Error(`dsh-memory: memory ${input.id} is no longer present`)
+      throw new Error(`dsh-reflection: memory ${input.id} is no longer present`)
     }
     // Deleting a record must not leave others claiming to be superseded by it.
     // A predecessor either inherits the deleted record's successor, keeping the
@@ -319,7 +319,7 @@ export class MemoryNotVisibleError extends Error {
    * @param id - the record the caller asked for.
    */
   constructor(id: string) {
-    super(`dsh-memory: memory ${id} is not visible to this session`)
+    super(`dsh-reflection: memory ${id} is not visible to this session`)
     this.name = 'MemoryNotVisibleError'
     /** The id that could not be found. */
     this.id = id
@@ -354,7 +354,7 @@ export function locateVisible(options: ActionOptions, id: string, projectId: str
  */
 export async function appendTombstone(options: ActionOptions, entry: TombstoneEntry) {
   const target = options.tombstones
-  if (target === undefined) throw new Error('dsh-memory: no tombstone location is configured')
+  if (target === undefined) throw new Error('dsh-reflection: no tombstone location is configured')
   mkdirSync(dirname(target.path), { recursive: true })
   await withLock({
     ...target,
@@ -387,7 +387,7 @@ async function recordTombstone(options: ActionOptions, entry: TombstoneEntry) {
     await appendTombstone(options, entry)
     return true
   } catch (error) {
-    options.logger?.warn(`dsh-memory: could not append the tombstone for ${String('id' in entry ? entry.id : entry.op)}: ${failureMessage(error)}`)
+    options.logger?.warn(`dsh-reflection: could not append the tombstone for ${String('id' in entry ? entry.id : entry.op)}: ${failureMessage(error)}`)
     return false
   }
 }
@@ -454,9 +454,9 @@ async function apply<T = Record<string, unknown>>(
  */
 function requireActive(store: MemoryStore, id: string) {
   const record = store.records.find((entry: MemoryRecord) => entry.id === id)
-  if (record === undefined) throw new Error(`dsh-memory: memory ${id} is no longer present`)
+  if (record === undefined) throw new Error(`dsh-reflection: memory ${id} is no longer present`)
   if (record.status !== 'active') {
-    throw new Error(`dsh-memory: memory ${id} is ${record.status} and cannot be modified`)
+    throw new Error(`dsh-reflection: memory ${id} is ${record.status} and cannot be modified`)
   }
   return record
 }
@@ -472,10 +472,10 @@ function requireActive(store: MemoryStore, id: string) {
 function requireLayout(options: ActionOptions, scope: MemoryScope, projectId: string | null | undefined): ScopeLayout {
   if (scope === 'user') return options.scopes.user
   if (projectId === undefined || projectId === null) {
-    throw new Error('dsh-memory: project scope requires a project; this session has none')
+    throw new Error('dsh-reflection: project scope requires a project; this session has none')
   }
   const layout = options.scopes.project(projectId)
-  if (layout === undefined) throw new Error(`dsh-memory: unknown project ${projectId}`)
+  if (layout === undefined) throw new Error(`dsh-reflection: unknown project ${projectId}`)
   return layout
 }
 
@@ -520,9 +520,9 @@ function scopeOptions(options: ActionOptions, layout: ScopeLayout) {
  */
 function requireContent(content: string | undefined): string {
   const normalized = normalizeContent(content ?? '')
-  if (normalized === '') throw new Error('dsh-memory: content must not be empty')
+  if (normalized === '') throw new Error('dsh-reflection: content must not be empty')
   if (charLength(normalized) > MAX_CONTENT_CHARS) {
-    throw new Error(`dsh-memory: content must be at most ${String(MAX_CONTENT_CHARS)} characters`)
+    throw new Error(`dsh-reflection: content must be at most ${String(MAX_CONTENT_CHARS)} characters`)
   }
   return normalized
 }

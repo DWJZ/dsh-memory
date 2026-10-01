@@ -10,7 +10,7 @@
  * duplicate rule that decides whether two Memories are the same keeps case, since
  * `Model-X` and `model-x` can be different identifiers.
  *
- * @module dsh-memory/retrieval
+ * @module dsh-reflection/retrieval
  */
 
 import type { MemoryCategory, MemoryRecord, MemoryScope } from './types/memory.js'

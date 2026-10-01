@@ -27,7 +27,7 @@ const check = (name, condition, detail = '') => {
 }
 
 const AT = '2026-09-26T00:00:00.000Z'
-const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-tombstone-'))
+const ROOT = mkdtempSync(join(tmpdir(), 'dsh-reflection-tombstone-'))
 const MEMORY = join(ROOT, 'memory')
 mkdirSync(MEMORY, { recursive: true })
 const PROJECT = newProjectId()

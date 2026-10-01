@@ -11,7 +11,7 @@
  * is captured when a turn starts, which binds provenance to the input that began
  * the turn rather than to whichever message happens to be last.
  *
- * @module dsh-memory/inject
+ * @module dsh-reflection/inject
  */
 
 import { truncateChars } from './schema.js'

@@ -10,7 +10,7 @@
  * `forget` deletes, `clear` needs `--yes`, and neither can be reached by the
  * model.
  *
- * @module dsh-memory/commands
+ * @module dsh-reflection/commands
  */
 
 import { readStore } from './jsonstore.js'
@@ -71,7 +71,7 @@ async function run(deps: MemoryDeps, invocation: CommandInvocation) {
       default: return error(`unknown /memory subcommand "${String(group)}"\n\n${usageText(deps)}`)
     }
   } catch (failure) {
-    return error(`dsh-memory: ${failureMessage(failure)}`)
+    return error(`dsh-reflection: ${failureMessage(failure)}`)
   }
 }
 
@@ -87,11 +87,11 @@ async function listCommand(deps: MemoryDeps, invocation: CommandInvocation, flag
   const requested = flags.get('status')
   const status = typeof requested === 'string' ? requested : 'active'
   if (status !== 'all' && !STATUSES.includes(status)) {
-    return error(`dsh-memory: --status must be one of ${[...STATUSES, 'all'].join(', ')}`)
+    return error(`dsh-reflection: --status must be one of ${[...STATUSES, 'all'].join(', ')}`)
   }
   const category = typeof flags.get('category') === 'string' ? flags.get('category') : undefined
   if (category !== undefined && !CATEGORIES.includes(category)) {
-    return error(`dsh-memory: --category must be one of ${CATEGORIES.join(', ')}`)
+    return error(`dsh-reflection: --category must be one of ${CATEGORIES.join(', ')}`)
   }
   const records = selectedScopes(deps, invocation, flags)
   const rows = records
@@ -120,7 +120,7 @@ async function searchCommand(deps: MemoryDeps, invocation: CommandInvocation, re
   const scope = flags.has('user') ? 'user' : flags.has('project') ? 'project' : 'all'
   const project = deps.projectFor(invocation.agent)
   const topK = Number(flags.get('top') ?? deps.config.retrievalTopK)
-  if (!Number.isInteger(topK) || topK < 1) return error('dsh-memory: --top must be a positive integer')
+  if (!Number.isInteger(topK) || topK < 1) return error('dsh-reflection: --top must be a positive integer')
   const found = searchRecords(
     readStore(deps.scopes.user.storePath).records.concat(projectRecords(deps, project)),
     { query, scope, projectId: project?.project_id, topK },
@@ -140,7 +140,7 @@ async function inspectCommand(deps: MemoryDeps, invocation: CommandInvocation, r
   const [id] = rest
   if (id === undefined) return error('usage: /memory inspect <id>')
   const found = findVisible(deps, invocation, id)
-  if (found === undefined) return error(`dsh-memory: ${id} is not present in Memory visible to this session`)
+  if (found === undefined) return error(`dsh-reflection: ${id} is not present in Memory visible to this session`)
   return ok(`${JSON.stringify(found, null, 2)}\n`)
 }
 
@@ -196,9 +196,9 @@ async function forgetCommand(deps: MemoryDeps, invocation: CommandInvocation, re
  * @returns the outcome, or a refusal when the switch is off.
  */
 async function consolidateCommand(deps: MemoryDeps, invocation: CommandInvocation, flags: Map<string, string>) {
-  if (deps.isEnabled() === false) return error('dsh-memory is disabled; run /memory enable first')
+  if (deps.isEnabled() === false) return error('dsh-reflection is disabled; run /memory enable first')
   if (deps.consolidationEnabled?.() === false) {
-    return error('dsh-memory: automatic consolidation is turned off in this profile (consolidation.enabled)')
+    return error('dsh-reflection: automatic consolidation is turned off in this profile (consolidation.enabled)')
   }
   try {
     const outcome = await deps.consolidate(invocation.agent, {
@@ -207,7 +207,7 @@ async function consolidateCommand(deps: MemoryDeps, invocation: CommandInvocatio
     })
     return ok(describeConsolidation(outcome))
   } catch (failure) {
-    return error(`dsh-memory: consolidation failed: ${failureMessage(failure)}`)
+    return error(`dsh-reflection: consolidation failed: ${failureMessage(failure)}`)
   }
 }
 
@@ -222,7 +222,7 @@ async function clearCommand(deps: MemoryDeps, invocation: CommandInvocation, fla
   const scope = flags.has('user') ? 'user' : flags.has('project') ? 'project' : undefined
   if (scope === undefined) return error('usage: /memory clear --user|--project --yes')
   const project = deps.projectFor(invocation.agent)
-  if (scope === 'project' && project === null) return error('dsh-memory: this session has no project scope')
+  if (scope === 'project' && project === null) return error('dsh-reflection: this session has no project scope')
   const count = (scope === 'user' ? readStore(deps.scopes.user.storePath).records : projectRecords(deps, project)).length
   if (flags.has('yes') !== true) {
     return ok(`This would delete ${String(count)} ${scope}-scope Memory record(s). Re-run with --yes to proceed.`)
@@ -243,7 +243,7 @@ async function clearCommand(deps: MemoryDeps, invocation: CommandInvocation, fla
  */
 async function exportCommand(deps: MemoryDeps, invocation: CommandInvocation, flags: Map<string, string>) {
   const format = typeof flags.get('format') === 'string' ? flags.get('format') : 'md'
-  if (format !== 'md' && format !== 'json') return error('dsh-memory: --format must be md or json')
+  if (format !== 'md' && format !== 'json') return error('dsh-reflection: --format must be md or json')
   const rows = selectedScopes(deps, invocation, flags)
   const text = format === 'json'
     ? `${JSON.stringify(rows.map(entry => entry.record), null, 2)}\n`
@@ -251,7 +251,7 @@ async function exportCommand(deps: MemoryDeps, invocation: CommandInvocation, fl
   const bytes = Buffer.byteLength(text, 'utf8')
   if (bytes > deps.config.exportInlineMaxBytes) {
     return error([
-      `dsh-memory: this export is ${String(bytes)} bytes, over the ${String(deps.config.exportInlineMaxBytes)}-byte inline limit.`,
+      `dsh-reflection: this export is ${String(bytes)} bytes, over the ${String(deps.config.exportInlineMaxBytes)}-byte inline limit.`,
       'Nothing was truncated. Narrow it with --user or --project, or raise exportInlineMaxBytes in the plugin config.',
     ].join('\n'))
   }
@@ -268,7 +268,7 @@ async function enableCommand(deps: MemoryDeps, enabled: boolean) {
   try {
     await deps.setEnabled(enabled)
   } catch (failure) {
-    return error(`dsh-memory: could not persist the switch: ${failureMessage(failure)}`)
+    return error(`dsh-reflection: could not persist the switch: ${failureMessage(failure)}`)
   }
   return ok(enabled
     ? 'Memory is enabled: the index is injected and the memory tools are available.'
@@ -333,7 +333,7 @@ async function projectCommand(deps: MemoryDeps, invocation: CommandInvocation, r
  */
 function usageText(deps: MemoryDeps) {
   return [
-    `dsh-memory (${deps.isEnabled() ? 'enabled' : 'disabled'}) — Memory lives in ${deps.config.memoryDir}`,
+    `dsh-reflection (${deps.isEnabled() ? 'enabled' : 'disabled'}) — Memory lives in ${deps.config.memoryDir}`,
     '',
     '/memory list [--user|--project] [--status active|superseded|archived|all] [--category <c>]',
     '/memory search <query> [--top <n>] [--user|--project]',

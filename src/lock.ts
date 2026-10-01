@@ -12,7 +12,7 @@
  * is provably gone (`ESRCH`). `EPERM` means the process exists and merely refuses
  * the signal, so it keeps the lock.
  *
- * @module dsh-memory/lock
+ * @module dsh-reflection/lock
  */
 
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeSync } from 'node:fs'
@@ -188,7 +188,7 @@ export async function withLock<T>(options: LockRequest, run: () => T | Promise<T
     mkdirSync(dirname(resolved.lockPath), { recursive: true })
     held = await acquire(resolved, nonce)
     if (!held) {
-      throw new Error(`dsh-memory: timed out after ${String(resolved.lockTimeoutMs)}ms waiting for ${resolved.lockPath}`)
+      throw new Error(`dsh-reflection: timed out after ${String(resolved.lockTimeoutMs)}ms waiting for ${resolved.lockPath}`)
     }
     return await run()
   } finally {
@@ -226,7 +226,7 @@ async function acquire(options: ResolvedLock, nonce: string): Promise<boolean> {
 
     const reclaimed = reclaimIfStale(options.lockPath, {
       ...options,
-      onWarn: message => options.logger?.warn(`dsh-memory: ${message}`),
+      onWarn: message => options.logger?.warn(`dsh-reflection: ${message}`),
     })
     if (reclaimed) continue
     if (options.now() >= deadline) return false

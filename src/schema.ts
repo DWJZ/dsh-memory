@@ -6,7 +6,7 @@
  * loud and names the offending field, because a record that does not satisfy
  * these rules must never reach `memories.json`.
  *
- * @module dsh-memory/schema
+ * @module dsh-reflection/schema
  */
 
 import { randomUUID } from 'node:crypto'
@@ -127,11 +127,11 @@ export function isTimestamp(value: unknown): boolean {
  */
 export function validateMemory(record: MemoryRecord, options: CheckOptions = {}) {
   if (typeof record !== 'object' || record === null || Array.isArray(record)) {
-    throw new TypeError('dsh-memory: memory record must be an object')
+    throw new TypeError('dsh-reflection: memory record must be an object')
   }
 
   if (!isMemoryId(record.id)) {
-    throw new TypeError(`dsh-memory: id must be a Memory id, got ${JSON.stringify(record.id)}`)
+    throw new TypeError(`dsh-reflection: id must be a Memory id, got ${JSON.stringify(record.id)}`)
   }
   requireMember(record.scope, SCOPES, 'scope')
   requireMember(record.category, CATEGORIES, 'category')
@@ -139,47 +139,47 @@ export function validateMemory(record: MemoryRecord, options: CheckOptions = {})
 
   if (record.scope === 'project') {
     if (!isProjectId(record.project_id)) {
-      throw new TypeError(`dsh-memory: memory ${record.id}: project_id must be a project id, got ${JSON.stringify(record.project_id)}`)
+      throw new TypeError(`dsh-reflection: memory ${record.id}: project_id must be a project id, got ${JSON.stringify(record.project_id)}`)
     }
   } else if (record.project_id !== null) {
-    throw new TypeError(`dsh-memory: memory ${record.id}: project_id must be null for scope "user", got ${JSON.stringify(record.project_id)}`)
+    throw new TypeError(`dsh-reflection: memory ${record.id}: project_id must be null for scope "user", got ${JSON.stringify(record.project_id)}`)
   }
 
   if (typeof record.content !== 'string' || record.content.trim() === '') {
-    throw new TypeError(`dsh-memory: memory ${record.id}: content must be a non-empty string`)
+    throw new TypeError(`dsh-reflection: memory ${record.id}: content must be a non-empty string`)
   }
   if (/[\n\r\u2028\u2029]/u.test(record.content)) {
-    throw new TypeError(`dsh-memory: memory ${record.id}: content must be a single line`)
+    throw new TypeError(`dsh-reflection: memory ${record.id}: content must be a single line`)
   }
   if (charLength(record.content) > MAX_CONTENT_CHARS) {
-    throw new TypeError(`dsh-memory: memory ${record.id}: content must be at most ${String(MAX_CONTENT_CHARS)} characters`)
+    throw new TypeError(`dsh-reflection: memory ${record.id}: content must be at most ${String(MAX_CONTENT_CHARS)} characters`)
   }
 
   if (typeof record.confidence !== 'number' || !Number.isFinite(record.confidence)
     || record.confidence < 0 || record.confidence > 1) {
-    throw new TypeError(`dsh-memory: memory ${record.id}: confidence must be a number in [0, 1], got ${JSON.stringify(record.confidence)}`)
+    throw new TypeError(`dsh-reflection: memory ${record.id}: confidence must be a number in [0, 1], got ${JSON.stringify(record.confidence)}`)
   }
 
   if (record.status === 'superseded') {
     if (!isMemoryId(record.superseded_by)) {
-      throw new TypeError(`dsh-memory: memory ${record.id}: superseded_by must be a Memory id, got ${JSON.stringify(record.superseded_by)}`)
+      throw new TypeError(`dsh-reflection: memory ${record.id}: superseded_by must be a Memory id, got ${JSON.stringify(record.superseded_by)}`)
     }
   } else if (record.superseded_by !== null) {
-    throw new TypeError(`dsh-memory: memory ${record.id}: superseded_by must be null unless status is "superseded"`)
+    throw new TypeError(`dsh-reflection: memory ${record.id}: superseded_by must be null unless status is "superseded"`)
   }
 
   requireTimestamp(record.created_at, record.id, 'created_at')
   requireTimestamp(record.updated_at, record.id, 'updated_at')
   if (record.updated_at < record.created_at) {
-    throw new TypeError(`dsh-memory: memory ${record.id}: updated_at must not precede created_at`)
+    throw new TypeError(`dsh-reflection: memory ${record.id}: updated_at must not precede created_at`)
   }
 
   if (!Array.isArray(record.evidence)) {
-    throw new TypeError(`dsh-memory: memory ${record.id}: evidence must be an array`)
+    throw new TypeError(`dsh-reflection: memory ${record.id}: evidence must be an array`)
   }
   const cap = options.maxEvidencePerMemory ?? Number.POSITIVE_INFINITY
   if (record.evidence.length > cap) {
-    throw new TypeError(`dsh-memory: memory ${record.id}: evidence must hold at most ${String(cap)} entries`)
+    throw new TypeError(`dsh-reflection: memory ${record.id}: evidence must hold at most ${String(cap)} entries`)
   }
   record.evidence.forEach((entry, index) => { validateEvidence(entry, record.id, index) })
 }
@@ -199,19 +199,19 @@ export function validateMemory(record: MemoryRecord, options: CheckOptions = {})
  *   reference dangles.
  */
 export function validateStoreRecords(records: MemoryRecord[], options: CheckOptions = {}) {
-  if (!Array.isArray(records)) throw new TypeError('dsh-memory: a store document must hold a records array')
+  if (!Array.isArray(records)) throw new TypeError('dsh-reflection: a store document must hold a records array')
   const known = new Set()
   for (const record of records) {
     validateMemory(record, options)
     if (known.has(record.id)) {
-      throw new TypeError(`dsh-memory: memory ${record.id} appears more than once in one store`)
+      throw new TypeError(`dsh-reflection: memory ${record.id} appears more than once in one store`)
     }
     known.add(record.id)
   }
   for (const record of records) {
     if (record.status !== 'superseded') continue
     if (!known.has(record.superseded_by)) {
-      throw new TypeError(`dsh-memory: memory ${record.id} claims to be superseded by ${record.superseded_by}, which this store does not hold`)
+      throw new TypeError(`dsh-reflection: memory ${record.id} claims to be superseded by ${record.superseded_by}, which this store does not hold`)
     }
   }
 }
@@ -228,16 +228,16 @@ function validateEvidence(entry: unknown, memoryId: string, index: number): void
   const record = entry as Record<string, unknown>
   const where = `memory ${memoryId}: evidence[${String(index)}]`
   if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
-    throw new TypeError(`dsh-memory: ${where} must be an object`)
+    throw new TypeError(`dsh-reflection: ${where} must be an object`)
   }
   requireMember(record.kind, EVIDENCE_KINDS, `${where}.kind`)
   requireNonEmptyString(record.session_id, `${where}.session_id`)
-  if (typeof record.quote !== 'string') throw new TypeError(`dsh-memory: ${where}.quote must be a string`)
+  if (typeof record.quote !== 'string') throw new TypeError(`dsh-reflection: ${where}.quote must be a string`)
   if (!Array.isArray(record.event_seqs) || record.event_seqs.some(seq => !Number.isInteger(seq) || seq < 0)) {
-    throw new TypeError(`dsh-memory: ${where}.event_seqs must be an array of non-negative integers`)
+    throw new TypeError(`dsh-reflection: ${where}.event_seqs must be an array of non-negative integers`)
   }
   if (!isTimestamp(record.observed_at)) {
-    throw new TypeError(`dsh-memory: ${where}.observed_at must be an ISO-8601 UTC timestamp`)
+    throw new TypeError(`dsh-reflection: ${where}.observed_at must be an ISO-8601 UTC timestamp`)
   }
 }
 
@@ -248,7 +248,7 @@ function validateEvidence(entry: unknown, memoryId: string, index: number): void
  */
 function requireNonEmptyString(value: unknown, field: string): void {
   if (typeof value !== 'string' || value === '') {
-    throw new TypeError(`dsh-memory: ${field} must be a non-empty string, got ${JSON.stringify(value)}`)
+    throw new TypeError(`dsh-reflection: ${field} must be a non-empty string, got ${JSON.stringify(value)}`)
   }
 }
 
@@ -260,7 +260,7 @@ function requireNonEmptyString(value: unknown, field: string): void {
  */
 function requireMember(value: unknown, allowed: readonly string[], field: string): void {
   if (typeof value !== 'string' || !allowed.includes(value)) {
-    throw new TypeError(`dsh-memory: ${field} must be one of ${allowed.join(', ')}, got ${JSON.stringify(value)}`)
+    throw new TypeError(`dsh-reflection: ${field} must be one of ${allowed.join(', ')}, got ${JSON.stringify(value)}`)
   }
 }
 
@@ -272,6 +272,6 @@ function requireMember(value: unknown, allowed: readonly string[], field: string
  */
 function requireTimestamp(value: unknown, memoryId: string, field: string): void {
   if (!isTimestamp(value)) {
-    throw new TypeError(`dsh-memory: memory ${memoryId}: ${field} must be an ISO-8601 UTC timestamp, got ${JSON.stringify(value)}`)
+    throw new TypeError(`dsh-reflection: memory ${memoryId}: ${field} must be an ISO-8601 UTC timestamp, got ${JSON.stringify(value)}`)
   }
 }

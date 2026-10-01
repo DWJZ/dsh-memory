@@ -9,7 +9,7 @@
  * tombstone log, the logger, and tool results. It cannot cover a trajectory that
  * another subsystem already recorded.
  *
- * @module dsh-memory/redact
+ * @module dsh-reflection/redact
  */
 
 /** Placeholder substituted for a detected secret in anything this plugin logs. */

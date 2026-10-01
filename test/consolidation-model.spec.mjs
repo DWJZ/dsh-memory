@@ -130,7 +130,7 @@ check('exactly one message is sent', seen[0].messages.length === 1)
 check('the message is a user message', seen[0].messages[0].role === 'user')
 check('the message is identified', typeof seen[0].messages[0].id === 'string' && seen[0].messages[0].id !== '')
 check('the message names its producer',
-  seen[0].messages[0].source.kind === 'dsh-memory-consolidation')
+  seen[0].messages[0].source.kind === 'dsh-reflection-consolidation')
 check('no purpose is claimed',
   seen[0].purpose === undefined)
 check('the payload is the rendered request', seen[0].messages[0].content[0].text.includes('seq range: 1..9'))

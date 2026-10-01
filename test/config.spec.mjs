@@ -30,12 +30,12 @@ const rejects = (raw, field) => {
 }
 
 /** Resolve with a fixed environment so assertions never read this machine's home. */
-const resolveWith = raw => resolveConfig(raw, { DSH_HOME: '/tmp/dsh-memory-config-spec' })
+const resolveWith = raw => resolveConfig(raw, { DSH_HOME: '/tmp/dsh-reflection-config-spec' })
 
 console.log('defaults')
 const base = resolveWith({})
 check('enabled defaults to true', base.enabled === true)
-check('the memory root is derived', base.memoryDir === join('/tmp/dsh-memory-config-spec', 'memory'))
+check('the memory root is derived', base.memoryDir === join('/tmp/dsh-reflection-config-spec', 'memory'))
 check('the index budget defaults to 6000 bytes', base.indexBudgetBytes === 6000)
 check('the split defaults to 0.4 / 0.6',
   base.indexBudgetSplit.user === 0.4 && base.indexBudgetSplit.project === 0.6)

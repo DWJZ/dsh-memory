@@ -18,7 +18,7 @@
 
 import type { EventPayload, ObservedEvent, TrajectoryEntry, WindowOptions } from '../types/trajectory.js'
 /** Namespace reserved for this plugin's own Session events. */
-export const INTERNAL_EVENT_PREFIX = 'dsh-memory/'
+export const INTERNAL_EVENT_PREFIX = 'dsh-reflection/'
 
 /** Source kind that marks a `user/message` as a human turn rather than injected context. */
 export const HUMAN_SOURCE_KIND = 'user'

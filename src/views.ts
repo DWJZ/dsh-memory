@@ -11,7 +11,7 @@
  * reusing the state that triggered it, so a slow writer cannot overwrite a newer
  * view with an older one.
  *
- * @module dsh-memory/views
+ * @module dsh-reflection/views
  */
 
 import { readStore, writeAtomic, withStore } from './jsonstore.js'
@@ -22,7 +22,7 @@ import type { MemoryRecord, MemoryStore } from './types/memory.js'
 import { failureMessage } from './errors.js'
 
 /** Marker identifying the revision a view was rendered from. */
-const REVISION_MARKER = 'dsh-memory: revision'
+const REVISION_MARKER = 'dsh-reflection: revision'
 
 /**
  * Render one scope's active Memory as Markdown.
@@ -92,7 +92,7 @@ export async function mutateAndRefreshView<T = Record<string, unknown>>(
     await rebuildView(options)
   } catch (error) {
     viewStale = true
-    options.logger?.warn(`dsh-memory: memory-view-stale: ${options.viewPath}: ${failureMessage(error)}`)
+    options.logger?.warn(`dsh-reflection: memory-view-stale: ${options.viewPath}: ${failureMessage(error)}`)
   }
   return { result: outcome.result, revision: outcome.revision, viewStale }
 }

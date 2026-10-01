@@ -27,7 +27,7 @@ const check = (name, condition, detail = '') => {
   }
 }
 
-const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-registry-'))
+const ROOT = mkdtempSync(join(tmpdir(), 'dsh-reflection-registry-'))
 const MEMORY = join(ROOT, 'memory')
 mkdirSync(MEMORY, { recursive: true })
 const LAYOUT = registryLayout(MEMORY)
@@ -190,7 +190,7 @@ const writeRegistry = projects => {
 const at = new Date(0).toISOString()
 const entry = (overrides = {}) => ({
   project_id: newProjectId(),
-  canonical_root: '/tmp/dsh-memory-registry-entry',
+  canonical_root: '/tmp/dsh-reflection-registry-entry',
   aliases: [],
   workspace_ids: [],
   created_at: at,

@@ -42,7 +42,7 @@ import type { MemoryConsolidationSettings } from '../types/config.js'
 import type { ActionOptions, KillProbe } from '../types/memory.js'
 
 /** Session event type carrying this plugin's consolidation audit. */
-export const AUDIT_EVENT_TYPE = 'dsh-memory/consolidation'
+export const AUDIT_EVENT_TYPE = 'dsh-reflection/consolidation'
 
 /**
  * Build the consolidation orchestrator.
@@ -214,7 +214,7 @@ export function createConsolidation(options: ConsolidationOptions) {
   const callModel = options.callModel ?? ((request: ConsolidationRequest) => {
     const scope = typeof options.llmScope === 'function' ? options.llmScope() : options.llmScope
     if (scope === undefined || scope === null) {
-      throw new Error('dsh-memory: no model service is mounted, so consolidation has nothing to ask')
+      throw new Error('dsh-reflection: no model service is mounted, so consolidation has nothing to ask')
     }
     return callConsolidator(scope, request)
   })
@@ -270,7 +270,7 @@ export function createConsolidation(options: ConsolidationOptions) {
     })
     if (gap === undefined) return { afterSeq: lastProcessedSeq(written.state, sessionId) }
     const reason = droppedThrough >= gap.from_seq - 1 ? 'the buffer evicted them' : 'this process was not observing yet'
-    logger?.info?.(`dsh-memory: consolidation skipped seqs ${String(gap.from_seq)}..${String(gap.to_seq)} of ${sessionId} (${reason})`)
+    logger?.info?.(`dsh-reflection: consolidation skipped seqs ${String(gap.from_seq)}..${String(gap.to_seq)} of ${sessionId} (${reason})`)
     return { afterSeq: lastProcessedSeq(written.state, sessionId), gap }
   }
 
@@ -292,7 +292,7 @@ export function createConsolidation(options: ConsolidationOptions) {
     try {
       session.append(AUDIT_EVENT_TYPE, audit, { ignorable: true })
     } catch (failure) {
-      logger?.warn?.(`dsh-memory: could not record the consolidation audit: ${failureMessage(failure)}`)
+      logger?.warn?.(`dsh-reflection: could not record the consolidation audit: ${failureMessage(failure)}`)
     }
   }
 
@@ -354,7 +354,7 @@ export function createConsolidation(options: ConsolidationOptions) {
       maxBytes: config.maxTrajectoryBytesPerBatch,
     })
     if (window.unsupported !== undefined) {
-      throw new Error(`dsh-memory: consolidation cannot read ${String(window.unsupported.type)} events (seq ${String(window.unsupported.seq)})`)
+      throw new Error(`dsh-reflection: consolidation cannot read ${String(window.unsupported.type)} events (seq ${String(window.unsupported.seq)})`)
     }
     if (window.toSeq === undefined) return { status: 'nothing-pending' }
     // Captured here: the guard's narrowing does not survive into the callbacks below.
@@ -384,7 +384,7 @@ export function createConsolidation(options: ConsolidationOptions) {
       // audit itself in the next window. Repeating the command would then trade one
       // audit for the next and never reach "nothing new".
       if (window.counts.relevant === 0) {
-        logger?.debug?.(`dsh-memory: consolidation of ${sessionId} consumed seqs ${String(auditBase.from_seq)}..${String(auditBase.to_seq)} without asking anything (${status})`)
+        logger?.debug?.(`dsh-reflection: consolidation of ${sessionId} consumed seqs ${String(auditBase.from_seq)}..${String(auditBase.to_seq)} without asking anything (${status})`)
         return { ...auditBase, status }
       }
       recordAudit(session, { ...auditBase, status, operations: { add: 0, update: 0, supersede: 0, noop: 0 } })
@@ -461,7 +461,7 @@ export function createConsolidation(options: ConsolidationOptions) {
     if (outcome.failures.length > 0) {
       // Something a review accepted could not be written. The mark stays put, so
       // the window is retried and the plan is formed again against current state.
-      logger?.warn?.(`dsh-memory: consolidation left ${String(outcome.failures.length)} operation(s) unwritten for ${sessionId}`)
+      logger?.warn?.(`dsh-reflection: consolidation left ${String(outcome.failures.length)} operation(s) unwritten for ${sessionId}`)
       // Everything a plan contained is accounted for: written + duplicate-or-
       // conflict + failed + no-op adds up to what the review accepted plus what
       // it proposed nothing for.
@@ -488,7 +488,7 @@ export function createConsolidation(options: ConsolidationOptions) {
     const written = { ...operations, ...outcome.committed, skipped: outcome.skipped.length }
     recordAudit(session, { ...auditBase, status: 'success', operations: written, rejected: rejectedCount, ...rejected })
     const wrote = written.add + written.update + written.supersede
-    logger?.info?.(`dsh-memory: consolidation of ${sessionId} consumed ${String(auditBase.relevant_events)} event(s) and wrote ${String(wrote)}`)
+    logger?.info?.(`dsh-reflection: consolidation of ${sessionId} consumed ${String(auditBase.relevant_events)} event(s) and wrote ${String(wrote)}`)
     return { ...auditBase, status: 'success', operations: written, rejected: rejectedCount, ...rejected }
   }
 
@@ -567,7 +567,7 @@ export function createConsolidation(options: ConsolidationOptions) {
           // alone. Waiting is about knowing runs have finished, not about their
           // outcome, so re-raising would surface a consolidation error as a
           // failed `/memory disable` or a failure escaping from unload.
-          logger?.debug?.(`dsh-memory: a consolidation run ended in failure: ${String(result.reason?.message ?? result.reason)}`)
+          logger?.debug?.(`dsh-reflection: a consolidation run ended in failure: ${String(result.reason?.message ?? result.reason)}`)
         }
       }
     },
@@ -636,7 +636,7 @@ export function describeOutcome(outcome: RunAudit): string {
       return `Nothing to learn from seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)}: this window holds no human turn. The window is consumed.`
     case 'nothing-pending': return 'Nothing new to consolidate.'
     case 'nothing-observed': return 'This Session has produced no events this process has observed.'
-    case 'no-session': return 'dsh-memory: this invocation has no Session to consolidate.'
+    case 'no-session': return 'dsh-reflection: this invocation has no Session to consolidate.'
     default: return `Consolidation did not run: ${String(outcome.status)}`
   }
 }

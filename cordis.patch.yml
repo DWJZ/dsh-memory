@@ -1,4 +1,4 @@
-# dsh-memory bundle 层：一个宿主插件行（浏览器半由 package.json 的 dsh.client 声明注入，
+# dsh-reflection bundle 层：一个宿主插件行（浏览器半由 package.json 的 dsh.client 声明注入，
 # 它把本插件写进 Session 日志的两类事件渲染成轨迹账本里的一行，因此这里不需要第二行）。
 #
 # 安装：用 plugin_manager 的 install_bundle 指向本目录（它负责写 profile 的

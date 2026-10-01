@@ -107,7 +107,7 @@ export function readState(statePath: string): ConsolidationState {
   try {
     parsed = JSON.parse(readFileSync(statePath, 'utf8'))
   } catch (error) {
-    throw new Error(`dsh-memory: ${statePath} is not valid JSON: ${failureMessage(error)}`)
+    throw new Error(`dsh-reflection: ${statePath} is not valid JSON: ${failureMessage(error)}`)
   }
   validateState(parsed, statePath)
   return parsed
@@ -123,13 +123,13 @@ export function validateState(state: unknown, where: string = 'consolidation sta
   // Parsed from a durable file: read field by field after the checks below.
   const document = state as Record<string, unknown>
   if (typeof state !== 'object' || state === null || Array.isArray(state)) {
-    throw new TypeError(`dsh-memory: ${where} must hold a JSON object`)
+    throw new TypeError(`dsh-reflection: ${where} must hold a JSON object`)
   }
   if (document.schema_version !== CONSOLIDATION_SCHEMA_VERSION) {
-    throw new TypeError(`dsh-memory: ${where} has schema_version ${JSON.stringify(document.schema_version)}, this build writes ${String(CONSOLIDATION_SCHEMA_VERSION)}`)
+    throw new TypeError(`dsh-reflection: ${where} has schema_version ${JSON.stringify(document.schema_version)}, this build writes ${String(CONSOLIDATION_SCHEMA_VERSION)}`)
   }
   if (typeof document.sessions !== 'object' || document.sessions === null || Array.isArray(document.sessions)) {
-    throw new TypeError(`dsh-memory: ${where} must hold a sessions object`)
+    throw new TypeError(`dsh-reflection: ${where} must hold a sessions object`)
   }
   for (const [sessionId, progress] of Object.entries(document.sessions as Record<string, unknown>)) {
     validateProgress(progress, `${where} session ${sessionId}`)
@@ -146,26 +146,26 @@ function validateProgress(progress: unknown, where: string): void {
   // Same boundary as `validateState`: field by field, after the checks.
   const record = progress as Record<string, unknown>
   if (typeof progress !== 'object' || progress === null || Array.isArray(progress)) {
-    throw new TypeError(`dsh-memory: ${where} must be an object`)
+    throw new TypeError(`dsh-reflection: ${where} must be an object`)
   }
   const last = record.last_processed_seq
   if (typeof last !== 'number' || !Number.isInteger(last) || last < NO_PROGRESS) {
-    throw new TypeError(`dsh-memory: ${where} needs an integer last_processed_seq >= ${String(NO_PROGRESS)}, got ${JSON.stringify(last)}`)
+    throw new TypeError(`dsh-reflection: ${where} needs an integer last_processed_seq >= ${String(NO_PROGRESS)}, got ${JSON.stringify(last)}`)
   }
   if (!Array.isArray(record.gaps)) {
-    throw new TypeError(`dsh-memory: ${where} needs a gaps array`)
+    throw new TypeError(`dsh-reflection: ${where} needs a gaps array`)
   }
   for (const gap of record.gaps) {
     if (typeof gap !== 'object' || gap === null || Array.isArray(gap)) {
-      throw new TypeError(`dsh-memory: ${where} has a non-object gap`)
+      throw new TypeError(`dsh-reflection: ${where} has a non-object gap`)
     }
     // A gap records a range nobody observed, so it may legitimately be empty;
     // what it may not be is inverted or incomplete.
     if (!Number.isInteger(gap.from_seq) || !Number.isInteger(gap.to_seq) || gap.to_seq < gap.from_seq - 1) {
-      throw new TypeError(`dsh-memory: ${where} has an invalid gap ${JSON.stringify(gap)}`)
+      throw new TypeError(`dsh-reflection: ${where} has an invalid gap ${JSON.stringify(gap)}`)
     }
     if (typeof gap.at !== 'string' || gap.at === '') {
-      throw new TypeError(`dsh-memory: ${where} has a gap without a timestamp`)
+      throw new TypeError(`dsh-reflection: ${where} has a gap without a timestamp`)
     }
   }
 }

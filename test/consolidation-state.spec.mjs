@@ -30,7 +30,7 @@ const rejects = async (thunk, fragment) => {
   }
 }
 
-const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-consolidation-state-'))
+const ROOT = mkdtempSync(join(tmpdir(), 'dsh-reflection-consolidation-state-'))
 const MEMORY = join(ROOT, 'memory')
 const LAYOUT = consolidationLayout(MEMORY)
 const OPTIONS = {

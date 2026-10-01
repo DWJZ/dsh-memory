@@ -47,7 +47,7 @@ check('a relative setting becomes absolute',
   paths.resolveDshHome('relative/home', {}) === resolve('relative/home'))
 
 console.log('memory_always_under_dsh_home')
-const HOMES = ['/tmp/dsh-memory-home', '/tmp/with space', join(homedir(), 'nested')]
+const HOMES = ['/tmp/dsh-reflection-home', '/tmp/with space', join(homedir(), 'nested')]
 for (const home of HOMES) {
   const memoryDir = paths.resolveMemoryDir(home)
   check(`${home} resolves memory below the harness home`,

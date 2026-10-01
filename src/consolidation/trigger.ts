@@ -102,7 +102,7 @@ export function createTrigger(options: TriggerOptions) {
     } catch (failure) {
       // A failed consolidation must not escape into the status listener: the
       // mark stays put and the next idle period retries the same window.
-      options.logger?.warn(`dsh-memory: consolidation failed for ${key}: ${failureMessage(failure)}`)
+      options.logger?.warn(`dsh-reflection: consolidation failed for ${key}: ${failureMessage(failure)}`)
     } finally {
       running.delete(key)
     }

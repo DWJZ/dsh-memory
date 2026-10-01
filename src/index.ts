@@ -1,5 +1,5 @@
 /**
- * dsh-memory — host half.
+ * dsh-reflection — host half.
  *
  * Persistent user and project Memory for DeepSeek Harness. Every record lives
  * under `$DSH_HOME/memory`, never inside a project, and a compact index of the
@@ -19,7 +19,7 @@
  * The plugin imports no harness package at runtime, so it installs from a
  * checkout with no dependency step.
  *
- * @module dsh-memory
+ * @module dsh-reflection
  */
 
 import { resolveConfig } from './config.js'
@@ -57,7 +57,7 @@ function describeFailure(failure: unknown): string {
   return String(failure)
 }
 
-export const name = 'dsh-memory'
+export const name = 'dsh-reflection'
 
 /**
  * The command surface is required: it is how a user reads and controls Memory,
@@ -75,7 +75,7 @@ export const inject = ['commands']
 export function apply(ctx: Context, config: PluginConfig) {
   const settings = resolveConfig(config, process.env, ctx.logger)
   const controller = createController(ctx, settings)
-  ctx.effect(() => () => controller.dispose(), 'dsh-memory.lifecycle')
+  ctx.effect(() => () => controller.dispose(), 'dsh-reflection.lifecycle')
   controller.start()
 }
 
@@ -98,7 +98,7 @@ function createController(ctx: Context, settings: MemorySettings) {
   // session — the auxiliary agent that names it runs elsewhere — and the last one
   // created must not decide which project the others write to.
 /** Session event type carrying which project a Session was attributed to. */
-const PROJECT_EVENT_TYPE = 'dsh-memory/project'
+const PROJECT_EVENT_TYPE = 'dsh-reflection/project'
 
   const projectsByCwd = new Map()
   /** Sessions whose attribution was already recorded, so it is written once. */
@@ -213,7 +213,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
         announceProject(agent, project, workspace)
       }
     } catch (failure) {
-      logger.warn(`dsh-memory: could not resolve the project for ${cwd}: ${describeFailure(failure)}`)
+      logger.warn(`dsh-reflection: could not resolve the project for ${cwd}: ${describeFailure(failure)}`)
     }
   }
 
@@ -246,7 +246,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
         matched_by: project.matched_by,
       }, { ignorable: true })
     } catch (failure) {
-      logger.warn(`dsh-memory: could not record the project attribution: ${describeFailure(failure)}`)
+      logger.warn(`dsh-reflection: could not record the project attribution: ${describeFailure(failure)}`)
     }
   }
 
@@ -331,7 +331,7 @@ const PROJECT_EVENT_TYPE = 'dsh-memory/project'
         disposeDisposed()
         disposeCreated()
         disposeCommands()
-      }, 'dsh-memory.registrations')
+      }, 'dsh-reflection.registrations')
 
       if (enabled) mountRuntime()
       void refreshViewsOnMount(deps)
@@ -399,7 +399,7 @@ async function refreshViewsOnMount(deps: MemoryDeps) {
       staleTempMs: Math.max(staleLockMs, lockTimeoutMs * 2),
     })
   } catch (failure) {
-    logger?.warn(`dsh-memory: could not sweep temporary files: ${describeFailure(failure)}`)
+    logger?.warn(`dsh-reflection: could not sweep temporary files: ${describeFailure(failure)}`)
   }
   const layouts = [deps.scopes.user]
   try {
@@ -407,13 +407,13 @@ async function refreshViewsOnMount(deps: MemoryDeps) {
       layouts.push(deps.scopes.project(entry.project_id))
     }
   } catch (failure) {
-    logger?.warn(`dsh-memory: could not read the project registry: ${describeFailure(failure)}`)
+    logger?.warn(`dsh-reflection: could not read the project registry: ${describeFailure(failure)}`)
   }
   for (const layout of layouts) {
     try {
       await rebuildView({ ...layout, lockTimeoutMs, staleLockMs, logger })
     } catch (failure) {
-      logger?.warn(`dsh-memory: memory-view-stale: ${layout.viewPath}: ${describeFailure(failure)}`)
+      logger?.warn(`dsh-reflection: memory-view-stale: ${layout.viewPath}: ${describeFailure(failure)}`)
     }
   }
 }

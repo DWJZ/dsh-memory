@@ -22,7 +22,7 @@ const check = (name, condition, detail = '') => {
   }
 }
 
-const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-lock-'))
+const ROOT = mkdtempSync(join(tmpdir(), 'dsh-reflection-lock-'))
 const LOCK = join(ROOT, 'memories.json.lock')
 const HOST = hostname()
 

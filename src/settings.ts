@@ -10,7 +10,7 @@
  * The file wins over the deployment's `cordis.yml` value, because it records the
  * last explicit choice a user made with `/memory enable` or `/memory disable`.
  *
- * @module dsh-memory/settings
+ * @module dsh-reflection/settings
  */
 
 import { existsSync, readFileSync } from 'node:fs'
@@ -34,10 +34,10 @@ export function readPluginConfig(memoryDir: string): PluginConfig {
     parsed = JSON.parse(readFileSync(path, 'utf8'))
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
-    throw new Error(`dsh-memory: ${path} is not valid JSON: ${reason}`)
+    throw new Error(`dsh-reflection: ${path} is not valid JSON: ${reason}`)
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error(`dsh-memory: ${path} must hold a JSON object`)
+    throw new Error(`dsh-reflection: ${path} must hold a JSON object`)
   }
   // The check above established an object; the cast names the shape rather than
   // letting a durable file read stay an unchecked value.

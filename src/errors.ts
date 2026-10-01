@@ -7,7 +7,7 @@
  * string form. Writing the narrowing once keeps a warning's text from depending on
  * where the catch happens to sit.
  *
- * @module dsh-memory/errors
+ * @module dsh-reflection/errors
  */
 
 /**

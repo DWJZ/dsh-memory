@@ -8,7 +8,7 @@
  * has referred to the entry so a renamed or moved directory can still be
  * recognized.
  *
- * @module dsh-memory/identity
+ * @module dsh-reflection/identity
  */
 
 /**

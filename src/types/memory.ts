@@ -6,7 +6,7 @@
  * the actions that write it. Field names are the ones the canonical schema
  * validates (`src/schema.js`), which is the authority for what a record holds.
  *
- * @module dsh-memory/types
+ * @module dsh-reflection/types
  */
 
 /** Which store a record lives in. */

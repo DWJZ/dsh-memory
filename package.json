@@ -6,9 +6,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DWJZ/dsh-memory.git"
+    "url": "git+https://github.com/DWJZ/dsh-reflection.git"
   },
-  "homepage": "https://github.com/DWJZ/dsh-memory#readme",
+  "homepage": "https://github.com/DWJZ/dsh-reflection#readme",
   "main": "lib/index.mjs",
   "scripts": {
     "test": "npm run test:unit && node --import tsx/esm test/client.smoke.mjs",
@@ -54,6 +54,11 @@
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-conversation"
       ]
+    },
+    "compatibility": {
+      "dshReleases": {
+        "0.2.0-rc.2": "compatible"
+      }
     }
   },
   "peerDependencies": {

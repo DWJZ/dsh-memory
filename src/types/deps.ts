@@ -5,7 +5,7 @@
  * command module receives rather than one it defines — which is why it lives here
  * and not beside the commands that read it.
  *
- * @module dsh-memory/types/deps
+ * @module dsh-reflection/types/deps
  */
 
 import type { MemorySettings } from './config.js'

@@ -32,7 +32,7 @@ let captured = null
 globalThis.window = { __ModuleLoader__: { load: (definition) => { captured = definition } } }
 new Function(readFileSync(join(PLUGIN, 'client/client.js'), 'utf8'))()
 
-check('the bundle registers one module', captured !== null && captured.id === 'dsh-memory', String(captured?.id))
+check('the bundle registers one module', captured !== null && captured.id === 'dsh-reflection', String(captured?.id))
 
 // Anything but the module table would be a Harness Client package, which a
 // plugin half may not reach for: its injected services are the whole surface.

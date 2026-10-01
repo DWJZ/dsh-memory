@@ -11,7 +11,7 @@
  * The plugin registers raw tool definitions rather than importing the harness's
  * tool helper, because a locally installed plugin carries no runtime dependency.
  *
- * @module dsh-memory/tools
+ * @module dsh-reflection/tools
  */
 
 import { readStore } from './jsonstore.js'
@@ -275,18 +275,18 @@ type ValidatedRememberArgs =
 function requireParameterSet(args: Record<string, unknown>): asserts args is ValidatedRememberArgs {
   if (args.mode === 'add') {
     if (args.target_id !== undefined) {
-      throw new TypeError('dsh-memory: memory_remember with mode=add must not carry target_id')
+      throw new TypeError('dsh-reflection: memory_remember with mode=add must not carry target_id')
     }
     if (args.scope === undefined || args.category === undefined) {
-      throw new TypeError('dsh-memory: memory_remember with mode=add requires scope and category')
+      throw new TypeError('dsh-reflection: memory_remember with mode=add requires scope and category')
     }
     return
   }
   if (args.target_id === undefined) {
-    throw new TypeError(`dsh-memory: memory_remember with mode=${String(args.mode)} requires target_id`)
+    throw new TypeError(`dsh-reflection: memory_remember with mode=${String(args.mode)} requires target_id`)
   }
   if (args.scope !== undefined || args.category !== undefined) {
-    throw new TypeError(`dsh-memory: memory_remember with mode=${String(args.mode)} inherits scope and category; do not pass them`)
+    throw new TypeError(`dsh-reflection: memory_remember with mode=${String(args.mode)} inherits scope and category; do not pass them`)
   }
 }
 

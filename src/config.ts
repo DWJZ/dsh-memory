@@ -9,7 +9,7 @@
  * `memoryDir` is deliberately absent: Memory must be under the harness home, so
  * the location is derived and a deployment cannot point it elsewhere.
  *
- * @module dsh-memory/config
+ * @module dsh-reflection/config
  */
 
 import { MIN_TRAJECTORY_BYTES_PER_BATCH } from './consolidation/normalize.js'
@@ -120,13 +120,13 @@ function consolidationSetting(value: unknown): MemoryConsolidationSettings {
   const fallback = DEFAULTS.consolidation
   if (value === undefined) return { ...fallback }
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new TypeError(`dsh-memory: config consolidation must be an object, got ${JSON.stringify(value)}`)
+    throw new TypeError(`dsh-reflection: config consolidation must be an object, got ${JSON.stringify(value)}`)
   }
   // Configuration arrives unvalidated; each field is narrowed where it is read.
   const source = value as Record<string, unknown>
   const minConfidence = numberSetting(source.minConfidence, fallback.minConfidence, 'consolidation.minConfidence', 0)
   if (minConfidence > 1) {
-    throw new TypeError(`dsh-memory: config consolidation.minConfidence must be at most 1, got ${JSON.stringify(source.minConfidence)}`)
+    throw new TypeError(`dsh-reflection: config consolidation.minConfidence must be at most 1, got ${JSON.stringify(source.minConfidence)}`)
   }
   return {
     enabled: booleanSetting(source.enabled, fallback.enabled, 'consolidation.enabled'),
@@ -154,7 +154,7 @@ function consolidationSetting(value: unknown): MemoryConsolidationSettings {
 function integerSetting(value: unknown, fallback: number, field: string, minimum: number): number {
   if (value === undefined) return fallback
   if (typeof value !== 'number' || !Number.isInteger(value) || value < minimum) {
-    throw new TypeError(`dsh-memory: config ${field} must be an integer >= ${String(minimum)}, got ${JSON.stringify(value)}`)
+    throw new TypeError(`dsh-reflection: config ${field} must be an integer >= ${String(minimum)}, got ${JSON.stringify(value)}`)
   }
   return value
 }
@@ -169,7 +169,7 @@ function integerSetting(value: unknown, fallback: number, field: string, minimum
 function booleanSetting(value: unknown, fallback: boolean, field: string): boolean {
   if (value === undefined) return fallback
   if (typeof value !== 'boolean') {
-    throw new TypeError(`dsh-memory: config ${field} must be a boolean, got ${JSON.stringify(value)}`)
+    throw new TypeError(`dsh-reflection: config ${field} must be a boolean, got ${JSON.stringify(value)}`)
   }
   return value
 }
@@ -185,7 +185,7 @@ function booleanSetting(value: unknown, fallback: boolean, field: string): boole
 function numberSetting(value: unknown, fallback: number, field: string, minimum: number): number {
   if (value === undefined) return fallback
   if (typeof value !== 'number' || !Number.isFinite(value) || value < minimum) {
-    throw new TypeError(`dsh-memory: config ${field} must be a number >= ${String(minimum)}, got ${JSON.stringify(value)}`)
+    throw new TypeError(`dsh-reflection: config ${field} must be a number >= ${String(minimum)}, got ${JSON.stringify(value)}`)
   }
   return value
 }
@@ -199,12 +199,12 @@ function splitSetting(value: unknown): { user: number; project: number } {
   const source = value as Record<string, unknown>
   if (value === undefined) return { ...DEFAULTS.indexBudgetSplit }
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new TypeError(`dsh-memory: config indexBudgetSplit must be an object, got ${JSON.stringify(value)}`)
+    throw new TypeError(`dsh-reflection: config indexBudgetSplit must be an object, got ${JSON.stringify(value)}`)
   }
   const user = numberSetting(source.user, DEFAULTS.indexBudgetSplit.user, 'indexBudgetSplit.user', 0)
   const project = numberSetting(source.project, DEFAULTS.indexBudgetSplit.project, 'indexBudgetSplit.project', 0)
   if (Math.abs(user + project - 1) >= SPLIT_TOLERANCE) {
-    throw new TypeError(`dsh-memory: config indexBudgetSplit must sum to 1, got ${String(user + project)}`)
+    throw new TypeError(`dsh-reflection: config indexBudgetSplit must sum to 1, got ${String(user + project)}`)
   }
   return { user, project }
 }
@@ -217,11 +217,11 @@ function splitSetting(value: unknown): { user: number; project: number } {
 function markersSetting(value: unknown): string[] {
   if (value === undefined) return [...DEFAULTS.projectRootMarkers]
   if (!Array.isArray(value) || value.length === 0) {
-    throw new TypeError(`dsh-memory: config projectRootMarkers must be a non-empty array, got ${JSON.stringify(value)}`)
+    throw new TypeError(`dsh-reflection: config projectRootMarkers must be a non-empty array, got ${JSON.stringify(value)}`)
   }
   for (const marker of value) {
     if (typeof marker !== 'string' || marker.trim() === '' || marker.includes('/')) {
-      throw new TypeError(`dsh-memory: config projectRootMarkers entries must be non-empty file names, got ${JSON.stringify(marker)}`)
+      throw new TypeError(`dsh-reflection: config projectRootMarkers entries must be non-empty file names, got ${JSON.stringify(marker)}`)
     }
   }
   return [...value]

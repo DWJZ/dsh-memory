@@ -144,8 +144,8 @@ project:
 
 | 事件 | 这一行写什么 | 强调色 |
 |---|---|---|
-| `dsh-memory/consolidation` | 本次运行的状态与触发方式、覆盖的 seq 区间，以及写了什么 —— 新增/更新/取代/无操作四个计数，有值时再补上拒绝、跳过、失败。gap 只说这段区间没有任何进程观测到，不带计数 | `success` 绿、`partial` 琥珀、`no-human-turn` 灰、`gap` 红 |
-| `dsh-memory/project` | 项目根、由哪种查找决定（已登记路径 / workspace / 根标记），以及 project id 与 workspace id | 无 —— 归属是事实，不是结果 |
+| `dsh-reflection/consolidation` | 本次运行的状态与触发方式、覆盖的 seq 区间，以及写了什么 —— 新增/更新/取代/无操作四个计数，有值时再补上拒绝、跳过、失败。gap 只说这段区间没有任何进程观测到，不带计数 | `success` 绿、`partial` 琥珀、`no-human-turn` 灰、`gap` 红 |
+| `dsh-reflection/project` | 项目根、由哪种查找决定（已登记路径 / workspace / 根标记），以及 project id 与 workspace id | 无 —— 归属是事实，不是结果 |
 
 两类事件都只是日志：它们带 envelope 的 `ignorable` 标记，因此永远不会进入模型请求，不认识该类型的构建会跳过它们而不是拒绝该 Session。每一行都是一条 `extension` 记录 —— 本插件自己的摘要、强调色与原始负载 —— 所以轨迹侧渲染它时不需要认识本插件的任何一个字段名，共享的详情面板里能看到写入时的审计原文。这里没有任何东西走 HTTP：这些行读的是 Session 自己的日志。
 

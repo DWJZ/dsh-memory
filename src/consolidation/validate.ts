@@ -117,7 +117,7 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 
 export function reviewPlan(plan: { operations?: unknown[] } | null | undefined, context: ReviewContext) {
   if (!Array.isArray(plan?.operations)) {
-    throw new TypeError('dsh-memory: a consolidation plan must carry an operations array')
+    throw new TypeError('dsh-reflection: a consolidation plan must carry an operations array')
   }
   const accepted = []
   const rejected = []

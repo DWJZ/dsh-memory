@@ -6,7 +6,7 @@
  * name them. `memoryDir` is not a default — it is resolved from `dshHome` — but it
  * is part of what a caller holds.
  *
- * @module dsh-memory/types/config
+ * @module dsh-reflection/types/config
  */
 
 /** Phase 2's own settings, as `consolidationSetting` resolves them. */

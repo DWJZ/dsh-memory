@@ -29,7 +29,7 @@ const check = (name, condition, detail = '') => {
   }
 }
 
-const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-view-'))
+const ROOT = mkdtempSync(join(tmpdir(), 'dsh-reflection-view-'))
 const layout = scopeLayout(join(ROOT, 'user'))
 const OPTIONS = { ...layout, lockTimeoutMs: 2000, staleLockMs: 60000 }
 
@@ -59,7 +59,7 @@ const mixedView = renderMemoryView(mixed, { revision: 3 })
 check('the active record appears', mixedView.includes('current fact'))
 check('a superseded record is absent', !mixedView.includes('stale fact'))
 check('an archived record is absent', !mixedView.includes('archived fact'))
-check('the revision is recorded', mixedView.includes('dsh-memory: revision 3'))
+check('the revision is recorded', mixedView.includes('dsh-reflection: revision 3'))
 check('the file is generated, and says so', mixedView.includes('will be overwritten'))
 
 console.log('ordering matches the shared comparator')
@@ -81,7 +81,7 @@ check('compareRecords agrees with the render order',
 console.log('an empty scope still renders a readable file')
 const emptyView = renderMemoryView([], { revision: 0 })
 check('the empty view says so', emptyView.includes('No active Memory.'))
-check('the empty view records revision 0', emptyView.includes('dsh-memory: revision 0'))
+check('the empty view records revision 0', emptyView.includes('dsh-reflection: revision 0'))
 
 console.log('rebuildView writes what is on disk')
 await withStore(OPTIONS, current => ({
@@ -102,7 +102,7 @@ await withStore(OPTIONS, current => ({
 }))
 await rebuildView(OPTIONS)
 const latest = readFileSync(layout.viewPath, 'utf8')
-check('the view reflects the newest revision', latest.includes('dsh-memory: revision 2'))
+check('the view reflects the newest revision', latest.includes('dsh-reflection: revision 2'))
 check('the view holds the newest record', latest.includes('second fact'))
 check('the view still holds the earlier record', latest.includes('first fact'))
 

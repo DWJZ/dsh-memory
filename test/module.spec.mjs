@@ -25,9 +25,9 @@ const check = (name, condition, detail = '') => {
   }
 }
 
-const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-module-'))
+const ROOT = mkdtempSync(join(tmpdir(), 'dsh-reflection-module-'))
 
-check('the plugin names itself', plugin.name === 'dsh-memory')
+check('the plugin names itself', plugin.name === 'dsh-reflection')
 check('the plugin exports apply', typeof plugin.apply === 'function')
 check('the plugin has no default export', plugin.default === undefined)
 check('the plugin declares only its own exports',

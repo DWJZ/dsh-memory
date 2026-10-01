@@ -8,7 +8,7 @@
  * Confidence deliberately plays no part: Phase 1 only ever writes 1.0, so it
  * carries no information to rank by.
  *
- * @module dsh-memory/retention
+ * @module dsh-reflection/retention
  */
 
 import type { MemoryRecord } from './types/memory.js'

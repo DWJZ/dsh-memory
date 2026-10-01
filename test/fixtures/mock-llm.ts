@@ -20,7 +20,7 @@ import { appendFileSync, statSync } from 'node:fs'
 import { LlmAdapter, type GenerateOptions, type StreamChunk, type ToolCallId } from '../../../../packages/llm/llm/src/index.ts'
 
 /** The route this adapter owns. */
-const PROVIDER = 'dsh-memory-mock'
+const PROVIDER = 'dsh-reflection-mock'
 
 /** Where each request is recorded, when the harness set it. */
 const LOG = process.env.DSH_MEMORY_MOCK_LOG
@@ -174,7 +174,7 @@ class MemoryMockAdapter extends LlmAdapter {
 }
 
 /** Stable Cordis plugin name. */
-export const name = 'dsh-memory-mock-llm'
+export const name = 'dsh-reflection-mock-llm'
 
 /** The adapter registry this plugin contributes to. */
 export const inject = ['llm']

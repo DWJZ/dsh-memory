@@ -30,7 +30,7 @@ const check = (name, condition, detail = '') => {
 }
 
 const AT = '2026-09-26T00:00:00.000Z'
-const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-commands-'))
+const ROOT = mkdtempSync(join(tmpdir(), 'dsh-reflection-commands-'))
 const MEMORY = join(ROOT, 'memory')
 const PROJECT = join(ROOT, 'project')
 mkdirSync(join(PROJECT, '.git'), { recursive: true })

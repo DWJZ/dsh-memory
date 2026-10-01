@@ -98,14 +98,14 @@ export function buildRequest(request: ConsolidationRequest): string {
  */
 export function parsePlan(text: string) {
   const raw = String(text ?? '').trim()
-  if (raw === '') throw new Error('dsh-memory: the consolidation model returned nothing')
+  if (raw === '') throw new Error('dsh-reflection: the consolidation model returned nothing')
   const start = raw.indexOf('{')
   const end = raw.lastIndexOf('}')
   if (start < 0 || end <= start) {
     // The answer is not repeated: a model that answers in prose can restate the
     // trajectory, and this message reaches the plugin's log. Length, stage, and
     // completion are enough to diagnose it.
-    throw new Error(`dsh-memory: the consolidation model returned no JSON object (${String(raw.length)} characters of text)`)
+    throw new Error(`dsh-reflection: the consolidation model returned no JSON object (${String(raw.length)} characters of text)`)
   }
   let parsed
   try {
@@ -113,13 +113,13 @@ export function parsePlan(text: string) {
   } catch {
     // V8's parse error quotes the input it choked on, which is the model's text.
     // The length and the stage are what a diagnosis needs from here.
-    throw new Error(`dsh-memory: the consolidation model returned invalid JSON (${String(raw.length)} characters of text)`)
+    throw new Error(`dsh-reflection: the consolidation model returned invalid JSON (${String(raw.length)} characters of text)`)
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error('dsh-memory: the consolidation plan must be a JSON object')
+    throw new Error('dsh-reflection: the consolidation plan must be a JSON object')
   }
   if (parsed.operations !== undefined && !Array.isArray(parsed.operations)) {
-    throw new Error('dsh-memory: the consolidation plan operations must be an array')
+    throw new Error('dsh-reflection: the consolidation plan operations must be an array')
   }
   return { operations: parsed.operations ?? [] }
 }

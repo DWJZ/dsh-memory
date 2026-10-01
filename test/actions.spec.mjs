@@ -32,7 +32,7 @@ const check = (name, condition, detail = '') => {
 
 const AT = '2026-09-26T00:00:00.000Z'
 const BASE_MS = Date.parse(AT)
-const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-actions-'))
+const ROOT = mkdtempSync(join(tmpdir(), 'dsh-reflection-actions-'))
 const MEMORY = join(ROOT, 'memory')
 mkdirSync(MEMORY, { recursive: true })
 const PROJECT_A = newProjectId()

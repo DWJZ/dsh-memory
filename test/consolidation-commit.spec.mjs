@@ -24,7 +24,7 @@ const check = (name, condition, detail = '') => {
   }
 }
 
-const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-consolidation-commit-'))
+const ROOT = mkdtempSync(join(tmpdir(), 'dsh-reflection-consolidation-commit-'))
 const MEMORY = join(ROOT, 'memory')
 mkdirSync(MEMORY, { recursive: true })
 const PROJECT = newProjectId()

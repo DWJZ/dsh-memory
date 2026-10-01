@@ -37,7 +37,7 @@ const check = (name, condition, detail = '') => {
 /** Per-run wall-clock guard: a stuck adapter must not hang the suite. */
 const RUN_TIMEOUT_MS = 120_000
 
-const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-integration-'))
+const ROOT = mkdtempSync(join(tmpdir(), 'dsh-reflection-integration-'))
 const HOME = join(ROOT, 'home')
 mkdirSync(HOME, { recursive: true })
 
@@ -70,22 +70,22 @@ function writePatch(project, options = {}) {
     '',
     '- id: agent-default-model',
     '  config:',
-    '    provider: dsh-memory-mock',
-    '    model: dsh-memory-mock',
+    '    provider: dsh-reflection-mock',
+    '    model: dsh-reflection-mock',
     '',
     '- id: fs-sandbox',
     '  config:',
     `    cwd: ${JSON.stringify(project)}`,
     '',
     '- insert:',
-    '    - id: dsh-memory-mock-llm',
+    '    - id: dsh-reflection-mock-llm',
     `      name: ${JSON.stringify(join(PLUGIN, 'test/fixtures/mock-llm.ts'))}`,
     '',
-    '    - id: dsh-memory',
+    '    - id: dsh-reflection',
     `      name: ${JSON.stringify(join(PLUGIN, 'src/index.js'))}`,
     '',
     ...options.drive !== true ? [] : [
-      '    - id: dsh-memory-consolidate-on-idle',
+      '    - id: dsh-reflection-consolidate-on-idle',
       `      name: ${JSON.stringify(join(PLUGIN, 'test/fixtures/consolidate-on-idle.ts'))}`,
       '',
     ],

@@ -25,7 +25,7 @@ const check = (name, condition, detail = '') => {
   }
 }
 
-const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-concurrent-'))
+const ROOT = mkdtempSync(join(tmpdir(), 'dsh-reflection-concurrent-'))
 const STORE = join(ROOT, 'memories.json')
 const LOCK = join(ROOT, 'memories.json.lock')
 const WORKER = join(PLUGIN, 'test/fixtures/mutate-worker.mjs')
@@ -77,7 +77,7 @@ check('the lock is released after the last writer', !existsSync(LOCK))
 
 // Negative control: without the lock the same two writers lose an update, so the
 // assertions above are observing the lock rather than passing for free.
-const UNSAFE_ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-concurrent-unsafe-'))
+const UNSAFE_ROOT = mkdtempSync(join(tmpdir(), 'dsh-reflection-concurrent-unsafe-'))
 const UNSAFE_STORE = join(UNSAFE_ROOT, 'memories.json')
 const UNSAFE_WORKER = join(PLUGIN, 'test/fixtures/mutate-worker-unsafe.mjs')
 

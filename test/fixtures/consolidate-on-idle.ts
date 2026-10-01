@@ -19,7 +19,7 @@ import { appendFileSync } from 'node:fs'
 import type { Context } from '@deepseek-ai/cordis'
 
 /** Stable Cordis plugin name. */
-export const name = 'dsh-memory-consolidate-on-idle'
+export const name = 'dsh-reflection-consolidate-on-idle'
 
 /** The command surface this fixture drives. */
 export const inject = ['commands']

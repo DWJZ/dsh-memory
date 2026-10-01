@@ -6,7 +6,7 @@
  * previously unreadable: an object literal default infers as `{}`, so every member
  * the module reads from it came back as a missing property.
  *
- * @module dsh-memory/types/seams
+ * @module dsh-reflection/types/seams
  */
 
 /** Filesystem probes a resolver may take instead of the real ones. */

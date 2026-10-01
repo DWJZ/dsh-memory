@@ -139,7 +139,7 @@ function apply(options: ActionOptions, operation: AutoOperation): Promise<Action
       // The union says these three are all that arrive, because the validator
       // refuses anything else first. This stays as the runtime guard for a caller
       // that reaches here without validating model output.
-      throw new Error(`dsh-memory: ${String((operation as { action: unknown }).action)} is not an automatic action`)
+      throw new Error(`dsh-reflection: ${String((operation as { action: unknown }).action)} is not an automatic action`)
 
 }
 }

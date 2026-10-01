@@ -26,7 +26,7 @@ const check = (name, condition, detail = '') => {
   }
 }
 
-const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-registry-concurrent-'))
+const ROOT = mkdtempSync(join(tmpdir(), 'dsh-reflection-registry-concurrent-'))
 const MEMORY = join(ROOT, 'memory')
 mkdirSync(MEMORY, { recursive: true })
 const LAYOUT = registryLayout(MEMORY)

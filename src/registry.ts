@@ -12,7 +12,7 @@
  * two harness processes can open the same new directory at once, checking and
  * creating happen inside one registry lock — otherwise both would mint an id.
  *
- * @module dsh-memory/registry
+ * @module dsh-reflection/registry
  */
 
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
@@ -79,19 +79,19 @@ export function readRegistry(registryPath: string) {
   try {
     parsed = JSON.parse(readFileSync(registryPath, 'utf8'))
   } catch (error) {
-    throw new Error(`dsh-memory: ${registryPath} is not valid JSON: ${failureMessage(error)}`)
+    throw new Error(`dsh-reflection: ${registryPath} is not valid JSON: ${failureMessage(error)}`)
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error(`dsh-memory: ${registryPath} must hold a JSON object`)
+    throw new Error(`dsh-reflection: ${registryPath} must hold a JSON object`)
   }
   if (parsed.schema_version !== REGISTRY_SCHEMA_VERSION) {
-    throw new Error(`dsh-memory: ${registryPath} has schema_version ${JSON.stringify(parsed.schema_version)}, this build writes ${String(REGISTRY_SCHEMA_VERSION)}`)
+    throw new Error(`dsh-reflection: ${registryPath} has schema_version ${JSON.stringify(parsed.schema_version)}, this build writes ${String(REGISTRY_SCHEMA_VERSION)}`)
   }
   if (!Number.isInteger(parsed.revision) || parsed.revision < 0) {
-    throw new Error(`dsh-memory: ${registryPath} has an invalid revision ${JSON.stringify(parsed.revision)}`)
+    throw new Error(`dsh-reflection: ${registryPath} has an invalid revision ${JSON.stringify(parsed.revision)}`)
   }
   if (!Array.isArray(parsed.projects)) {
-    throw new Error(`dsh-memory: ${registryPath} must hold a projects array`)
+    throw new Error(`dsh-reflection: ${registryPath} must hold a projects array`)
   }
   validateRegistry(parsed)
   return parsed
@@ -112,26 +112,26 @@ export function validateRegistry(registry: ProjectRegistry) {
   const identities = new Map()
   for (const entry of registry.projects) {
     if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
-      throw new TypeError('dsh-memory: a registry entry must be an object')
+      throw new TypeError('dsh-reflection: a registry entry must be an object')
     }
     if (!isProjectId(entry.project_id)) {
-      throw new TypeError(`dsh-memory: project_id must be a project id, got ${JSON.stringify(entry.project_id)}`)
+      throw new TypeError(`dsh-reflection: project_id must be a project id, got ${JSON.stringify(entry.project_id)}`)
     }
     if (ids.has(entry.project_id)) {
-      throw new TypeError(`dsh-memory: project ${entry.project_id} appears more than once`)
+      throw new TypeError(`dsh-reflection: project ${entry.project_id} appears more than once`)
     }
     ids.add(entry.project_id)
     if (typeof entry.canonical_root !== 'string' || !isAbsolute(entry.canonical_root)) {
-      throw new TypeError(`dsh-memory: project ${entry.project_id} must have an absolute canonical_root, got ${JSON.stringify(entry.canonical_root)}`)
+      throw new TypeError(`dsh-reflection: project ${entry.project_id} must have an absolute canonical_root, got ${JSON.stringify(entry.canonical_root)}`)
     }
     for (const field of ['aliases', 'workspace_ids'] as const) {
       if (!Array.isArray(entry[field]) || entry[field].some(value => typeof value !== 'string')) {
-        throw new TypeError(`dsh-memory: project ${entry.project_id} ${field} must be an array of strings`)
+        throw new TypeError(`dsh-reflection: project ${entry.project_id} ${field} must be an array of strings`)
       }
     }
     for (const root of projectRoots(entry)) {
       if (!isAbsolute(root)) {
-        throw new TypeError(`dsh-memory: project ${entry.project_id} has a non-absolute root ${JSON.stringify(root)}`)
+        throw new TypeError(`dsh-reflection: project ${entry.project_id} has a non-absolute root ${JSON.stringify(root)}`)
       }
       // `/foo/bar` and `/foo/x/../bar` are one directory spelled two ways. The
       // key is the normalized path, not the string as written, or a registry
@@ -139,7 +139,7 @@ export function validateRegistry(registry: ProjectRegistry) {
       const lexical = resolve(root)
       const owner = roots.get(lexical)
       if (owner !== undefined && owner !== entry.project_id) {
-        throw new TypeError(`dsh-memory: ${root} is claimed by both ${owner} and ${entry.project_id}`)
+        throw new TypeError(`dsh-reflection: ${root} is claimed by both ${owner} and ${entry.project_id}`)
       }
       roots.set(lexical, entry.project_id)
       // Two different spellings of one directory — a symlink, or a path that
@@ -149,13 +149,13 @@ export function validateRegistry(registry: ProjectRegistry) {
       if (identity === undefined) continue
       const claimant = identities.get(identity)
       if (claimant !== undefined && claimant.project_id !== entry.project_id) {
-        throw new TypeError(`dsh-memory: ${root} and ${claimant.root} are the same directory, claimed by both ${claimant.project_id} and ${entry.project_id}`)
+        throw new TypeError(`dsh-reflection: ${root} and ${claimant.root} are the same directory, claimed by both ${claimant.project_id} and ${entry.project_id}`)
       }
       identities.set(identity, { project_id: entry.project_id, root })
     }
     for (const field of ['created_at', 'updated_at'] as const) {
       if (!isTimestamp(entry[field])) {
-        throw new TypeError(`dsh-memory: project ${entry.project_id} ${field} must be an ISO-8601 UTC timestamp`)
+        throw new TypeError(`dsh-reflection: project ${entry.project_id} ${field} must be an ISO-8601 UTC timestamp`)
       }
     }
   }
@@ -299,7 +299,7 @@ export async function resolveOrRegisterProject(
       return { project: describeProject(adopted, options), created: false }
     }
     if (!existsSync(requested)) {
-      throw new Error(`dsh-memory: cannot register ${requested}: it does not exist`)
+      throw new Error(`dsh-reflection: cannot register ${requested}: it does not exist`)
     }
     const at = nowIso(options)
     const entry = {
@@ -383,14 +383,14 @@ export async function relinkProject(
     const registry = readRegistry(options.registryPath)
     const found = locateForRelink(registry.projects, previous, options)
     if (found === undefined) {
-      throw new Error(`dsh-memory: no project is registered at ${previous}`)
+      throw new Error(`dsh-reflection: no project is registered at ${previous}`)
     }
     if (!existsSync(next)) {
-      throw new Error(`dsh-memory: cannot relink to ${next}: it does not exist`)
+      throw new Error(`dsh-reflection: cannot relink to ${next}: it does not exist`)
     }
     const conflicting = ownerOf(registry.projects, next, options)
     if (conflicting !== undefined && conflicting.project_id !== found.project_id) {
-      throw new Error(`dsh-memory: ${next} already belongs to project ${conflicting.project_id}`)
+      throw new Error(`dsh-reflection: ${next} already belongs to project ${conflicting.project_id}`)
     }
     if (previous === next) return { project: describeProject(found, options), changed: false }
 

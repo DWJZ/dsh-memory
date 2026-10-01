@@ -6,7 +6,7 @@
  * classified, capped and rendered for a model, while an event is whatever the
  * Session appended and may be a type this build knows nothing about.
  *
- * @module dsh-memory/trajectory
+ * @module dsh-reflection/trajectory
  */
 
 /**

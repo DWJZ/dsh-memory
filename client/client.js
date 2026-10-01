@@ -1,9 +1,9 @@
 /**
- * dsh-memory — browser half (lazy-CJS client bundle).
+ * dsh-reflection — browser half (lazy-CJS client bundle).
  *
  * The host half writes two kinds of informational Session event: one for each
- * consolidation run (`dsh-memory/consolidation`) and one for the project a
- * Session was attributed to (`dsh-memory/project`). This half folds each of them
+ * consolidation run (`dsh-reflection/consolidation`) and one for the project a
+ * Session was attributed to (`dsh-reflection/project`). This half folds each of them
  * into a single read-only row of the Trajectory ledger.
  *
  * Both rows are plugin `extension` records: the ledger renders the one-line
@@ -17,7 +17,7 @@
 
 /// <reference path="./client.d.ts" />
 window.__ModuleLoader__.load({
-	id: "dsh-memory",
+	id: "dsh-reflection",
 	factory: (require) => {
 		var module = { exports: {} };
 		/** @type {Partial<DshMemoryClientExports>} */
@@ -84,8 +84,8 @@ window.__ModuleLoader__.load({
 
 		//#region vocabulary
 		/** Host-written event types this half renders. */
-		const CONSOLIDATION_EVENT = "dsh-memory/consolidation";
-		const PROJECT_EVENT = "dsh-memory/project";
+		const CONSOLIDATION_EVENT = "dsh-reflection/consolidation";
+		const PROJECT_EVENT = "dsh-reflection/project";
 		/** The one status that carries no operation counters. */
 		const GAP_STATUS = "gap";
 		/**
@@ -463,13 +463,13 @@ window.__ModuleLoader__.load({
 			// The binding reads the active locale at call time, so one function
 			// serves every later language switch.
 			const translate = ctx.locale.bind(NS);
-			ctx.effect(() => ctx.locale.register(NS, { zh, en }), "dsh-memory: dictionaries");
+			ctx.effect(() => ctx.locale.register(NS, { zh, en }), "dsh-reflection: dictionaries");
 			// Both events are appends this plugin makes to the Session log, so the
 			// rows are folded from the event stream: no host interface is involved.
 			ctx.effect(() => ctx.uiConversation.events.register(createConsolidationRow(translate)),
-				"dsh-memory: consolidation definition");
+				"dsh-reflection: consolidation definition");
 			ctx.effect(() => ctx.uiConversation.events.register(createProjectRow(translate)),
-				"dsh-memory: project definition");
+				"dsh-reflection: project definition");
 		}
 
 		exports.apply = apply;

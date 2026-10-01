@@ -9,7 +9,7 @@
  * when any step before the rename fails — a store that cannot be written must not
  * leave fragments of old Memory behind in the memory directory.
  *
- * @module dsh-memory/jsonstore
+ * @module dsh-reflection/jsonstore
  */
 
 import {
@@ -29,7 +29,7 @@ import type { MemoryRecord, MemoryStore } from './types/memory.js'
 export const STORE_SCHEMA_VERSION = 1
 
 /** Suffix every temporary file this plugin creates carries. */
-export const TEMP_MARKER = '.dsh-memory-tmp-'
+export const TEMP_MARKER = '.dsh-reflection-tmp-'
 
 /**
  * Build an empty store.
@@ -68,19 +68,19 @@ function parseStore(storePath: string) {
   try {
     parsed = JSON.parse(text)
   } catch (error) {
-    throw new Error(`dsh-memory: ${storePath} is not valid JSON: ${failureMessage(error)}`)
+    throw new Error(`dsh-reflection: ${storePath} is not valid JSON: ${failureMessage(error)}`)
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error(`dsh-memory: ${storePath} must hold a JSON object`)
+    throw new Error(`dsh-reflection: ${storePath} must hold a JSON object`)
   }
   if (parsed.schema_version !== STORE_SCHEMA_VERSION) {
-    throw new Error(`dsh-memory: ${storePath} has schema_version ${JSON.stringify(parsed.schema_version)}, this build writes ${String(STORE_SCHEMA_VERSION)}`)
+    throw new Error(`dsh-reflection: ${storePath} has schema_version ${JSON.stringify(parsed.schema_version)}, this build writes ${String(STORE_SCHEMA_VERSION)}`)
   }
   if (!Number.isInteger(parsed.revision) || parsed.revision < 0) {
-    throw new Error(`dsh-memory: ${storePath} has an invalid revision ${JSON.stringify(parsed.revision)}`)
+    throw new Error(`dsh-reflection: ${storePath} has an invalid revision ${JSON.stringify(parsed.revision)}`)
   }
   if (!Array.isArray(parsed.records)) {
-    throw new Error(`dsh-memory: ${storePath} must hold a records array`)
+    throw new Error(`dsh-reflection: ${storePath} must hold a records array`)
   }
   return parsed
 }

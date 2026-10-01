@@ -29,7 +29,7 @@ const check = (name, condition, detail = '') => {
   }
 }
 
-const ROOT = mkdtempSync(join(tmpdir(), 'dsh-memory-consolidation-run-'))
+const ROOT = mkdtempSync(join(tmpdir(), 'dsh-reflection-consolidation-run-'))
 const MEMORY = join(ROOT, 'memory')
 mkdirSync(MEMORY, { recursive: true })
 const PROJECT = newProjectId()
@@ -205,7 +205,7 @@ console.log('NOOP is success and still advances')
 console.log('an ignorable-only window consumes without asking a model')
 {
   const harnessed = harness({ sessionId: 'session_noise' })
-  observe(harnessed, [ignorable(10), ignorable(11), { seq: 12, type: 'dsh-memory/consolidation', data: {} }])
+  observe(harnessed, [ignorable(10), ignorable(11), { seq: 12, type: 'dsh-reflection/consolidation', data: {} }])
   const outcome = await harnessed.consolidation.consolidate(harnessed.agent)
   check('no model call was made', harnessed.calls.length === 0)
   check('the window was consumed', markOf('session_noise') === 12)

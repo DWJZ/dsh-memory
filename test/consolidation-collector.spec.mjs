@@ -44,9 +44,9 @@ console.log('classify')
 check('an ignorable event is ignorable whatever its type',
   normalize.classify(ignorable(1, 'user/message')).kind === 'ignorable')
 check('an internal event is recognized by its namespace',
-  normalize.classify(event(1, 'dsh-memory/consolidation')).kind === 'internal')
+  normalize.classify(event(1, 'dsh-reflection/consolidation')).kind === 'internal')
 check('an internal event is internal even when marked ignorable',
-  normalize.classify(event(1, 'dsh-memory/consolidation', {}, { ignorable: true })).kind === 'ignorable')
+  normalize.classify(event(1, 'dsh-reflection/consolidation', {}, { ignorable: true })).kind === 'ignorable')
 check('a turn event is relevant', normalize.classify(human(1, 'x')).kind === 'relevant')
 check('a tool result is relevant', normalize.classify(event(1, 'tool/result')).kind === 'relevant')
 check('a known bookkeeping event is skipped, not unsupported',
@@ -99,7 +99,7 @@ check('an already consumed window is empty', advanced.entries.length === 0)
 check('an empty window has no end', advanced.toSeq === undefined)
 
 console.log('ignorable-only window still advances')
-const noiseOnly = [ignorable(301), ignorable(302), event(303, 'dsh-memory/consolidation')]
+const noiseOnly = [ignorable(301), ignorable(302), event(303, 'dsh-reflection/consolidation')]
 const noise = normalize.batchWindow(noiseOnly, { afterSeq: 300 })
 check('no model input is produced', noise.entries.length === 0)
 check('no human turn is found', noise.humanTurn === false)
