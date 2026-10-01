@@ -10,6 +10,9 @@
   },
   "homepage": "https://github.com/DWJZ/dsh-reflection#readme",
   "main": "lib/index.mjs",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
   "scripts": {
     "test": "npm run test:unit && node --import tsx/esm test/client.smoke.mjs",
     "test:unit": "node --import tsx/esm test/paths.spec.mjs && node --import tsx/esm test/config.spec.mjs && node --import tsx/esm test/schema.spec.mjs && node --import tsx/esm test/module.spec.mjs && node --import tsx/esm test/redact.spec.mjs && node --import tsx/esm test/lock.spec.mjs && node --import tsx/esm test/jsonstore.spec.mjs && node --import tsx/esm test/views.spec.mjs && node --import tsx/esm test/registry.spec.mjs && node --import tsx/esm test/actions.spec.mjs && node --import tsx/esm test/tombstones.spec.mjs && node --import tsx/esm test/search.spec.mjs && node --import tsx/esm test/index.spec.mjs && node --import tsx/esm test/concurrent.spec.mjs && node --import tsx/esm test/registry-concurrent.spec.mjs && node --import tsx/esm test/wiring.spec.mjs && node --import tsx/esm test/commands.spec.mjs && node --import tsx/esm test/consolidation-state.spec.mjs && node --import tsx/esm test/consolidation-collector.spec.mjs && node --import tsx/esm test/consolidation-trigger.spec.mjs && node --import tsx/esm test/consolidation-model.spec.mjs && node --import tsx/esm test/consolidation-validate.spec.mjs && node --import tsx/esm test/consolidation-commit.spec.mjs && node --import tsx/esm test/consolidation-run.spec.mjs",
