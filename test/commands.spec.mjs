@@ -111,6 +111,10 @@ console.log('consolidate')
 // The manual trigger runs the same pipeline the debounce runs. Nothing has been
 // observed for this Session, so it reports that without reaching a model.
 check('usage names the consolidation command', textOf(usage).includes('/memory consolidate'))
+const rawWithoutDryRun = await run(ctx, 'consolidate --show-raw', agent)
+check('--show-raw without --dry-run is refused',
+  rawWithoutDryRun.kind === 'error' && textOf(rawWithoutDryRun).includes('only applies to --dry-run'),
+  textOf(rawWithoutDryRun))
 const consolidateNow = await run(ctx, 'consolidate', agent)
 check('consolidate succeeds', consolidateNow.kind === 'success', textOf(consolidateNow))
 check('it reports that nothing was observed',

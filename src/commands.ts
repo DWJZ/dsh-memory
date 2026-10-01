@@ -208,9 +208,14 @@ async function consolidateCommand(deps: MemoryDeps, invocation: CommandInvocatio
     return error('dsh-reflection: automatic consolidation is turned off in this profile (consolidation.enabled)')
   }
   try {
+    const dryRun = flags.has('dry-run') === true
+    if (flags.has('show-raw') === true && !dryRun) {
+      return error('--show-raw only applies to --dry-run: a committed run keeps no raw answer')
+    }
     const outcome = await deps.consolidate(invocation.agent, {
-      dryRun: flags.has('dry-run') === true,
+      dryRun,
       trigger: 'manual-command',
+      showRaw: flags.has('show-raw') === true,
     })
     return ok(describeConsolidation(outcome))
   } catch (failure) {
@@ -350,7 +355,7 @@ function usageText(deps: MemoryDeps) {
     '/memory forget <id>',
     '/memory clear --user|--project --yes',
     '/memory export [--user|--project] [--format md|json]',
-    '/memory consolidate [--dry-run]',
+    '/memory consolidate [--dry-run [--show-raw]]',
     '/memory enable | /memory disable',
     '/memory project bind <path> | relink <old> <new> | show',
   ].join('\n')

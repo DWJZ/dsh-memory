@@ -81,6 +81,8 @@ export interface DryRunAudit {
   rejected: readonly { index?: number | undefined; reason?: string | undefined }[]
   /** Why accepted proposals became no-ops. */
   noopReasons: readonly string[]
+  /** The model's own answer, kept only for a dry run that asked for it. */
+  model_raw?: string | undefined
   /** What asked for the run. */
   trigger?: string | undefined
   /** What the model call cost, when the provider reported it. */
@@ -320,7 +322,7 @@ export function createConsolidation(options: ConsolidationOptions) {
    */
   const consolidate = async (
     agent: MemoryAgent,
-    runOptions: { dryRun?: boolean; trigger?: string; signal?: AbortSignal } = {},
+    runOptions: { dryRun?: boolean; trigger?: string; signal?: AbortSignal; showRaw?: boolean } = {},
   ): Promise<RunAudit> => {
     const sessionId = agent?.session?.id
     if (typeof sessionId !== 'string') return { status: 'no-session' }
@@ -338,7 +340,12 @@ export function createConsolidation(options: ConsolidationOptions) {
    */
   const runOnce = async (
     agent: MemoryAgent,
-    runOptions: { dryRun?: boolean | undefined; trigger?: string | undefined; signal?: AbortSignal | undefined },
+    runOptions: {
+      dryRun?: boolean | undefined
+      trigger?: string | undefined
+      signal?: AbortSignal | undefined
+      showRaw?: boolean | undefined
+    },
   ): Promise<RunAudit> => {
     const session = agent?.session
     const sessionId = session?.id
@@ -418,7 +425,11 @@ export function createConsolidation(options: ConsolidationOptions) {
     const text = answer.text
     // The usage belongs to the call, not the window, so it rides along with the
     // window fields every audit construction already spreads.
-    ;(auditBase as { usage?: ConsolidationUsage | undefined }).usage = answer.usage
+    const extras = auditBase as { usage?: ConsolidationUsage | undefined; model_raw?: string }
+    extras.usage = answer.usage
+    // The raw answer can quote the conversation, so it is kept only when a person
+    // asks for it with a dry run.
+    if (runOptions.dryRun === true && runOptions.showRaw === true) extras.model_raw = answer.text
     const plan = parsePlan(text)
     const reviewed = reviewPlan(plan, {
       fromSeq: afterSeq + 1,
@@ -634,6 +645,7 @@ export function describeOutcome(outcome: RunAudit): string {
     }
     for (const rejected of outcome.rejected) lines.push(`- dropped (${String(rejected.index)}): ${rejected.reason}`)
     for (const reason of outcome.noopReasons) lines.push(`- noop: ${reason}`)
+    if (outcome.model_raw !== undefined) lines.push('', 'Raw model answer:', outcome.model_raw)
     lines.push('Nothing was written and the progress mark is unchanged.')
     return lines.join('\n')
   }

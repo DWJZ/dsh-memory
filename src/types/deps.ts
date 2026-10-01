@@ -48,5 +48,11 @@ export interface MemoryDeps {
   /** The citation for the turn in flight, when the Session has one to cite. */
   evidenceFor(agent: MemoryAgent): Provenance
   /** Run one consolidation for an agent, as `/memory consolidate` does. */
-  consolidate(agent: MemoryAgent, runOptions?: { dryRun?: boolean; trigger?: string; signal?: AbortSignal | undefined }): Promise<RunAudit>
+  consolidate(agent: MemoryAgent, runOptions?: {
+    dryRun?: boolean
+    trigger?: string
+    signal?: AbortSignal | undefined
+    /** Report the model's own answer in the audit; dry runs only. */
+    showRaw?: boolean
+  }): Promise<RunAudit>
 }
