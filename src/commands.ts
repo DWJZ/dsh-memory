@@ -39,7 +39,13 @@ export function registerMemoryCommands(ctx: Context, deps: MemoryDeps) {
   return ctx.commands.register({
     name: 'memory',
     description: 'Inspect and control persistent Memory',
-    input: { hint: 'list | search | inspect | archive | forget | clear | export | consolidate | enable | disable | project' },
+    // The command API exposes one prompt: this hint. It carries the argument shapes
+    // for the subcommands whose flags are not guessable from the name alone.
+    input: {
+      hint: 'help · list [--user|--project] [--status …] [--category …] · search <query> [--top n] · '
+        + 'inspect|archive|forget <id> · clear --user|--project --yes · export [--format md|json] · '
+        + 'consolidate [--dry-run] · enable|disable · project bind|relink|show',
+    },
     handler: (invocation: CommandInvocation) => run(deps, invocation),
   })
 }
@@ -57,6 +63,7 @@ async function run(deps: MemoryDeps, invocation: CommandInvocation) {
   try {
     switch (group) {
       case undefined: return ok(usageText(deps))
+      case 'help': return ok(usageText(deps))
       case 'list': return await listCommand(deps, invocation, flags)
       case 'search': return await searchCommand(deps, invocation, rest, flags)
       case 'inspect': return await inspectCommand(deps, invocation, rest)
@@ -335,6 +342,7 @@ function usageText(deps: MemoryDeps) {
   return [
     `dsh-reflection (${deps.isEnabled() ? 'enabled' : 'disabled'}) — Memory lives in ${deps.config.memoryDir}`,
     '',
+    '/memory help — print this list',
     '/memory list [--user|--project] [--status active|superseded|archived|all] [--category <c>]',
     '/memory search <query> [--top <n>] [--user|--project]',
     '/memory inspect <id>',
