@@ -1129,45 +1129,15 @@ unknown>>(…)`（三处精确文本替换即可命中），**并且**给六个�
 > 经验：这三处用**逐处精确文本替换**（每处断言命中一次）是可行的；用正则往签名里插 `<T,`
 > 会静默破坏签名并连带打断运行时（第 18 轮已发生一次）。
 
-## 最后 2 个类型错误：确切改法（判别联合 + 泛型化）
+## 类型检查现状
 
-当前：服务端 **2** / 客户端 **0**（`npm run typecheck`）。两处都必须**一次做完**（只做一半会级联）：
+`npm run typecheck` 两个面都是 0（服务端 `tsconfig.json`、客户端 `tsconfig.client.json`）。运行时四条命令
+必须保持绿：`npm run test:unit`（1325 断言）、`npm run test:integration`、`npm run build`、
+`node --import tsx/esm test/client.smoke.mjs`。
 
-### ① `ReviewedOperation` 必须是**判别联合**（不是单一接口，也不是与联合交叉）
+改这些模块时值得记住的两条：
 
-单一接口（现在的写法）能让消费侧读到 `scope`/`category`/`evidence`，却**丢掉判别**：`commit.ts`
-按 `action` 分支（77/78/80/86），把参数放宽后立刻 4 处报错。与 `AutoOperation` 交叉则相反——交叉会
-分配到联合每个成员上，要求 `action` 同时是 `'add'` 和 `'update' | 'supersede'`（完整错误可证）。
-
-正确写法：
-
-```ts
-export interface ReviewedAdd extends AddOperation { confidence: number; evidence: EvidenceEntry }
-export interface ReviewedTargeted extends TargetedOperation {
-  target_id: string; confidence: number; evidence: EvidenceEntry
-}
-export type ReviewedOperation = ReviewedAdd | ReviewedTargeted
-```
-
-配套（一次改完）：`validate.ts` 的构造点按 `action === 'add'` **分成两支**（`update`/`supersede` 那支
-在 `target !== undefined` 的守卫之后，因此 `target_id` 可以取 `target.id`）；`commit.ts:68` 的参数写成
-`readonly ReviewedOperation[]`。
-
-### ② `StoreMutation` 必须泛型化，并把六个调用方一起改
-
-`actions.ts(436)` 的 `{ ...outcome.result }` 取到 `unknown`，源头是 `jsonstore.ts` 的
-`StoreMutation.result?: unknown`。改法（三处精确替换 + 六个调用方）：
-
-```ts
-export type StoreMutation<T = Record<string, unknown>> =
-  | { changed: true; records: MemoryRecord[]; result?: T }
-  | { changed?: false | undefined; records?: undefined; result?: T }
-export async function withStore<T = Record<string, unknown>>(…, operation: (store: MemoryStore) => StoreMutation<T> | undefined)
-async function apply<T extends Record<string, unknown> = Record<string, unknown>>(…, operation: (store: MemoryStore) => StoreMutation<T> | undefined)
-```
-
-并把 `actions.ts` 的 81/128/164/206/229/278 六个调用方的回调返回形状补齐，让 `T` 能被推断出来
-（只改前三处会 2 → 17）。**不要用正则往签名里插 `<T,`**——那会静默破坏签名并打断运行时。
-
-> 硬规则：运行时四条命令必须始终绿（`test:unit` 1325 断言、`test:integration`、`build`、
-> `client.smoke`）。曾因签名被插坏而让 `test:unit` 掉到 227 断言，当场回退。
+- **改签名要读逐字原文再整段替换**。往里插泛型参数时用正则拼参数列表，会把多行签名改坏并让运行时
+  失败（`test:unit` 掉到 227 / 136 断言各发生过一次）；逐字原文替换则从未失手。
+- **一个类型化的接缝会把下游的推断收紧**。给 `withLock`/`withStore`/`apply` 这类函数加上泛型或返回
+  类型后，之前因未标注而"通过"的下游会立刻报错；因此声明与其调用点要一起改，只改一侧必然级联。
