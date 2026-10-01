@@ -109,7 +109,20 @@ declare module '@deepseek-ai/cordis' {
         maxTokens?: number
         sessionId?: string
         signal?: AbortSignal
-      }): AsyncIterable<{ type: string; text?: string; reason?: { kind: string; failure?: { code?: string; message?: string } } }>
+      }): AsyncIterable<{
+        type: string
+        text?: string
+        reason?: { kind: string; failure?: { code?: string; message?: string } }
+        /** Present on the `usage` chunk adapters emit before the terminal finish. */
+        usage?: {
+          inputTokens: number
+          outputTokens: number
+          totalTokens?: number | undefined
+          cacheReadTokens?: number | undefined
+          cacheWriteTokens?: number | undefined
+          reasoningTokens?: number | undefined
+        }
+      }>
     }
 
     /** The command surface `/memory` registers into. */

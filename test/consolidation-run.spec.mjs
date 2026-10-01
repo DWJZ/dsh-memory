@@ -117,8 +117,12 @@ function harness(options = {}) {
     callModel: async request => {
       calls.push(request)
       if (options.modelThrows === true) throw new Error('provider is down')
-      if (typeof options.modelAnswer === 'function') return options.modelAnswer(request)
-      return options.modelAnswer ?? '{"operations":[]}'
+      // The seam answers with the text and, when the provider reported them, the
+      // tokens the call spent.
+      const text = typeof options.modelAnswer === 'function'
+        ? await options.modelAnswer(request)
+        : options.modelAnswer ?? '{"operations":[]}'
+      return options.modelUsage === undefined ? { text } : { text, usage: options.modelUsage }
     },
   })
   return { consolidation, collector, agent, session, audit, calls, warnings, statePath: STATE.statePath }

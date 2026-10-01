@@ -27,6 +27,7 @@ import { createTrigger } from './trigger.js'
 import { batchWindow } from './normalize.js'
 import { buildRequest } from './policy.js'
 import { callConsolidator } from './model.js'
+import type { ConsolidationAnswer, ConsolidationUsage } from './model.js'
 import { parsePlan } from './policy.js'
 import { reviewPlan } from './validate.js'
 import { commitOperations } from './commit.js'
@@ -82,6 +83,8 @@ export interface DryRunAudit {
   noopReasons: readonly string[]
   /** What asked for the run. */
   trigger?: string | undefined
+  /** What the model call cost, when the provider reported it. */
+  usage?: ConsolidationUsage | undefined
 }
 
 /** One proposal a dry run would have written. */
@@ -128,6 +131,8 @@ export interface SettledAudit {
   rejected_reasons?: Record<string, number> | undefined
   /** What asked for the run. */
   trigger?: string | undefined
+  /** What the model call cost, when the provider reported it. */
+  usage?: ConsolidationUsage | undefined
 }
 
 /** One run's record, discriminated by whether it wrote anything. */
@@ -155,7 +160,7 @@ export interface ConsolidationOptions {
   kill?: KillProbe | undefined
   sessionEvents: boolean
   projectFor(agent: MemoryAgent): ProjectEntry | null
-  callModel?(request: ConsolidationRequest): Promise<string>
+  callModel?(request: ConsolidationRequest): Promise<ConsolidationAnswer>
   schedule?(run: () => void, ms: number): ReturnType<typeof setTimeout>
   cancelSchedule?(handle: ReturnType<typeof setTimeout>): void
 }
@@ -395,7 +400,7 @@ export function createConsolidation(options: ConsolidationOptions) {
 
     const projectId = options.projectFor(agent)?.project_id ?? null
     const existing = activeMemory(projectId)
-    const text = await callModel({
+    const answer = await callModel({
       session,
       sessionId,
       fromSeq: afterSeq + 1,
@@ -410,6 +415,10 @@ export function createConsolidation(options: ConsolidationOptions) {
       maxOutputTokens: config.maxOutputTokens,
       signal: runOptions.signal,
     })
+    const text = answer.text
+    // The usage belongs to the call, not the window, so it rides along with the
+    // window fields every audit construction already spreads.
+    ;(auditBase as { usage?: ConsolidationUsage | undefined }).usage = answer.usage
     const plan = parsePlan(text)
     const reviewed = reviewPlan(plan, {
       fromSeq: afterSeq + 1,
@@ -614,6 +623,9 @@ export function describeOutcome(outcome: RunAudit): string {
     const lines = [
       `Dry run over seqs ${String(outcome.from_seq)}..${String(outcome.to_seq)} (${String(outcome.relevant_events)} relevant, ${String(outcome.ignored_events)} ignored).`,
       `Proposed operations: ${String(outcome.accepted.length)}`,
+      ...(outcome.usage === undefined
+        ? []
+        : [`Model tokens: ${String(outcome.usage.inputTokens)} in, ${String(outcome.usage.outputTokens)} out${outcome.usage.totalTokens === undefined ? '' : ` (${String(outcome.usage.totalTokens)} total)`}`]),
     ]
     for (const operation of outcome.accepted) {
       const target = operation.target_id === undefined ? '' : ` -> ${operation.target_id}`

@@ -109,6 +109,7 @@ const seen = []
 const answer = await callConsolidator(fakeContext([
   { type: 'text-delta', index: 0, text: '{"operations":' },
   { type: 'text-delta', index: 0, text: '[{"action":"noop"}]}' },
+  { type: 'usage', usage: { inputTokens: 1200, outputTokens: 34, totalTokens: 1234 } },
   { type: 'finish', reason: { kind: 'stop' } },
 ], seen), {
   session,
@@ -120,7 +121,9 @@ const answer = await callConsolidator(fakeContext([
   maxOutputTokens: 512,
   signal: undefined,
 })
-check('the deltas are concatenated', answer === '{"operations":[{"action":"noop"}]}')
+check('the deltas are concatenated', answer.text === '{"operations":[{"action":"noop"}]}')
+check('the provider usage comes back with the answer',
+  answer.usage?.inputTokens === 1200 && answer.usage?.outputTokens === 34 && answer.usage?.totalTokens === 1234)
 check('the call uses the Session provider', seen[0].provider === 'deepseek-account')
 check('the call uses the Session model', seen[0].model === 'deepseek-flash')
 check('the token ceiling comes from the caller', seen[0].maxTokens === 512)

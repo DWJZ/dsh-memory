@@ -40,6 +40,19 @@ export interface ConsolidationSession {
   requestHeader(): { readonly config?: SessionRoute | undefined } | undefined
 }
 
+/** The tokens one consolidation call spent, as the provider reported them. */
+export interface ConsolidationUsage {
+  inputTokens: number
+  outputTokens: number
+  totalTokens?: number | undefined
+}
+
+/** What one consolidation call produced: the answer, and what it cost. */
+export interface ConsolidationAnswer {
+  text: string
+  usage?: ConsolidationUsage | undefined
+}
+
 /** One request to the consolidation model. */
 export interface ConsolidationRequest {
   /**
@@ -75,7 +88,7 @@ export interface ConsolidationRequest {
  * @returns the model's answer text.
  * @throws when the route is unknown, the call fails, or it produces no text.
  */
-export async function callConsolidator(ctx: Context, request: ConsolidationRequest): Promise<string> {
+export async function callConsolidator(ctx: Context, request: ConsolidationRequest): Promise<ConsolidationAnswer> {
   const route = request.session?.requestHeader()?.config
   const provider = route?.provider
   const model = route?.model
@@ -92,6 +105,7 @@ export async function callConsolidator(ctx: Context, request: ConsolidationReque
 
   let text = ''
   let reason: StreamFinish | undefined
+  let usage: ConsolidationUsage | undefined
   for await (const chunk of ctx.llm.stream({
     provider,
     model,
@@ -102,6 +116,15 @@ export async function callConsolidator(ctx: Context, request: ConsolidationReque
     signal: request.signal,
   })) {
     if (chunk.type === 'text-delta' && typeof chunk.text === 'string') text += chunk.text
+    // Adapters emit usage before the terminal finish; a provider that reports none
+    // leaves it absent, which the audit records as "not reported" rather than zero.
+    if (chunk.type === 'usage' && chunk.usage !== undefined) {
+      usage = {
+        inputTokens: chunk.usage.inputTokens,
+        outputTokens: chunk.usage.outputTokens,
+        totalTokens: chunk.usage.totalTokens,
+      }
+    }
     if (chunk.type === 'finish') reason = chunk.reason
   }
   // A stream can end having already produced parseable JSON and still not have
@@ -121,5 +144,5 @@ export async function callConsolidator(ctx: Context, request: ConsolidationReque
     throw new Error(`dsh-reflection: the consolidation call ended as ${String(reason.kind)}, which is not a completed answer`)
   }
   if (text.trim() === '') throw new Error('dsh-reflection: the consolidation model produced no text')
-  return text
+  return { text, usage }
 }
