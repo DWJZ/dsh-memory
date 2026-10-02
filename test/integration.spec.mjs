@@ -84,6 +84,11 @@ function writePatch(project, options = {}) {
     '    - id: dsh-reflection',
     `      name: ${JSON.stringify(join(PLUGIN, 'src/index.js'))}`,
     '',
+    ...options.compactDrive !== true ? [] : [
+      '    - id: dsh-reflection-compact-on-idle',
+      `      name: ${JSON.stringify(join(PLUGIN, 'test/fixtures/compact-on-idle.ts'))}`,
+      '',
+    ],
     ...options.drive !== true ? [] : [
       '    - id: dsh-reflection-consolidate-on-idle',
       `      name: ${JSON.stringify(join(PLUGIN, 'test/fixtures/consolidate-on-idle.ts'))}`,
@@ -114,6 +119,7 @@ async function runSession(options) {
     ...options.query === undefined ? {} : { DSH_MEMORY_MOCK_QUERY: options.query },
     ...options.learned === undefined ? {} : { DSH_MEMORY_MOCK_LEARNED: options.learned },
     ...options.drive !== true ? {} : { DSH_MEMORY_DRIVER_LOG: `${log}.driver` },
+    ...options.compactDrive !== true ? {} : { DSH_MEMORY_COMPACT_LOG: `${log}.compact` },
   }
   const outcome = await new Promise((settle) => {
     const child = spawn(process.execPath, ['--import', 'tsx/esm', 
@@ -121,6 +127,7 @@ async function runSession(options) {
       join(REPO, 'apps/cli/src/bin.ts'),
       '--profile', 'headless',
       '--patch', patch,
+      ...options.sessionId === undefined ? [] : ['--session-id', options.sessionId],
       options.task,
     ], { cwd: REPO, env, stdio: ['ignore', 'pipe', 'pipe'] })
     const guard = setTimeout(() => { child.kill('SIGKILL') }, RUN_TIMEOUT_MS)
@@ -370,6 +377,41 @@ check('the later Session runs', projectCSession.code === 0, projectCSession.stde
 const projectCRequest = requestText(projectCSession.log)
 check('the index shows the replacement', projectCRequest.includes('该项目已迁移到 pnpm'))
 check('the index hides the retired fact', !projectCRequest.includes('该项目使用 npm'))
+
+console.log('Memory survives a compaction')
+// `/compact` reduces the stored history through the harness's own entry point. A later
+// run adopts that same Session, so its request is assembled from the reduced surface:
+// the bulky turn must be gone while Memory is still injected, because the index is a
+// runtime context rather than part of the history being reduced. The fact is written at
+// user scope so that no project resolution can decide whether it is listed.
+const COMPACT_PROJECT = join(ROOT, 'compact-project')
+mkdirSync(join(COMPACT_PROJECT, '.git'), { recursive: true })
+const BULK = 'BULK-MARKER-'.repeat(2000)
+const FACT = '这个用户偏好用 cargo 构建'
+const reducing = await runSession({
+  project: COMPACT_PROJECT,
+  task: `记住这个项目用 cargo 构建 ${BULK}`,
+  // `mode` is what the Memory tool schema takes; `action` is the consolidation vocabulary.
+  remember: { mode: 'add', content: FACT, scope: 'user', category: 'preference' },
+  compactDrive: true,
+})
+const compactSteps = readFileSync(`${reducing.log}.compact`, 'utf8')
+check('the compaction command ran', compactSteps.includes('handled:success'), compactSteps)
+const adopted = /^session:(.+)$/mu.exec(compactSteps)?.[1]
+check('the driver reported the Session it compacted',
+  typeof adopted === 'string' && adopted !== '', compactSteps)
+const afterCompaction = await runSession({
+  project: COMPACT_PROJECT,
+  sessionId: adopted,
+  task: '再确认一次构建方式',
+})
+check('the adopting run succeeds', afterCompaction.code === 0, afterCompaction.stderr.slice(0, 300))
+const reducedRequest = JSON.stringify(mainRequests(afterCompaction.log).at(-1) ?? '')
+check('the bulky turn is gone from the reduced history', !reducedRequest.includes('BULK-MARKER-'))
+check('the index envelope is still assembled after the compaction',
+  reducedRequest.includes('<memory-index>'))
+check('the index still carries the remembered fact after the compaction',
+  reducedRequest.includes(FACT), reducedRequest.slice(-300))
 
 rmSync(ROOT, { recursive: true, force: true })
 console.log(failures === 0 ? '\nPASS' : `\n${String(failures)} FAILURE(S)`)

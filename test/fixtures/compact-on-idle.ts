@@ -46,6 +46,7 @@ export function apply(ctx: Context): void {
   const done = new Set<string>()
   ctx.on('agent/status', ({ agent, status }) => {
     note(`status:${status}:seq=${String(agent.session.seq)}`)
+    note(`session:${String(agent.session.id)}`)
     if (status !== 'idle') return
     // A fresh agent reaches idle once before any task is submitted.
     if (agent.session.seq === 0) return
