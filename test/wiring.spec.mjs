@@ -19,6 +19,7 @@ const PLUGIN = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const plugin = await import(pathToFileURL(join(PLUGIN, 'src/index.js')).href)
 const { userLayout, projectLayout, pluginConfigPath } = await import(pathToFileURL(join(PLUGIN, 'src/paths.js')).href)
 const { readStore } = await import(pathToFileURL(join(PLUGIN, 'src/jsonstore.js')).href)
+const { resolveConfig } = await import(pathToFileURL(join(PLUGIN, 'src/config.js')).href)
 
 let failures = 0
 const check = (name, condition, detail = '') => {
@@ -90,9 +91,25 @@ await withStore({ ...userScope, lockTimeoutMs: 3000, staleLockMs: 60000 }, curre
     content: '用户偏好中文解释',
   })],
 }))
-const rendered = ctx.registrations.contexts[0].text({ agent: agentStub() })
+const indexEntry = ctx.registrations.contexts[0]
+check('the index is assembled on demand, not frozen at mount', typeof indexEntry.text === 'function')
+const rendered = indexEntry.text({ agent: agentStub() })
 check('the index lists the stored fact', rendered.includes('- [preference] 用户偏好中文解释'))
-check('a bare assemble renders nothing', ctx.registrations.contexts[0].text({}) === '')
+check('a bare assemble renders nothing', indexEntry.text({}) === '')
+// The assembled text is what a long conversation relies on: every request re-runs
+// this function, so Memory written after the first assembly still reaches the model.
+await withStore({ ...userScope, lockTimeoutMs: 3000, staleLockMs: 60000 }, current => ({
+  changed: true,
+  records: [...current.records, memoryRecord({
+    category: 'state',
+    content: '用户在做 dsh-reflection',
+  })],
+}))
+const reassembled = indexEntry.text({ agent: agentStub() })
+check('a later assemble sees the Memory written after it',
+  reassembled.includes('- [state] 用户在做 dsh-reflection') && reassembled !== rendered)
+check('the index stays inside its byte budget',
+  Buffer.byteLength(reassembled, 'utf8') <= resolveConfig(CONFIG).indexBudgetBytes)
 
 console.log('project Memory reaches the index')
 const projectAgent = agentStub('session-project', PROJECT_DIR)
