@@ -17,10 +17,19 @@
 import { appendFileSync, statSync } from 'node:fs'
 // Imported by path because a plugin under `plugins/` has no workspace link to the
 // harness packages, and this adapter exists only for the test harness.
-import { LlmAdapter, type GenerateOptions, type StreamChunk, type ToolCallId } from '../../../../packages/llm/llm/src/index.ts'
+import {
+  LlmAdapter,
+  type GenerateOptions,
+  type LlmResolvedModelInfo,
+  type StreamChunk,
+  type ToolCallId,
+} from '../../../../packages/llm/llm/src/index.ts'
 
 /** The route this adapter owns. */
 const PROVIDER = 'dsh-reflection-mock'
+
+/** Context capacity this route declares; compaction pressure is computed against it. */
+const WINDOW_TOKENS = Number(process.env.DSH_MEMORY_MOCK_WINDOW ?? 1_000_000)
 
 /** Where each request is recorded, when the harness set it. */
 const LOG = process.env.DSH_MEMORY_MOCK_LOG
@@ -105,6 +114,17 @@ function firstMemoryId(transcript: string): string | undefined {
 
 /** One scripted adapter instance. */
 class MemoryMockAdapter extends LlmAdapter {
+  /**
+   * Declare this route's context capacity. Compaction computes its pressure against
+   * the routed model's window, so a small window is what makes compaction fire.
+   * @param provider - one provider route owned by this adapter.
+   * @param model - exact model id.
+   * @returns the route identity plus the capacity it declares.
+   */
+  override async resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+    return { provider, id: model, name: model, context: { contextWindow: WINDOW_TOKENS } }
+  }
+
   /**
    * Answer one request from its own content.
    * @param options - the request the model received.
