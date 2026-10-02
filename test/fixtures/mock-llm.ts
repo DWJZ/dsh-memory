@@ -31,6 +31,9 @@ const PROVIDER = 'dsh-reflection-mock'
 /** Context capacity this route declares; compaction pressure is computed against it. */
 const WINDOW_TOKENS = Number(process.env.DSH_MEMORY_MOCK_WINDOW ?? 1_000_000)
 
+/** Tokens the mock reports per call; the token meter reads this, so pressure follows it. */
+const USAGE_TOKENS = Number(process.env.DSH_MEMORY_MOCK_USAGE ?? 1)
+
 /** Where each request is recorded, when the harness set it. */
 const LOG = process.env.DSH_MEMORY_MOCK_LOG
 
@@ -85,7 +88,7 @@ function* answer(text: string): Generator<StreamChunk> {
   yield { type: 'block-start', index: 0, blockType: 'text' }
   yield { type: 'text-delta', index: 0, text }
   yield { type: 'block-end', index: 0, block: { type: 'text', text } }
-  yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 1 } }
+  yield { type: 'usage', usage: { inputTokens: USAGE_TOKENS, outputTokens: USAGE_TOKENS } }
   yield { type: 'finish', reason: { kind: 'stop' } }
 }
 
@@ -96,7 +99,7 @@ function* call(name: string, args: unknown, callId: string): Generator<StreamChu
   yield { type: 'block-start', index: 0, blockType: 'tool-call' }
   yield { type: 'tool-call-delta', index: 0, id, name, argumentsDelta: encoded }
   yield { type: 'block-end', index: 0, block: { type: 'tool-call', id, name, arguments: encoded } }
-  yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 1 } }
+  yield { type: 'usage', usage: { inputTokens: USAGE_TOKENS, outputTokens: USAGE_TOKENS } }
   yield { type: 'finish', reason: { kind: 'tool-calls' } }
 }
 
